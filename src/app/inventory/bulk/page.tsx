@@ -997,7 +997,7 @@ export default function BulkInventoryPage() {
                           )}
                           {/* 販売先 */}
                           {sale && row.saleDestination ? (
-                            <td className="px-2 py-1 border-r border-gray-100 text-center cursor-pointer hover:bg-blue-50" onClick={() => handleSaleCellClick(sale, 'sale_destination')}>
+                            <td className="px-2 py-1 border-r border-gray-100 text-center cursor-pointer hover:bg-blue-50 overflow-hidden" onClick={() => handleSaleCellClick(sale, 'sale_destination')}>
                               {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale' ? (
                                 <div ref={editCellRef}>
                                   <select value={editValue} onChange={(e) => handleSelectChange(sale.id, 'sale_destination', e.target.value)} onKeyDown={handleKeyDown} className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded bg-white text-gray-900" autoFocus>
@@ -1006,7 +1006,7 @@ export default function BulkInventoryPage() {
                                   </select>
                                 </div>
                               ) : (
-                                <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full whitespace-nowrap ${destColor || 'bg-gray-100 text-gray-800'}`}>{row.saleDestination}</span>
+                                <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${destColor || 'bg-gray-100 text-gray-800'}`} title={row.saleDestination}>{row.saleDestination}</span>
                               )}
                             </td>
                           ) : sale ? (
