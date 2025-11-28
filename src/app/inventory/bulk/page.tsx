@@ -64,6 +64,7 @@ export default function BulkInventoryPage() {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
   const [selectedGenre, setSelectedGenre] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'purchases' | 'sales'>('sales')
+  const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
 
   // 編集機能用ステート
   const [editingCell, setEditingCell] = useState<{ id: string; field: keyof BulkSale | keyof BulkPurchase; type: 'sale' | 'purchase' } | null>(null)
@@ -148,6 +149,19 @@ export default function BulkInventoryPage() {
       .order('sort_order')
 
     setPlatforms(platformData || [])
+
+    // ラクマ手数料設定を取得
+    const { data: rakumaData } = await supabase
+      .from('rakuma_commission_settings')
+      .select('*')
+
+    if (rakumaData) {
+      const settings: Record<string, number> = {}
+      rakumaData.forEach((row: { year_month: string; commission_rate: number }) => {
+        settings[row.year_month] = row.commission_rate
+      })
+      setRakumaCommissionSettings(settings)
+    }
 
     setLoading(false)
   }
@@ -556,7 +570,7 @@ export default function BulkInventoryPage() {
         .eq('id', id)
 
       if (error) {
-        console.error('Error updating purchase:', error)
+        console.error('Error updating purchase:', error, 'field:', field, 'value:', newValue)
       } else {
         setBulkPurchases(prev => prev.map(p =>
           p.id === id ? { ...p, [field]: newValue } : p
@@ -567,20 +581,101 @@ export default function BulkInventoryPage() {
     setEditingCell(null)
   }, [editingCell, editValue, bulkSales, bulkPurchases])
 
-  // セレクトボックス専用の即時保存（販売先など）
+  // 販売先に応じた手数料計算（正の数で返す）
+  const calculateCommission = (destination: string | null, salePrice: number | null, saleDate?: string | null): number | null => {
+    if (!destination || !salePrice) return null
+    const price = salePrice
+
+    switch (destination) {
+      case 'エコオク':
+        // 〜10,000円→550円、〜50,000円→1,100円、50,000円超→2,200円
+        if (price <= 10000) return 550
+        if (price <= 50000) return 1100
+        return 2200
+      case 'モノバンク':
+        // 5%
+        return Math.round(price * 0.05)
+      case 'スターバイヤーズ':
+        // 固定1,100円
+        return 1100
+      case 'アプレ':
+        // 3%
+        return Math.round(price * 0.03)
+      case 'タイムレス':
+        // 10,000円未満→10%、10,000円以上→5%
+        return price < 10000 ? Math.round(price * 0.1) : Math.round(price * 0.05)
+      case 'ヤフーフリマ':
+      case 'ペイペイ':
+        // 5%
+        return Math.round(price * 0.05)
+      case 'ラクマ': {
+        // 売却日がある場合はその月の設定、なければ現在月の設定を使用
+        let yearMonth: string
+        if (saleDate) {
+          const match = saleDate.match(/(\d{4})[-/](\d{1,2})/)
+          if (match) {
+            yearMonth = `${match[1]}-${match[2].padStart(2, '0')}`
+          } else {
+            const now = new Date()
+            yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          }
+        } else {
+          const now = new Date()
+          yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        }
+        const rate = rakumaCommissionSettings[yearMonth] ?? 10 // デフォルト10%
+        return Math.round(price * rate / 100)
+      }
+      case 'メルカリ':
+        // 10%
+        return Math.round(price * 0.1)
+      case 'ヤフオク':
+        // 10%
+        return Math.round(price * 0.1)
+      case 'オークネット': {
+        // 3% + 330円（最低770円+330円=1,100円）
+        const base = price * 0.03
+        if (base >= 700) return Math.round(base + 330)
+        return Math.round(770 + 330) // 最低1,100円
+      }
+      case 'エコトレ':
+        // 10%
+        return Math.round(price * 0.1)
+      case 'JBA':
+        // 3% + 550円
+        return Math.round(price * 0.03 + 550)
+      case '仲卸':
+        // 手数料なし
+        return 0
+      default:
+        return null
+    }
+  }
+
+  // セレクトボックス専用の即時保存（販売先など）+ 手数料自動計算
   const handleSelectChange = async (saleId: string, field: keyof BulkSale, value: string) => {
     const newValue = value || null
+    const sale = bulkSales.find(s => s.id === saleId)
+
+    // 販売先変更時は手数料も自動計算
+    let updateData: Record<string, string | number | null> = { [field]: newValue }
+    if (field === 'sale_destination' && sale) {
+      const newCommission = calculateCommission(newValue, sale.sale_amount, sale.sale_date)
+      if (newCommission !== null) {
+        updateData.commission = newCommission
+      }
+    }
 
     const { error } = await supabase
       .from('bulk_sales')
-      .update({ [field]: newValue })
+      .update(updateData)
       .eq('id', saleId)
 
     if (error) {
       console.error('Error updating sale:', error)
     } else {
       setBulkSales(prev => prev.map(s =>
-        s.id === saleId ? { ...s, [field]: newValue } : s
+        s.id === saleId ? { ...s, ...updateData } : s
       ))
     }
     setEditingCell(null)
@@ -845,7 +940,7 @@ export default function BulkInventoryPage() {
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[70px]">手数料</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[70px]">送料</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[70px]">その他</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">正味<br/>仕入値</th>
+                      <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">正味<br/>仕入額</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">仕入<br/>総額</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">入金額</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">利益</th>
@@ -1034,11 +1129,11 @@ export default function BulkInventoryPage() {
                           {sale
                             ? renderCell('other_cost', sale.other_cost ? `¥${sale.other_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600')
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
-                          {/* 正味仕入値 */}
+                          {/* 正味仕入額 */}
                           {sale
-                            ? renderCell('purchase_price', sale.purchase_price ? `¥${sale.purchase_price.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-orange-600')
+                            ? renderCell('purchase_price', sale.purchase_price ? `¥${sale.purchase_price.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-red-600')
                             : isPurchase && purchase
-                              ? renderCell('purchase_price', purchase.purchase_price ? `¥${purchase.purchase_price.toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-orange-600')
+                              ? renderCell('purchase_price', purchase.purchase_price ? `¥${purchase.purchase_price.toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-red-600')
                               : <td className="px-2 py-1 border-r border-gray-100 text-right text-gray-400">-</td>}
                           {/* 仕入総額 */}
                           {isPurchase && purchase
@@ -1738,7 +1833,16 @@ export default function BulkInventoryPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">販路</label>
                         <select
                           value={newSale.sale_destination}
-                          onChange={(e) => setNewSale({ ...newSale, sale_destination: e.target.value })}
+                          onChange={(e) => {
+                            const destination = e.target.value
+                            const saleAmount = newSale.sale_amount ? parseInt(newSale.sale_amount, 10) : null
+                            const commission = calculateCommission(destination || null, saleAmount, newSale.sale_date || null)
+                            setNewSale({
+                              ...newSale,
+                              sale_destination: destination,
+                              commission: commission !== null ? String(commission) : newSale.commission
+                            })
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
                         >
                           <option value="">選択してください</option>
@@ -1765,7 +1869,15 @@ export default function BulkInventoryPage() {
                         <input
                           type="number"
                           value={newSale.sale_amount}
-                          onChange={(e) => setNewSale({ ...newSale, sale_amount: e.target.value })}
+                          onChange={(e) => {
+                            const saleAmount = e.target.value ? parseInt(e.target.value, 10) : null
+                            const commission = calculateCommission(newSale.sale_destination || null, saleAmount, newSale.sale_date || null)
+                            setNewSale({
+                              ...newSale,
+                              sale_amount: e.target.value,
+                              commission: commission !== null ? String(commission) : newSale.commission
+                            })
+                          }}
                           placeholder="5000"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
                         />

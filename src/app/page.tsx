@@ -1175,6 +1175,7 @@ export default function Home() {
         purchase_source: newItemForm.purchase_source || null,
         total_amount: newItemForm.purchase_total ? parseInt(newItemForm.purchase_total, 10) : 0,
         total_quantity: extractQuantityFromName(productName),
+        purchase_price: newItemForm.purchase_price ? parseInt(newItemForm.purchase_price, 10) : null,
         memo: productName,
       }
 
@@ -4223,35 +4224,38 @@ export default function Home() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">正味仕入値</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">正味仕入額 <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     value={newItemForm.purchase_price}
                     onChange={(e) => setNewItemForm(prev => ({ ...prev, purchase_price: e.target.value }))}
                     placeholder="税抜金額"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入総額</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入総額 <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     value={newItemForm.purchase_total}
                     onChange={(e) => setNewItemForm(prev => ({ ...prev, purchase_total: e.target.value }))}
                     placeholder="税込・手数料込"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    required
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入日</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入日 <span className="text-red-500">*</span></label>
                   <input
                     type="date"
                     value={newItemForm.purchase_date}
                     onChange={(e) => setNewItemForm(prev => ({ ...prev, purchase_date: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    required
                     onDoubleClick={(e) => {
                       try {
                         (e.target as HTMLInputElement).showPicker()
@@ -4262,11 +4266,12 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入先</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入先 <span className="text-red-500">*</span></label>
                   <select
                     value={newItemForm.purchase_source}
                     onChange={(e) => setNewItemForm(prev => ({ ...prev, purchase_source: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    required
                   >
                     <option value="">選択してください</option>
                     {purchaseSourceOptions.map(source => (
