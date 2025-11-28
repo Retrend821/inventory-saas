@@ -572,6 +572,25 @@ export default function BulkInventoryPage() {
     setEditingCell(null)
   }, [editingCell, editValue, bulkSales, bulkPurchases])
 
+  // セレクトボックス専用の即時保存（販売先など）
+  const handleSelectChange = async (saleId: string, field: keyof BulkSale, value: string) => {
+    const newValue = value || null
+
+    const { error } = await supabase
+      .from('bulk_sales')
+      .update({ [field]: newValue })
+      .eq('id', saleId)
+
+    if (error) {
+      console.error('Error updating sale:', error)
+    } else {
+      setBulkSales(prev => prev.map(s =>
+        s.id === saleId ? { ...s, [field]: newValue } : s
+      ))
+    }
+    setEditingCell(null)
+  }
+
   // キー入力処理
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // IME変換中は処理しない（変換確定のEnterで編集モードを終了しないように）
@@ -981,7 +1000,7 @@ export default function BulkInventoryPage() {
                             <td className="px-2 py-1 border-r border-gray-100 text-center cursor-pointer hover:bg-blue-50" onClick={() => handleSaleCellClick(sale, 'sale_destination')}>
                               {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale' ? (
                                 <div ref={editCellRef}>
-                                  <select value={editValue} onChange={(e) => { setEditValue(e.target.value); setTimeout(() => saveEditingCell(), 0) }} onKeyDown={handleKeyDown} className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded" autoFocus>
+                                  <select value={editValue} onChange={(e) => handleSelectChange(sale.id, 'sale_destination', e.target.value)} onKeyDown={handleKeyDown} className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded bg-white text-gray-900" autoFocus>
                                     <option value="">-</option>
                                     {platforms.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                                   </select>
@@ -994,7 +1013,7 @@ export default function BulkInventoryPage() {
                             <td className="px-2 py-1 border-r border-gray-100 text-center cursor-pointer hover:bg-blue-50 text-gray-400" onClick={() => handleSaleCellClick(sale, 'sale_destination')}>
                               {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale' ? (
                                 <div ref={editCellRef}>
-                                  <select value={editValue} onChange={(e) => { setEditValue(e.target.value); setTimeout(() => saveEditingCell(), 0) }} onKeyDown={handleKeyDown} className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded" autoFocus>
+                                  <select value={editValue} onChange={(e) => handleSelectChange(sale.id, 'sale_destination', e.target.value)} onKeyDown={handleKeyDown} className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded bg-white text-gray-900" autoFocus>
                                     <option value="">-</option>
                                     {platforms.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                                   </select>
