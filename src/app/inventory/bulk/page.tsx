@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from '@/lib/supabase'
 
 type BulkPurchase = {
   id: string
@@ -985,8 +980,8 @@ export default function BulkInventoryPage() {
                               : <td className="px-2 py-1 border-r border-gray-100">{row.productName || '-'}</td>}
                           {/* 仕入先 */}
                           {isPurchase && purchase?.purchase_source ? (
-                            <td className="px-2 py-1 border-r border-gray-100 text-center">
-                              <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full whitespace-nowrap ${platformColors[purchase.purchase_source] || 'bg-gray-100 text-gray-800'}`}>
+                            <td className="px-2 py-1 border-r border-gray-100 text-center overflow-hidden">
+                              <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${platformColors[purchase.purchase_source] || 'bg-gray-100 text-gray-800'}`} title={purchase.purchase_source}>
                                 {purchase.purchase_source}
                               </span>
                             </td>
@@ -1420,10 +1415,10 @@ export default function BulkInventoryPage() {
                                     {renderEditableCell('product_name', sale.product_name || '-', 'left', 'w-[300px]')}
 
                                     {/* 仕入先 - チップ表示 */}
-                                    <td className="px-2 py-1 border-r border-gray-100">
+                                    <td className="px-2 py-1 border-r border-gray-100 overflow-hidden">
                                       <div className="flex justify-center">
                                         {purchase.purchase_source ? (
-                                          <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full whitespace-nowrap ${sourceColor || 'bg-gray-100 text-gray-800'}`}>
+                                          <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full max-w-full truncate ${sourceColor || 'bg-gray-100 text-gray-800'}`} title={purchase.purchase_source}>
                                             {purchase.purchase_source}
                                           </span>
                                         ) : (
@@ -1456,9 +1451,9 @@ export default function BulkInventoryPage() {
                                           </select>
                                         </div>
                                       ) : (
-                                        <div className="flex justify-center">
+                                        <div className="flex justify-center overflow-hidden">
                                           {sale.sale_destination ? (
-                                            <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full whitespace-nowrap ${destColor || 'bg-gray-100 text-gray-800'}`}>
+                                            <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full max-w-full truncate ${destColor || 'bg-gray-100 text-gray-800'}`} title={sale.sale_destination}>
                                               {sale.sale_destination}
                                             </span>
                                           ) : (
