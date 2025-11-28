@@ -1,0 +1,1 @@
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS sales_type VARCHAR(10) DEFAULT 'toC';

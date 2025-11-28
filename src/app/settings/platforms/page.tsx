@@ -1,0 +1,1193 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+interface Platform {
+  id: string
+  name: string
+  color_class: string
+  commission_rate: number
+  sales_type: 'toB' | 'toC'
+  sort_order: number
+  is_active: boolean
+  is_hidden: boolean
+  created_at: string
+}
+
+interface Supplier {
+  id: string
+  name: string
+  color_class: string
+  sort_order: number
+  is_active: boolean
+  is_hidden: boolean
+  created_at: string
+}
+
+// デフォルト販路の設定（色と手数料率と販売区分）
+const defaultPlatformSettings: Record<string, { color: string; commission: number; salesType: 'toB' | 'toC' }> = {
+  'メルカリ': { color: 'bg-red-500 text-white', commission: 10, salesType: 'toC' },
+  'ヤフオク': { color: 'bg-yellow-200 text-yellow-900', commission: 10, salesType: 'toC' },
+  'ヤフーフリマ': { color: 'bg-yellow-100 text-yellow-800', commission: 5, salesType: 'toC' },
+  'ラクマ': { color: 'bg-pink-500 text-white', commission: 0, salesType: 'toC' },
+  'エコオク': { color: 'bg-green-100 text-green-800', commission: 0, salesType: 'toB' },
+  'エコトレ': { color: 'bg-green-100 text-green-800', commission: 10, salesType: 'toB' },
+  'オークネット': { color: 'bg-blue-100 text-blue-800', commission: 3, salesType: 'toB' },
+  'スターバイヤーズ': { color: 'bg-slate-700 text-white', commission: 0, salesType: 'toB' },
+  'モノバンク': { color: 'bg-lime-100 text-lime-800', commission: 5, salesType: 'toB' },
+  'アプレ': { color: 'bg-amber-700 text-white', commission: 3, salesType: 'toB' },
+  'タイムレス': { color: 'bg-sky-100 text-sky-800', commission: 5, salesType: 'toB' },
+  'セカスト': { color: 'bg-blue-900 text-red-500 [text-shadow:_-1px_-1px_0_#fff,_1px_-1px_0_#fff,_-1px_1px_0_#fff,_1px_1px_0_#fff]', commission: 0, salesType: 'toB' },
+  'トレファク': { color: 'bg-yellow-400 text-white', commission: 0, salesType: 'toB' },
+  'JBA': { color: 'bg-white text-black border border-gray-300', commission: 3, salesType: 'toB' },
+  'JPA': { color: 'bg-blue-900 text-white', commission: 0, salesType: 'toB' },
+  '仲卸': { color: 'bg-gray-500 text-white', commission: 0, salesType: 'toB' },
+  '返品': { color: 'bg-gray-500 text-white', commission: 0, salesType: 'toC' },
+}
+
+// デフォルト仕入先の設定（色）
+const defaultSupplierSettings: Record<string, { color: string }> = {
+  'メルカリ': { color: 'bg-red-500 text-white' },
+  'ヤフオク': { color: 'bg-yellow-200 text-yellow-900' },
+  'ヤフーフリマ': { color: 'bg-yellow-100 text-yellow-800' },
+  'ラクマ': { color: 'bg-pink-500 text-white' },
+  'エコオク': { color: 'bg-green-100 text-green-800' },
+  'エコトレ': { color: 'bg-green-100 text-green-800' },
+  'オークネット': { color: 'bg-blue-100 text-blue-800' },
+  'スターバイヤーズ': { color: 'bg-slate-700 text-white' },
+  'モノバンク': { color: 'bg-lime-100 text-lime-800' },
+  'アプレ': { color: 'bg-amber-700 text-white' },
+  'タイムレス': { color: 'bg-sky-100 text-sky-800' },
+  'セカスト': { color: 'bg-blue-900 text-red-500 [text-shadow:_-1px_-1px_0_#fff,_1px_-1px_0_#fff,_-1px_1px_0_#fff,_1px_1px_0_#fff]' },
+  'トレファク': { color: 'bg-yellow-400 text-white' },
+  'JBA': { color: 'bg-white text-black border border-gray-300' },
+  'JPA': { color: 'bg-blue-900 text-white' },
+  '古物市場': { color: 'bg-purple-500 text-white' },
+  '店舗仕入': { color: 'bg-teal-500 text-white' },
+  '個人取引': { color: 'bg-orange-500 text-white' },
+}
+
+// 手数料計算が分岐する販路の説明
+const commissionDetails: Record<string, string> = {
+  'ラクマ': '月ごとに変動\nラクマ手数料設定で管理',
+  'エコオク': '固定額制\n〜1万円: 550円\n〜5万円: 1,100円\n5万円超: 2,200円',
+  'オークネット': '3% + 330円\n最低1,100円',
+  'スターバイヤーズ': '固定1,100円',
+  'タイムレス': '1万円未満: 10%\n1万円以上: 5%',
+  'JBA': '3% + 550円',
+}
+
+// カラーパレット
+const bgColorOptions = [
+  // 白・グレー系
+  { label: '白', value: 'bg-white', color: '#ffffff' },
+  { label: 'グレー(淡)', value: 'bg-gray-100', color: '#f3f4f6' },
+  { label: 'グレー', value: 'bg-gray-500', color: '#6b7280' },
+  { label: 'スレート', value: 'bg-slate-700', color: '#334155' },
+  // 赤・ピンク系
+  { label: 'ローズ', value: 'bg-rose-500', color: '#f43f5e' },
+  { label: '赤', value: 'bg-red-500', color: '#ef4444' },
+  { label: 'ピンク', value: 'bg-pink-500', color: '#ec4899' },
+  // オレンジ・黄系
+  { label: '琥珀', value: 'bg-amber-700', color: '#b45309' },
+  { label: 'オレンジ', value: 'bg-orange-500', color: '#f97316' },
+  { label: '黄', value: 'bg-yellow-400', color: '#facc15' },
+  { label: '黄(淡)', value: 'bg-yellow-200', color: '#fef08a' },
+  // 緑系
+  { label: 'エメラルド', value: 'bg-emerald-500', color: '#10b981' },
+  { label: '緑', value: 'bg-green-500', color: '#22c55e' },
+  { label: '緑(淡)', value: 'bg-green-100', color: '#dcfce7' },
+  { label: 'ライム', value: 'bg-lime-100', color: '#ecfccb' },
+  // 青・水色系
+  { label: 'ティール', value: 'bg-teal-500', color: '#14b8a6' },
+  { label: 'シアン', value: 'bg-cyan-500', color: '#06b6d4' },
+  { label: '紺', value: 'bg-blue-900', color: '#1e3a8a' },
+  { label: '青', value: 'bg-blue-500', color: '#3b82f6' },
+  { label: '青(淡)', value: 'bg-blue-100', color: '#dbeafe' },
+  { label: '水色', value: 'bg-sky-100', color: '#e0f2fe' },
+  // 紫系
+  { label: 'インディゴ', value: 'bg-indigo-500', color: '#6366f1' },
+  { label: '紫', value: 'bg-purple-500', color: '#a855f7' },
+  { label: '紫(淡)', value: 'bg-purple-100', color: '#f3e8ff' },
+]
+
+const textColorOptions = [
+  // 基本色
+  { label: '白', value: 'text-white', color: '#ffffff' },
+  { label: '黒', value: 'text-black', color: '#000000' },
+  { label: 'グレー', value: 'text-gray-800', color: '#1f2937' },
+  // カラー
+  { label: '赤', value: 'text-red-500', color: '#ef4444' },
+  { label: 'ピンク', value: 'text-pink-600', color: '#db2777' },
+  { label: 'オレンジ', value: 'text-orange-600', color: '#ea580c' },
+  { label: '黄', value: 'text-yellow-900', color: '#713f12' },
+  { label: '緑', value: 'text-green-800', color: '#166534' },
+  { label: 'シアン', value: 'text-cyan-600', color: '#0891b2' },
+  { label: '青', value: 'text-blue-800', color: '#1e40af' },
+  { label: 'インディゴ', value: 'text-indigo-600', color: '#4f46e5' },
+  { label: '紫', value: 'text-purple-800', color: '#6b21a8' },
+]
+
+export default function PlatformsPage() {
+  // 販路マスタ用state
+  const [platforms, setPlatforms] = useState<Platform[]>([])
+  const [platformsLoading, setPlatformsLoading] = useState(true)
+  const [newPlatformName, setNewPlatformName] = useState('')
+  const [newPlatformBgColor, setNewPlatformBgColor] = useState('bg-gray-100')
+  const [newPlatformTextColor, setNewPlatformTextColor] = useState('text-gray-800')
+  const [newCommissionRate, setNewCommissionRate] = useState('')
+  const [newSalesType, setNewSalesType] = useState<'toB' | 'toC'>('toC')
+  const [platformEditingId, setPlatformEditingId] = useState<string | null>(null)
+  const [platformEditName, setPlatformEditName] = useState('')
+  const [platformEditColor, setPlatformEditColor] = useState('')
+  const [platformEditCommissionRate, setPlatformEditCommissionRate] = useState('')
+  const [platformEditSalesType, setPlatformEditSalesType] = useState<'toB' | 'toC'>('toC')
+  const [platformSelectedIds, setPlatformSelectedIds] = useState<Set<string>>(new Set())
+  const [detailPopup, setDetailPopup] = useState<{ name: string; x: number; y: number } | null>(null)
+  const [platformIsOpen, setPlatformIsOpen] = useState(true)
+  const [platformDragIndex, setPlatformDragIndex] = useState<number | null>(null)
+  const [platformDragOverIndex, setPlatformDragOverIndex] = useState<number | null>(null)
+  const [showHiddenPlatforms, setShowHiddenPlatforms] = useState(false)
+
+  // 仕入先マスタ用state
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [suppliersLoading, setSuppliersLoading] = useState(true)
+  const [newSupplierName, setNewSupplierName] = useState('')
+  const [newSupplierBgColor, setNewSupplierBgColor] = useState('bg-gray-100')
+  const [newSupplierTextColor, setNewSupplierTextColor] = useState('text-gray-800')
+  const [supplierEditingId, setSupplierEditingId] = useState<string | null>(null)
+  const [supplierEditName, setSupplierEditName] = useState('')
+  const [supplierEditColor, setSupplierEditColor] = useState('')
+  const [supplierSelectedIds, setSupplierSelectedIds] = useState<Set<string>>(new Set())
+  const [supplierIsOpen, setSupplierIsOpen] = useState(true)
+  const [supplierDragIndex, setSupplierDragIndex] = useState<number | null>(null)
+  const [supplierDragOverIndex, setSupplierDragOverIndex] = useState<number | null>(null)
+  const [showHiddenSuppliers, setShowHiddenSuppliers] = useState(false)
+
+  useEffect(() => {
+    fetchPlatforms()
+    fetchSuppliers()
+  }, [])
+
+  // ===== 販路マスタ関数 =====
+  const fetchPlatforms = async () => {
+    const { data, error } = await supabase
+      .from('platforms')
+      .select('*')
+      .order('sort_order', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching platforms:', error)
+    } else {
+      setPlatforms(data || [])
+    }
+    setPlatformsLoading(false)
+  }
+
+  const addPlatform = async () => {
+    if (!newPlatformName.trim()) return
+
+    const maxOrder = platforms.length > 0 ? Math.max(...platforms.map(p => p.sort_order)) : 0
+    const colorClass = `${newPlatformBgColor} ${newPlatformTextColor}`
+
+    const { error } = await supabase
+      .from('platforms')
+      .insert({
+        name: newPlatformName.trim(),
+        color_class: colorClass,
+        commission_rate: newCommissionRate ? parseFloat(newCommissionRate) : 0,
+        sales_type: newSalesType,
+        sort_order: maxOrder + 1,
+        is_active: true
+      })
+
+    if (error) {
+      console.error('Error adding platform:', error)
+      alert('追加に失敗しました: ' + error.message)
+    } else {
+      setNewPlatformName('')
+      setNewPlatformBgColor('bg-gray-100')
+      setNewPlatformTextColor('text-gray-800')
+      setNewCommissionRate('')
+      setNewSalesType('toC')
+      fetchPlatforms()
+    }
+  }
+
+  const updatePlatform = async (id: string) => {
+    const { error } = await supabase
+      .from('platforms')
+      .update({
+        name: platformEditName,
+        color_class: platformEditColor,
+        commission_rate: platformEditCommissionRate ? parseFloat(platformEditCommissionRate) : 0,
+        sales_type: platformEditSalesType
+      })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error updating platform:', error)
+      alert('更新に失敗しました: ' + error.message)
+    } else {
+      setPlatformEditingId(null)
+      fetchPlatforms()
+    }
+  }
+
+  const togglePlatformActive = async (id: string, currentState: boolean) => {
+    const { error } = await supabase
+      .from('platforms')
+      .update({ is_active: !currentState })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error toggling platform:', error)
+    } else {
+      fetchPlatforms()
+    }
+  }
+
+  const togglePlatformHidden = async (id: string, currentState: boolean) => {
+    const { error } = await supabase
+      .from('platforms')
+      .update({ is_hidden: !currentState })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error toggling platform hidden:', error)
+    } else {
+      fetchPlatforms()
+    }
+  }
+
+  const deletePlatformSelected = async () => {
+    if (platformSelectedIds.size === 0) return
+    if (!confirm(`選択した${platformSelectedIds.size}件を削除しますか？`)) return
+
+    const { error } = await supabase
+      .from('platforms')
+      .delete()
+      .in('id', [...platformSelectedIds])
+
+    if (error) {
+      console.error('Error deleting platforms:', error)
+      alert('削除に失敗しました: ' + error.message)
+    } else {
+      setPlatformSelectedIds(new Set())
+      fetchPlatforms()
+    }
+  }
+
+  const togglePlatformSelect = (id: string) => {
+    const newSelected = new Set(platformSelectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setPlatformSelectedIds(newSelected)
+  }
+
+  const togglePlatformSelectAll = () => {
+    if (platformSelectedIds.size === platforms.length) {
+      setPlatformSelectedIds(new Set())
+    } else {
+      setPlatformSelectedIds(new Set(platforms.map(p => p.id)))
+    }
+  }
+
+  const handlePlatformDragStart = (index: number) => {
+    setPlatformDragIndex(index)
+  }
+
+  const handlePlatformDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    setPlatformDragOverIndex(index)
+  }
+
+  const handlePlatformDrop = async (index: number) => {
+    if (platformDragIndex === null || platformDragIndex === index) {
+      setPlatformDragIndex(null)
+      setPlatformDragOverIndex(null)
+      return
+    }
+
+    const newPlatforms = [...platforms]
+    const [draggedItem] = newPlatforms.splice(platformDragIndex, 1)
+    newPlatforms.splice(index, 0, draggedItem)
+
+    // Update sort_order for all items
+    const updates = newPlatforms.map((p, i) => ({
+      id: p.id,
+      sort_order: i + 1
+    }))
+
+    setPlatforms(newPlatforms.map((p, i) => ({ ...p, sort_order: i + 1 })))
+    setPlatformDragIndex(null)
+    setPlatformDragOverIndex(null)
+
+    // Save to database
+    for (const update of updates) {
+      await supabase
+        .from('platforms')
+        .update({ sort_order: update.sort_order })
+        .eq('id', update.id)
+    }
+  }
+
+  const handlePlatformDragEnd = () => {
+    setPlatformDragIndex(null)
+    setPlatformDragOverIndex(null)
+  }
+
+  const initializePlatformDefaults = async () => {
+    if (!confirm('デフォルトの販路を追加しますか？（既存のデータは保持されます）')) return
+
+    const existingNames = platforms.map(p => p.name)
+    const defaultPlatforms = Object.entries(defaultPlatformSettings)
+      .filter(([name]) => !existingNames.includes(name))
+      .map(([name, settings], index) => ({
+        name,
+        color_class: settings.color,
+        commission_rate: settings.commission,
+        sales_type: settings.salesType,
+        sort_order: platforms.length + index + 1,
+        is_active: true
+      }))
+
+    if (defaultPlatforms.length === 0) {
+      alert('追加するデフォルト販路はありません')
+      return
+    }
+
+    const { error } = await supabase
+      .from('platforms')
+      .insert(defaultPlatforms)
+
+    if (error) {
+      console.error('Error initializing defaults:', error)
+      alert('初期化に失敗しました: ' + error.message)
+    } else {
+      fetchPlatforms()
+    }
+  }
+
+  // ===== 仕入先マスタ関数 =====
+  const fetchSuppliers = async () => {
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .order('sort_order', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching suppliers:', error)
+    } else {
+      setSuppliers(data || [])
+    }
+    setSuppliersLoading(false)
+  }
+
+  const addSupplier = async () => {
+    if (!newSupplierName.trim()) return
+
+    const maxOrder = suppliers.length > 0 ? Math.max(...suppliers.map(s => s.sort_order)) : 0
+    const colorClass = `${newSupplierBgColor} ${newSupplierTextColor}`
+
+    const { error } = await supabase
+      .from('suppliers')
+      .insert({
+        name: newSupplierName.trim(),
+        color_class: colorClass,
+        sort_order: maxOrder + 1,
+        is_active: true
+      })
+
+    if (error) {
+      console.error('Error adding supplier:', error)
+      alert('追加に失敗しました: ' + error.message)
+    } else {
+      setNewSupplierName('')
+      setNewSupplierBgColor('bg-gray-100')
+      setNewSupplierTextColor('text-gray-800')
+      fetchSuppliers()
+    }
+  }
+
+  const updateSupplier = async (id: string) => {
+    const { error } = await supabase
+      .from('suppliers')
+      .update({
+        name: supplierEditName,
+        color_class: supplierEditColor
+      })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error updating supplier:', error)
+      alert('更新に失敗しました: ' + error.message)
+    } else {
+      setSupplierEditingId(null)
+      fetchSuppliers()
+    }
+  }
+
+  const toggleSupplierActive = async (id: string, currentState: boolean) => {
+    const { error } = await supabase
+      .from('suppliers')
+      .update({ is_active: !currentState })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error toggling supplier:', error)
+    } else {
+      fetchSuppliers()
+    }
+  }
+
+  const toggleSupplierHidden = async (id: string, currentState: boolean) => {
+    const { error } = await supabase
+      .from('suppliers')
+      .update({ is_hidden: !currentState })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error toggling supplier hidden:', error)
+    } else {
+      fetchSuppliers()
+    }
+  }
+
+  const deleteSupplierSelected = async () => {
+    if (supplierSelectedIds.size === 0) return
+    if (!confirm(`選択した${supplierSelectedIds.size}件を削除しますか？`)) return
+
+    const { error } = await supabase
+      .from('suppliers')
+      .delete()
+      .in('id', [...supplierSelectedIds])
+
+    if (error) {
+      console.error('Error deleting suppliers:', error)
+      alert('削除に失敗しました: ' + error.message)
+    } else {
+      setSupplierSelectedIds(new Set())
+      fetchSuppliers()
+    }
+  }
+
+  const toggleSupplierSelect = (id: string) => {
+    const newSelected = new Set(supplierSelectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSupplierSelectedIds(newSelected)
+  }
+
+  const toggleSupplierSelectAll = () => {
+    if (supplierSelectedIds.size === suppliers.length) {
+      setSupplierSelectedIds(new Set())
+    } else {
+      setSupplierSelectedIds(new Set(suppliers.map(s => s.id)))
+    }
+  }
+
+  const handleSupplierDragStart = (index: number) => {
+    setSupplierDragIndex(index)
+  }
+
+  const handleSupplierDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    setSupplierDragOverIndex(index)
+  }
+
+  const handleSupplierDrop = async (index: number) => {
+    if (supplierDragIndex === null || supplierDragIndex === index) {
+      setSupplierDragIndex(null)
+      setSupplierDragOverIndex(null)
+      return
+    }
+
+    const newSuppliers = [...suppliers]
+    const [draggedItem] = newSuppliers.splice(supplierDragIndex, 1)
+    newSuppliers.splice(index, 0, draggedItem)
+
+    // Update sort_order for all items
+    const updates = newSuppliers.map((s, i) => ({
+      id: s.id,
+      sort_order: i + 1
+    }))
+
+    setSuppliers(newSuppliers.map((s, i) => ({ ...s, sort_order: i + 1 })))
+    setSupplierDragIndex(null)
+    setSupplierDragOverIndex(null)
+
+    // Save to database
+    for (const update of updates) {
+      await supabase
+        .from('suppliers')
+        .update({ sort_order: update.sort_order })
+        .eq('id', update.id)
+    }
+  }
+
+  const handleSupplierDragEnd = () => {
+    setSupplierDragIndex(null)
+    setSupplierDragOverIndex(null)
+  }
+
+  const initializeSupplierDefaults = async () => {
+    if (!confirm('デフォルトの仕入先を追加しますか？（既存のデータは保持されます）')) return
+
+    const existingNames = suppliers.map(s => s.name)
+    const defaultSuppliers = Object.entries(defaultSupplierSettings)
+      .filter(([name]) => !existingNames.includes(name))
+      .map(([name, settings], index) => ({
+        name,
+        color_class: settings.color,
+        sort_order: suppliers.length + index + 1,
+        is_active: true
+      }))
+
+    if (defaultSuppliers.length === 0) {
+      alert('追加するデフォルト仕入先はありません')
+      return
+    }
+
+    const { error } = await supabase
+      .from('suppliers')
+      .insert(defaultSuppliers)
+
+    if (error) {
+      console.error('Error initializing defaults:', error)
+      alert('初期化に失敗しました: ' + error.message)
+    } else {
+      fetchSuppliers()
+    }
+  }
+
+  if (platformsLoading || suppliersLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <p>読み込み中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-full mx-auto space-y-6">
+        {/* ===== 販路マスタ ===== */}
+        <div>
+          {/* アコーディオンヘッダー */}
+          <button
+            onClick={() => setPlatformIsOpen(!platformIsOpen)}
+            className="w-full flex items-center justify-between bg-slate-800 rounded-lg shadow px-6 py-4 mb-4 hover:bg-slate-700 transition-colors"
+          >
+            <h1 className="text-xl font-bold text-white">販路マスタ設定</h1>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-300">{platforms.length}件</span>
+              <svg
+                className={`w-6 h-6 text-white transition-transform ${platformIsOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+
+          {/* アコーディオン本体 */}
+          {platformIsOpen && (
+            <>
+              {/* 新規追加フォーム */}
+              <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">新規追加</h2>
+                <div className="flex gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">販路名</label>
+                    <input
+                      type="text"
+                      value={newPlatformName}
+                      onChange={(e) => setNewPlatformName(e.target.value)}
+                      className="w-80 border border-gray-300 rounded px-3 py-2 text-gray-900"
+                      placeholder="例: メルカリ"
+                    />
+                    <div className="flex gap-3 mt-2 w-80">
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-600 mb-1">手数料(%)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={newCommissionRate}
+                          onChange={(e) => setNewCommissionRate(e.target.value)}
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-gray-900 text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-600 mb-1">販売区分</label>
+                        <select
+                          value={newSalesType}
+                          onChange={(e) => setNewSalesType(e.target.value as 'toB' | 'toC')}
+                          className="w-full border border-gray-300 rounded px-2 py-1 text-gray-900 text-sm"
+                        >
+                          <option value="toC">toC</option>
+                          <option value="toB">toB</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">背景色</label>
+                    <div className="flex flex-wrap gap-1 p-2 border border-gray-300 rounded bg-white max-w-[200px]">
+                      {bgColorOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setNewPlatformBgColor(opt.value)}
+                          className={`w-6 h-6 rounded border-2 ${newPlatformBgColor === opt.value ? 'border-blue-500' : 'border-gray-300'}`}
+                          style={{ backgroundColor: opt.color }}
+                          title={opt.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">文字色</label>
+                    <div className="flex flex-wrap gap-1 p-2 border border-gray-300 rounded bg-white max-w-[120px]">
+                      {textColorOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setNewPlatformTextColor(opt.value)}
+                          className={`w-6 h-6 rounded border-2 ${newPlatformTextColor === opt.value ? 'border-blue-500' : 'border-gray-300'}`}
+                          style={{ backgroundColor: opt.color }}
+                          title={opt.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">プレビュー</label>
+                    <span className={`inline-block px-3 py-2 rounded-full text-sm font-bold ${newPlatformBgColor} ${newPlatformTextColor}`}>
+                      {newPlatformName || '例：メルカリ'}
+                    </span>
+                    <div className="mt-2">
+                      <button
+                        onClick={addPlatform}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        追加
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ボタン */}
+              <div className="mb-6 flex gap-4 items-center">
+                <button
+                  onClick={initializePlatformDefaults}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  デフォルト販路を追加
+                </button>
+                <button
+                  onClick={deletePlatformSelected}
+                  disabled={platformSelectedIds.size === 0}
+                  className={`px-4 py-2 rounded bg-red-600 text-white ${
+                    platformSelectedIds.size > 0
+                      ? 'hover:bg-red-700'
+                      : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  {platformSelectedIds.size > 0 ? `選択した${platformSelectedIds.size}件を削除` : '削除'}
+                </button>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-auto">
+                  <input
+                    type="checkbox"
+                    checked={showHiddenPlatforms}
+                    onChange={(e) => setShowHiddenPlatforms(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  非表示の販路も表示
+                </label>
+              </div>
+
+              {/* 販路一覧 */}
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead>
+                    <tr className="bg-slate-600">
+                      <th className="text-center px-2 py-3 text-sm font-semibold text-white w-10"></th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white w-10">
+                        <input
+                          type="checkbox"
+                          checked={platforms.length > 0 && platformSelectedIds.size === platforms.filter(p => showHiddenPlatforms || !p.is_hidden).length}
+                          onChange={togglePlatformSelectAll}
+                          className="w-4 h-4"
+                        />
+                      </th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">販路名</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">プレビュー</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">手数料</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">販売区分</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">有効</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">非表示</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">編集</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {platforms.filter(p => showHiddenPlatforms || !p.is_hidden).map((platform, index) => (
+                      <tr
+                        key={platform.id}
+                        draggable
+                        onDragStart={() => handlePlatformDragStart(index)}
+                        onDragOver={(e) => handlePlatformDragOver(e, index)}
+                        onDrop={() => handlePlatformDrop(index)}
+                        onDragEnd={handlePlatformDragEnd}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${
+                          platformDragIndex === index ? 'opacity-50 bg-blue-100' : ''
+                        } ${platformDragOverIndex === index && platformDragIndex !== index ? 'border-t-2 border-t-blue-500' : ''} ${platform.is_hidden ? 'opacity-50' : ''}`}
+                      >
+                        <td className="px-2 py-3 text-center cursor-grab active:cursor-grabbing">
+                          <svg className="w-5 h-5 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                          </svg>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={platformSelectedIds.has(platform.id)}
+                            onChange={() => togglePlatformSelect(platform.id)}
+                            className="w-4 h-4"
+                          />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {platformEditingId === platform.id ? (
+                            <input
+                              type="text"
+                              value={platformEditName}
+                              onChange={(e) => setPlatformEditName(e.target.value)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-gray-900"
+                            />
+                          ) : (
+                            <span className="text-gray-900">{platform.name}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-block w-32 text-center px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap ${platformEditingId === platform.id ? platformEditColor : platform.color_class}`}>
+                            {platformEditingId === platform.id ? platformEditName : platform.name}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {platformEditingId === platform.id ? (
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={platformEditCommissionRate}
+                              onChange={(e) => setPlatformEditCommissionRate(e.target.value)}
+                              className="w-16 border border-gray-300 rounded px-2 py-1 text-gray-900 text-sm text-center"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              {commissionDetails[platform.name] ? (
+                                <span
+                                  className="text-sm text-orange-600 font-medium cursor-pointer hover:text-orange-700"
+                                  onClick={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect()
+                                    setDetailPopup({
+                                      name: platform.name,
+                                      x: rect.left + rect.width / 2,
+                                      y: rect.bottom + 4
+                                    })
+                                  }}
+                                >
+                                  変動
+                                </span>
+                              ) : (
+                                <span className="text-sm text-gray-900">{platform.commission_rate}%</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {platformEditingId === platform.id ? (
+                            <select
+                              value={platformEditSalesType}
+                              onChange={(e) => setPlatformEditSalesType(e.target.value as 'toB' | 'toC')}
+                              className="border border-gray-300 rounded px-2 py-1 text-gray-900 text-sm"
+                            >
+                              <option value="toC">toC</option>
+                              <option value="toB">toB</option>
+                            </select>
+                          ) : (
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                              platform.sales_type === 'toB'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {platform.sales_type || 'toC'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => togglePlatformActive(platform.id, platform.is_active)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              platform.is_active
+                                ? 'bg-green-500'
+                                : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                platform.is_active ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => togglePlatformHidden(platform.id, platform.is_hidden)}
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              platform.is_hidden
+                                ? 'bg-gray-500 text-white'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                            }`}
+                          >
+                            {platform.is_hidden ? '非表示中' : '非表示'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {platformEditingId === platform.id ? (
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={() => updatePlatform(platform.id)}
+                                className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 whitespace-nowrap"
+                              >
+                                保存
+                              </button>
+                              <button
+                                onClick={() => setPlatformEditingId(null)}
+                                className="px-2 py-1 bg-gray-400 text-white rounded text-xs hover:bg-gray-500 whitespace-nowrap"
+                              >
+                                取消
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setPlatformEditingId(platform.id)
+                                setPlatformEditName(platform.name)
+                                setPlatformEditColor(platform.color_class)
+                                setPlatformEditCommissionRate(String(platform.commission_rate || 0))
+                                setPlatformEditSalesType(platform.sales_type || 'toC')
+                              }}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                            >
+                              編集
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {platforms.filter(p => showHiddenPlatforms || !p.is_hidden).length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                          販路が登録されていません。「デフォルト販路を追加」ボタンで初期データを追加できます。
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ===== 仕入先マスタ ===== */}
+        <div>
+          {/* アコーディオンヘッダー */}
+          <button
+            onClick={() => setSupplierIsOpen(!supplierIsOpen)}
+            className="w-full flex items-center justify-between bg-slate-800 rounded-lg shadow px-6 py-4 mb-4 hover:bg-slate-700 transition-colors"
+          >
+            <h1 className="text-xl font-bold text-white">仕入先マスタ設定</h1>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-300">{suppliers.length}件</span>
+              <svg
+                className={`w-6 h-6 text-white transition-transform ${supplierIsOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+
+          {/* アコーディオン本体 */}
+          {supplierIsOpen && (
+            <>
+              {/* 新規追加フォーム */}
+              <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">新規追加</h2>
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">仕入先名</label>
+                    <input
+                      type="text"
+                      value={newSupplierName}
+                      onChange={(e) => setNewSupplierName(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                      placeholder="例: メルカリ"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">背景色</label>
+                    <div className="flex flex-wrap gap-1 p-2 border border-gray-300 rounded bg-white max-w-[200px]">
+                      {bgColorOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setNewSupplierBgColor(opt.value)}
+                          className={`w-6 h-6 rounded border-2 ${newSupplierBgColor === opt.value ? 'border-blue-500' : 'border-gray-300'}`}
+                          style={{ backgroundColor: opt.color }}
+                          title={opt.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">文字色</label>
+                    <div className="flex flex-wrap gap-1 p-2 border border-gray-300 rounded bg-white max-w-[120px]">
+                      {textColorOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setNewSupplierTextColor(opt.value)}
+                          className={`w-6 h-6 rounded border-2 ${newSupplierTextColor === opt.value ? 'border-blue-500' : 'border-gray-300'}`}
+                          style={{ backgroundColor: opt.color }}
+                          title={opt.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">プレビュー</label>
+                    <span className={`inline-block px-3 py-2 rounded-full text-sm font-bold ${newSupplierBgColor} ${newSupplierTextColor}`}>
+                      {newSupplierName || 'プレビュー'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={addSupplier}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    追加
+                  </button>
+                </div>
+              </div>
+
+              {/* ボタン */}
+              <div className="mb-6 flex gap-4 items-center">
+                <button
+                  onClick={initializeSupplierDefaults}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  デフォルト仕入先を追加
+                </button>
+                <button
+                  onClick={deleteSupplierSelected}
+                  disabled={supplierSelectedIds.size === 0}
+                  className={`px-4 py-2 rounded bg-red-600 text-white ${
+                    supplierSelectedIds.size > 0
+                      ? 'hover:bg-red-700'
+                      : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  {supplierSelectedIds.size > 0 ? `選択した${supplierSelectedIds.size}件を削除` : '削除'}
+                </button>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-auto">
+                  <input
+                    type="checkbox"
+                    checked={showHiddenSuppliers}
+                    onChange={(e) => setShowHiddenSuppliers(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  非表示の仕入先も表示
+                </label>
+              </div>
+
+              {/* 仕入先一覧 */}
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
+                <table className="w-full table-auto">
+                  <thead>
+                    <tr className="bg-slate-600">
+                      <th className="text-center px-2 py-3 text-sm font-semibold text-white w-10"></th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white w-10">
+                        <input
+                          type="checkbox"
+                          checked={suppliers.length > 0 && supplierSelectedIds.size === suppliers.filter(s => showHiddenSuppliers || !s.is_hidden).length}
+                          onChange={toggleSupplierSelectAll}
+                          className="w-4 h-4"
+                        />
+                      </th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">仕入先名</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">プレビュー</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">有効</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">非表示</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">編集</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suppliers.filter(s => showHiddenSuppliers || !s.is_hidden).map((supplier, index) => (
+                      <tr
+                        key={supplier.id}
+                        draggable
+                        onDragStart={() => handleSupplierDragStart(index)}
+                        onDragOver={(e) => handleSupplierDragOver(e, index)}
+                        onDrop={() => handleSupplierDrop(index)}
+                        onDragEnd={handleSupplierDragEnd}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${
+                          supplierDragIndex === index ? 'opacity-50 bg-blue-100' : ''
+                        } ${supplierDragOverIndex === index && supplierDragIndex !== index ? 'border-t-2 border-t-blue-500' : ''} ${supplier.is_hidden ? 'opacity-50' : ''}`}
+                      >
+                        <td className="px-2 py-3 text-center cursor-grab active:cursor-grabbing">
+                          <svg className="w-5 h-5 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                          </svg>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={supplierSelectedIds.has(supplier.id)}
+                            onChange={() => toggleSupplierSelect(supplier.id)}
+                            className="w-4 h-4"
+                          />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {supplierEditingId === supplier.id ? (
+                            <input
+                              type="text"
+                              value={supplierEditName}
+                              onChange={(e) => setSupplierEditName(e.target.value)}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-gray-900"
+                            />
+                          ) : (
+                            <span className="text-gray-900">{supplier.name}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-block w-32 text-center px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap ${supplierEditingId === supplier.id ? supplierEditColor : supplier.color_class}`}>
+                            {supplierEditingId === supplier.id ? supplierEditName : supplier.name}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => toggleSupplierActive(supplier.id, supplier.is_active)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              supplier.is_active
+                                ? 'bg-green-500'
+                                : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                supplier.is_active ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => toggleSupplierHidden(supplier.id, supplier.is_hidden)}
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              supplier.is_hidden
+                                ? 'bg-gray-500 text-white'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                            }`}
+                          >
+                            {supplier.is_hidden ? '非表示中' : '非表示'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          {supplierEditingId === supplier.id ? (
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={() => updateSupplier(supplier.id)}
+                                className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 whitespace-nowrap"
+                              >
+                                保存
+                              </button>
+                              <button
+                                onClick={() => setSupplierEditingId(null)}
+                                className="px-2 py-1 bg-gray-400 text-white rounded text-xs hover:bg-gray-500 whitespace-nowrap"
+                              >
+                                取消
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setSupplierEditingId(supplier.id)
+                                setSupplierEditName(supplier.name)
+                                setSupplierEditColor(supplier.color_class)
+                              }}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                            >
+                              編集
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {suppliers.filter(s => showHiddenSuppliers || !s.is_hidden).length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                          仕入先が登録されていません。「デフォルト仕入先を追加」ボタンで初期データを追加できます。
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 詳細ポップアップ */}
+      {detailPopup && (
+        <>
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => setDetailPopup(null)}
+          />
+          <div
+            className="fixed z-[101] bg-gray-800 text-white text-xs rounded-lg shadow-lg px-3 py-2 whitespace-pre-line"
+            style={{
+              left: detailPopup.x,
+              top: detailPopup.y,
+              transform: 'translateX(-50%)'
+            }}
+          >
+            <div className="font-semibold mb-1 text-yellow-300">{detailPopup.name}</div>
+            {commissionDetails[detailPopup.name]}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

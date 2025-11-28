@@ -1,0 +1,9 @@
+-- bulk_salesテーブルに商品詳細カラムを追加
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS product_name TEXT;
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS brand_name TEXT;
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS purchase_price NUMERIC;
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS other_cost NUMERIC DEFAULT 0;
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC;
+ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS listing_date DATE;
