@@ -24,3 +24,39 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* テーブルスクロールコンテナ */
+.table-scroll-container {
+  overflow-x: auto;
+}
+
+/* 固定横スクロールバー */
+.fixed-horizontal-scrollbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background: #e5e7eb;
+  z-index: 50;
+  overflow-x: scroll;
+  overflow-y: hidden;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar {
+  height: 16px;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 8px;
+  border: 3px solid #e5e7eb;
+}
+
+.fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}

@@ -134,7 +134,7 @@ export default function RetailSalesPage() {
         years.add(year)
       }
     })
-    return [...years].sort().reverse()
+    return ['all', ...[...years].sort().reverse()]
   }, [retailInventory])
 
   // 月のリスト（年間オプション付き）
@@ -144,6 +144,7 @@ export default function RetailSalesPage() {
   const filteredSoldItems = useMemo(() => {
     if (!selectedYear || !selectedMonth) return []
 
+    const isAllYears = selectedYear === 'all'
     const isYearly = selectedMonth === 'all'
     const yearMonth = `${selectedYear}-${selectedMonth}`
 
@@ -152,12 +153,12 @@ export default function RetailSalesPage() {
       if (!item.sale_destination) return false
 
       // 日付フィルター（sale_dateがある場合のみ適用、ない場合は全期間に含める）
-      if (item.sale_date) {
+      if (!isAllYears && item.sale_date) {
         return isYearly
           ? item.sale_date.startsWith(selectedYear)
           : item.sale_date.startsWith(yearMonth)
       }
-      return true // sale_dateがない場合は全期間に含める
+      return true // sale_dateがない場合または全期間選択時は全て含める
     }).sort((a, b) => {
       // 売却日で降順ソート（nullは最後に）
       if (!a.sale_date && !b.sale_date) return 0
@@ -430,7 +431,7 @@ export default function RetailSalesPage() {
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
               >
                 {availableYears.map(year => (
-                  <option key={year} value={year}>{year}年</option>
+                  <option key={year} value={year}>{year === 'all' ? '全て' : `${year}年`}</option>
                 ))}
               </select>
             </div>
@@ -789,14 +790,20 @@ export default function RetailSalesPage() {
                             case 'inventory_number':
                               return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{item.inventory_number || '-'}</td>
                             case 'image':
+                              const imgUrl = item.saved_image_url || item.image_url
+                              const proxyImageUrl = imgUrl
+                                ? imgUrl.startsWith('/api/') || imgUrl.startsWith('data:')
+                                  ? imgUrl
+                                  : `/api/image-proxy?url=${encodeURIComponent(imgUrl)}`
+                                : null
                               return (
                                 <td key={col.key} className="px-2 py-2">
-                                  {(item.saved_image_url || item.image_url) ? (
+                                  {proxyImageUrl ? (
                                     <img
-                                      src={item.saved_image_url || item.image_url || ''}
+                                      src={proxyImageUrl}
                                       alt={item.product_name}
                                       className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => setEnlargedImage(item.saved_image_url || item.image_url || '')}
+                                      onClick={() => setEnlargedImage(proxyImageUrl)}
                                     />
                                   ) : (
                                     <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">No</div>

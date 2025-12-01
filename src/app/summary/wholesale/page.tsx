@@ -46,6 +46,8 @@ export default function WholesaleSalesPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [activeTab, setActiveTab] = useState<'summary' | 'history' | 'graph'>('history')
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<string>('sale_date')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
   // 列の設定
   const defaultColumns = [
@@ -78,16 +80,33 @@ export default function WholesaleSalesPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // 在庫データ取得
-      const { data: inventoryData, error: inventoryError } = await supabase
-        .from('inventory')
-        .select('*')
+      // 在庫データ取得（全件取得するためにページネーション）
+      let allData: InventoryItem[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
 
-      if (inventoryError) {
-        console.error('Error fetching inventory:', inventoryError)
-      } else {
-        setInventory(inventoryData || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching inventory:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
       }
+
+      setInventory(allData)
 
       // 販路マスタ取得
       const { data: platformData, error: platformError } = await supabase
@@ -111,6 +130,28 @@ export default function WholesaleSalesPage() {
     setSelectedMonth((now.getMonth() + 1).toString().padStart(2, '0'))
   }, [])
 
+  // 有効な日付形式かどうかをチェック（YYYY-MM-DD または YYYY/MM/DD形式）
+  const isValidDate = (dateStr: string | null): boolean => {
+    if (!dateStr) return false
+    if (/返品|不明|キャンセル/.test(dateStr)) return false
+    return /^\d{4}[-/]\d{2}[-/]\d{2}/.test(dateStr)
+  }
+
+  // 日付を統一形式（YYYY-MM）に変換
+  const normalizeYearMonth = (dateStr: string): string => {
+    return dateStr.substring(0, 7).replace('/', '-')
+  }
+
+  // 年を抽出（バリデーション付き）
+  const extractYear = (dateStr: string | null): string | null => {
+    if (!dateStr) return null
+    const year = dateStr.substring(0, 4)
+    if (/^\d{4}$/.test(year) && parseInt(year) >= 2000) {
+      return year
+    }
+    return null
+  }
+
   // 業販（toB）の販路名リスト
   const wholesalePlatformNames = useMemo(() => {
     return platforms.filter(p => p.sales_type === 'toB').map(p => p.name)
@@ -130,12 +171,10 @@ export default function WholesaleSalesPage() {
     // 現在の年を必ず含める
     years.add(new Date().getFullYear().toString())
     wholesaleInventory.forEach(item => {
-      if (item.sale_date) {
-        const year = item.sale_date.substring(0, 4)
-        years.add(year)
-      }
+      const year = extractYear(item.sale_date)
+      if (year) years.add(year)
     })
-    return [...years].sort().reverse()
+    return ['all', ...[...years].sort().reverse()]
   }, [wholesaleInventory])
 
   // 月のリスト（年間オプション付き）
@@ -145,6 +184,7 @@ export default function WholesaleSalesPage() {
   const filteredSoldItems = useMemo(() => {
     if (!selectedYear || !selectedMonth) return []
 
+    const isAllYears = selectedYear === 'all'
     const isYearly = selectedMonth === 'all'
     const yearMonth = `${selectedYear}-${selectedMonth}`
 
@@ -153,20 +193,141 @@ export default function WholesaleSalesPage() {
       if (!item.sale_destination) return false
 
       // 日付フィルター（sale_dateがある場合のみ適用、ない場合は全期間に含める）
-      if (item.sale_date) {
+      if (!isAllYears && isValidDate(item.sale_date)) {
+        const normalized = normalizeYearMonth(item.sale_date!)
         return isYearly
-          ? item.sale_date.startsWith(selectedYear)
-          : item.sale_date.startsWith(yearMonth)
+          ? normalized.startsWith(selectedYear)
+          : normalized === yearMonth
       }
-      return true // sale_dateがない場合は全期間に含める
-    }).sort((a, b) => {
-      // 売却日で降順ソート（nullは最後に）
-      if (!a.sale_date && !b.sale_date) return 0
-      if (!a.sale_date) return 1
-      if (!b.sale_date) return -1
-      return b.sale_date.localeCompare(a.sale_date)
+      return isAllYears // 全期間選択時は全て含める、それ以外で日付がない場合は除外
     })
   }, [wholesaleInventory, selectedYear, selectedMonth])
+
+  // ソート済みアイテム
+  const sortedSoldItems = useMemo(() => {
+    const items = [...filteredSoldItems]
+
+    items.sort((a, b) => {
+      let aVal: string | number | null = null
+      let bVal: string | number | null = null
+
+      switch (sortKey) {
+        case 'inventory_number':
+          aVal = a.inventory_number || ''
+          bVal = b.inventory_number || ''
+          break
+        case 'category':
+          aVal = a.category || ''
+          bVal = b.category || ''
+          break
+        case 'brand_name':
+          aVal = a.brand_name || ''
+          bVal = b.brand_name || ''
+          break
+        case 'product_name':
+          aVal = a.product_name || ''
+          bVal = b.product_name || ''
+          break
+        case 'purchase_source':
+          aVal = a.purchase_source || ''
+          bVal = b.purchase_source || ''
+          break
+        case 'sale_destination':
+          aVal = a.sale_destination || ''
+          bVal = b.sale_destination || ''
+          break
+        case 'sale_price':
+          aVal = a.sale_price || 0
+          bVal = b.sale_price || 0
+          break
+        case 'commission':
+          aVal = a.commission || 0
+          bVal = b.commission || 0
+          break
+        case 'shipping_cost':
+          aVal = a.shipping_cost || 0
+          bVal = b.shipping_cost || 0
+          break
+        case 'other_cost':
+          aVal = a.other_cost || 0
+          bVal = b.other_cost || 0
+          break
+        case 'purchase_price':
+          aVal = a.purchase_price || 0
+          bVal = b.purchase_price || 0
+          break
+        case 'purchase_total':
+          aVal = a.purchase_total || 0
+          bVal = b.purchase_total || 0
+          break
+        case 'deposit_amount':
+          aVal = a.deposit_amount || 0
+          bVal = b.deposit_amount || 0
+          break
+        case 'profit':
+          aVal = (a.sale_price || 0) - (a.commission || 0) - (a.shipping_cost || 0) - (a.purchase_total || 0)
+          bVal = (b.sale_price || 0) - (b.commission || 0) - (b.shipping_cost || 0) - (b.purchase_total || 0)
+          break
+        case 'profit_rate':
+          const aSales = a.sale_price || 0
+          const bSales = b.sale_price || 0
+          const aProfit = aSales - (a.commission || 0) - (a.shipping_cost || 0) - (a.purchase_total || 0)
+          const bProfit = bSales - (b.commission || 0) - (b.shipping_cost || 0) - (b.purchase_total || 0)
+          aVal = aSales > 0 ? (aProfit / aSales) * 100 : 0
+          bVal = bSales > 0 ? (bProfit / bSales) * 100 : 0
+          break
+        case 'purchase_date':
+          aVal = a.purchase_date || ''
+          bVal = b.purchase_date || ''
+          break
+        case 'listing_date':
+          aVal = a.listing_date || ''
+          bVal = b.listing_date || ''
+          break
+        case 'sale_date':
+          aVal = a.sale_date || ''
+          bVal = b.sale_date || ''
+          break
+        case 'turnover_days':
+          if (a.purchase_date && a.sale_date) {
+            aVal = Math.ceil((new Date(a.sale_date).getTime() - new Date(a.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
+          } else {
+            aVal = sortDirection === 'asc' ? 999999 : -1
+          }
+          if (b.purchase_date && b.sale_date) {
+            bVal = Math.ceil((new Date(b.sale_date).getTime() - new Date(b.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
+          } else {
+            bVal = sortDirection === 'asc' ? 999999 : -1
+          }
+          break
+        default:
+          aVal = a.sale_date || ''
+          bVal = b.sale_date || ''
+      }
+
+      if (aVal === null && bVal === null) return 0
+      if (aVal === null) return 1
+      if (bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+      }
+
+      return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
+    })
+
+    return items
+  }, [filteredSoldItems, sortKey, sortDirection])
+
+  // ソートハンドラー
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
 
   // 選択された年月でフィルタリングした集計
   const summary = useMemo(() => {
@@ -272,7 +433,7 @@ export default function WholesaleSalesPage() {
 
   // 月別集計データ
   const monthlyData = useMemo(() => {
-    if (!selectedYear) return []
+    if (!selectedYear || selectedYear === 'all') return []
 
     const monthList = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
@@ -280,9 +441,11 @@ export default function WholesaleSalesPage() {
       const yearMonth = `${selectedYear}-${month}`
 
       // 当月販売（業販のみ）- 販売先と売却日が設定されていれば販売済み
-      const soldItems = wholesaleInventory.filter(item =>
-        item.sale_date?.startsWith(yearMonth) && item.sale_destination
-      )
+      const soldItems = wholesaleInventory.filter(item => {
+        if (!item.sale_destination) return false
+        if (!isValidDate(item.sale_date)) return false
+        return normalizeYearMonth(item.sale_date!) === yearMonth
+      })
 
       // 販売件数
       const soldCount = soldItems.length
@@ -303,8 +466,11 @@ export default function WholesaleSalesPage() {
       // 販売利益率
       const profitRate = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0
 
-      // 平均単価
+      // 平均売価
       const avgSalePrice = soldCount > 0 ? Math.round(totalSales / soldCount) : 0
+
+      // 平均利益
+      const avgProfit = soldCount > 0 ? Math.round(totalProfit / soldCount) : 0
 
       return {
         month: parseInt(month),
@@ -316,6 +482,7 @@ export default function WholesaleSalesPage() {
         totalProfit,
         profitRate,
         avgSalePrice,
+        avgProfit,
       }
     })
   }, [wholesaleInventory, selectedYear])
@@ -332,6 +499,7 @@ export default function WholesaleSalesPage() {
     const totalProfit = monthlyData.reduce((sum, m) => sum + m.totalProfit, 0)
     const profitRate = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0
     const avgSalePrice = soldCount > 0 ? Math.round(totalSales / soldCount) : 0
+    const avgProfit = soldCount > 0 ? Math.round(totalProfit / soldCount) : 0
 
     return {
       soldCount,
@@ -342,6 +510,7 @@ export default function WholesaleSalesPage() {
       totalProfit,
       profitRate,
       avgSalePrice,
+      avgProfit,
     }
   }, [monthlyData])
 
@@ -431,7 +600,7 @@ export default function WholesaleSalesPage() {
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
               >
                 {availableYears.map(year => (
-                  <option key={year} value={year}>{year}年</option>
+                  <option key={year} value={year}>{year === 'all' ? '全て' : `${year}年`}</option>
                 ))}
               </select>
             </div>
@@ -605,44 +774,47 @@ export default function WholesaleSalesPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600"></th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">件数</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">売上</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">原価</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">手数料</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">送料</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">利益</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">利益率</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">平均単価</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">月</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">件数</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">売上</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">原価</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">手数料</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">送料</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">利益</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">利益率</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">平均売価</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600">平均利益</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {monthlyData.map((data) => (
                         <tr key={data.month} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-4 py-3.5 text-gray-900 font-semibold">{data.month}月</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.soldCount}</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{formatCurrency(data.totalSales)}</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{formatCurrency(data.costOfGoodsSold)}</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{formatCurrency(data.totalCommission)}</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{formatCurrency(data.totalShipping)}</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{formatCurrency(data.totalProfit)}</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.profitRate}%</td>
-                          <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{formatCurrency(data.avgSalePrice)}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-900 font-semibold">{data.month}月</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.soldCount}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{formatCurrency(data.totalSales)}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{formatCurrency(data.costOfGoodsSold)}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{formatCurrency(data.totalCommission)}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{formatCurrency(data.totalShipping)}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{formatCurrency(data.totalProfit)}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.profitRate}%</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{formatCurrency(data.avgSalePrice)}</td>
+                          <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{formatCurrency(data.avgProfit)}</td>
                         </tr>
                       ))}
                     </tbody>
                     {yearlyTotal && (
                       <tfoot>
                         <tr className="bg-slate-700 text-white">
-                          <td className="px-4 py-4 font-bold">合計</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.soldCount}</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalSales)}</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{formatCurrency(yearlyTotal.costOfGoodsSold)}</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalCommission)}</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalShipping)}</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalProfit)}</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.profitRate}%</td>
-                          <td className="px-4 py-4 text-right tabular-nums font-semibold">{formatCurrency(yearlyTotal.avgSalePrice)}</td>
+                          <td className="px-4 py-4 text-center font-bold">合計</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.soldCount}</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalSales)}</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{formatCurrency(yearlyTotal.costOfGoodsSold)}</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalCommission)}</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalShipping)}</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{formatCurrency(yearlyTotal.totalProfit)}</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.profitRate}%</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{formatCurrency(yearlyTotal.avgSalePrice)}</td>
+                          <td className="px-4 py-4 text-center tabular-nums font-semibold">{formatCurrency(yearlyTotal.avgProfit)}</td>
                         </tr>
                       </tfoot>
                     )}
@@ -771,7 +943,10 @@ export default function WholesaleSalesPage() {
                     {visibleColumns.map(col => (
                       <th
                         key={col.key}
+                        onClick={() => col.key !== 'image' && handleSort(col.key)}
                         className={`px-2 py-3 text-xs font-semibold text-gray-600 ${
+                          col.key !== 'image' ? 'cursor-pointer hover:bg-gray-100 select-none' : ''
+                        } ${
                           ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'turnover_days'].includes(col.key)
                             ? 'text-right'
                             : ['purchase_date', 'listing_date', 'sale_date'].includes(col.key)
@@ -779,13 +954,20 @@ export default function WholesaleSalesPage() {
                             : 'text-left'
                         }`}
                       >
-                        {col.label}
+                        <span className="inline-flex items-center gap-1">
+                          {col.label}
+                          {sortKey === col.key && (
+                            <span className="text-blue-600">
+                              {sortDirection === 'asc' ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </span>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredSoldItems.map((item) => {
+                  {sortedSoldItems.map((item) => {
                     const profit = calculateProfit(item)
                     const profitRate = calculateProfitRate(item)
                     const turnoverDays = calculateTurnoverDays(item)
@@ -796,14 +978,20 @@ export default function WholesaleSalesPage() {
                             case 'inventory_number':
                               return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{item.inventory_number || '-'}</td>
                             case 'image':
+                              const imgUrl = item.saved_image_url || item.image_url
+                              const proxyImageUrl = imgUrl
+                                ? imgUrl.startsWith('/api/') || imgUrl.startsWith('data:')
+                                  ? imgUrl
+                                  : `/api/image-proxy?url=${encodeURIComponent(imgUrl)}`
+                                : null
                               return (
                                 <td key={col.key} className="px-2 py-2">
-                                  {(item.saved_image_url || item.image_url) ? (
+                                  {proxyImageUrl ? (
                                     <img
-                                      src={item.saved_image_url || item.image_url || ''}
+                                      src={proxyImageUrl}
                                       alt={item.product_name}
                                       className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => setEnlargedImage(item.saved_image_url || item.image_url || '')}
+                                      onClick={() => setEnlargedImage(proxyImageUrl)}
                                     />
                                   ) : (
                                     <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">
@@ -869,7 +1057,7 @@ export default function WholesaleSalesPage() {
                       </tr>
                     )
                   })}
-                  {filteredSoldItems.length === 0 && (
+                  {sortedSoldItems.length === 0 && (
                     <tr>
                       <td colSpan={visibleColumns.length} className="px-4 py-8 text-center text-gray-500">
                         該当するデータがありません

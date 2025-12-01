@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Navigation() {
   const pathname = usePathname()
+  const { user, signOut } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [inventoryOpen, setInventoryOpen] = useState(false)
@@ -30,9 +32,18 @@ export default function Navigation() {
   }, [])
 
   return (
-    <nav className="bg-white shadow fixed top-0 left-0 right-0 z-[100]">
+    <nav className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 shadow-lg border-b border-gray-700 fixed top-0 left-0 right-0 z-[100]">
       <div className="max-w-full mx-auto px-4">
         <div className="flex items-center h-14 gap-6">
+          <Link
+            href="/dashboard"
+            className={pathname === '/dashboard'
+              ? "text-white font-bold border-b-2 border-white pb-1"
+              : "text-white font-medium hover:text-yellow-300"
+            }
+          >
+            TOP
+          </Link>
           <div className="relative" ref={inventoryDropdownRef}>
             <button
               onClick={() => {
@@ -41,8 +52,8 @@ export default function Navigation() {
                 setSettingsOpen(false)
               }}
               className={pathname === '/' || pathname.startsWith('/inventory') || pathname.startsWith('/returns')
-                ? "text-blue-600 font-semibold border-b-2 border-blue-600 pb-1"
-                : "text-gray-600 hover:text-gray-900"
+                ? "text-white font-bold border-b-2 border-white pb-1"
+                : "text-white font-medium hover:text-yellow-300"
               }
             >
               在庫管理
@@ -81,8 +92,8 @@ export default function Navigation() {
                 setInventoryOpen(false)
               }}
               className={pathname.startsWith('/summary')
-                ? "text-blue-600 font-semibold border-b-2 border-blue-600 pb-1"
-                : "text-gray-600 hover:text-gray-900"
+                ? "text-white font-bold border-b-2 border-white pb-1"
+                : "text-white font-medium hover:text-yellow-300"
               }
             >
               集計・分析
@@ -101,25 +112,41 @@ export default function Navigation() {
                   className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   onClick={() => setSummaryOpen(false)}
                 >
-                  小売販売実績
+                  小売販売データ
                 </Link>
                 <Link
                   href="/summary/wholesale"
                   className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   onClick={() => setSummaryOpen(false)}
                 >
-                  業販販売実績
+                  業販販売データ
                 </Link>
                 <Link
                   href="/summary/all"
                   className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   onClick={() => setSummaryOpen(false)}
                 >
-                  全販売実績
+                  全販売データ
+                </Link>
+                <Link
+                  href="/summary/purchase-source"
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setSummaryOpen(false)}
+                >
+                  仕入先別データ
                 </Link>
               </div>
             )}
           </div>
+          <Link
+            href="/ledger"
+            className={pathname === '/ledger'
+              ? "text-white font-bold border-b-2 border-white pb-1"
+              : "text-white font-medium hover:text-yellow-300"
+            }
+          >
+            古物台帳
+          </Link>
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => {
@@ -128,8 +155,8 @@ export default function Navigation() {
                 setInventoryOpen(false)
               }}
               className={pathname.startsWith('/settings')
-                ? "text-blue-600 font-semibold border-b-2 border-blue-600 pb-1"
-                : "text-gray-600 hover:text-gray-900"
+                ? "text-white font-bold border-b-2 border-white pb-1"
+                : "text-white font-medium hover:text-yellow-300"
               }
             >
               設定
@@ -143,9 +170,37 @@ export default function Navigation() {
                 >
                   仕入先・販路マスタ設定
                 </Link>
+                <Link
+                  href="/settings/ledger"
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setSettingsOpen(false)}
+                >
+                  古物台帳マスタ設定
+                </Link>
+                <Link
+                  href="/settings/google-drive"
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setSettingsOpen(false)}
+                >
+                  Googleドライブ連携
+                </Link>
               </div>
             )}
           </div>
+          {/* スペーサー */}
+          <div className="flex-grow" />
+          {/* ユーザー情報・ログアウト */}
+          {user && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-300">{user.email}</span>
+              <button
+                onClick={() => signOut()}
+                className="text-sm text-red-400 hover:text-red-300"
+              >
+                ログアウト
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </nav>

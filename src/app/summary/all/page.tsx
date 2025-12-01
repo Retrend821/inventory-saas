@@ -297,7 +297,7 @@ export default function AllSalesPage() {
         years.add(year)
       }
     })
-    return [...years].sort().reverse()
+    return ['all', ...[...years].sort().reverse()]
   }, [unifiedSales])
 
   // 月のリスト
@@ -307,6 +307,7 @@ export default function AllSalesPage() {
   const filteredSales = useMemo(() => {
     if (!selectedYear || !selectedMonth) return []
 
+    const isAllYears = selectedYear === 'all'
     const isYearly = selectedMonth === 'all'
     const yearMonth = `${selectedYear}-${selectedMonth}`
 
@@ -314,7 +315,7 @@ export default function AllSalesPage() {
       .filter(sale => {
         // 年月フィルター（sale_dateがnullの場合は日付なしとして全期間に含める）
         let dateMatch = true
-        if (sale.sale_date) {
+        if (!isAllYears && sale.sale_date) {
           dateMatch = isYearly
             ? sale.sale_date.startsWith(selectedYear)
             : sale.sale_date.startsWith(yearMonth)
@@ -546,7 +547,7 @@ export default function AllSalesPage() {
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
               >
                 {availableYears.map(year => (
-                  <option key={year} value={year}>{year}年</option>
+                  <option key={year} value={year}>{year === 'all' ? '全て' : `${year}年`}</option>
                 ))}
               </select>
             </div>
@@ -956,14 +957,19 @@ export default function AllSalesPage() {
                           case 'inventory_number':
                             return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{sale.inventory_number || '-'}</td>
                           case 'image':
+                            const imageUrl = sale.image_url
+                              ? sale.image_url.startsWith('/api/') || sale.image_url.startsWith('data:')
+                                ? sale.image_url
+                                : `/api/image-proxy?url=${encodeURIComponent(sale.image_url)}`
+                              : null
                             return (
                               <td key={col.key} className="px-2 py-2">
-                                {sale.image_url ? (
+                                {imageUrl ? (
                                   <img
-                                    src={sale.image_url}
+                                    src={imageUrl}
                                     alt={sale.product_name}
                                     className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={() => setEnlargedImage(sale.image_url)}
+                                    onClick={() => setEnlargedImage(imageUrl)}
                                   />
                                 ) : (
                                   <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">

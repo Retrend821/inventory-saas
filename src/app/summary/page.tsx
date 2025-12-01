@@ -18,6 +18,7 @@ type InventoryItem = {
   purchase_date: string | null
   listing_date: string | null
   sale_date: string | null
+  sale_destination: string | null
 }
 
 export default function SummaryPage() {
@@ -28,15 +29,33 @@ export default function SummaryPage() {
 
   useEffect(() => {
     const fetchInventory = async () => {
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
+      // 全件取得するために、ページネーションで取得
+      let allData: InventoryItem[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
 
-      if (error) {
-        console.error('Error fetching inventory:', error)
-      } else {
-        setInventory(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching inventory:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
       }
+
+      setInventory(allData)
       setLoading(false)
     }
 
@@ -48,24 +67,55 @@ export default function SummaryPage() {
     setSelectedMonth((now.getMonth() + 1).toString().padStart(2, '0'))
   }, [])
 
+  // 日付から年を抽出（YYYY-MM-DDまたはYYYY/MM/DD形式対応）
+  const extractYear = (dateStr: string | null): string | null => {
+    if (!dateStr) return null
+    // 先頭4文字が年
+    const year = dateStr.substring(0, 4)
+    // 4桁の数字で、妥当な年（2000年以降）のみ
+    if (/^\d{4}$/.test(year) && parseInt(year) >= 2000) {
+      return year
+    }
+    return null
+  }
+
   // 利用可能な年のリスト
   const availableYears = useMemo(() => {
     const years = new Set<string>()
+    // 現在の年は必ず含める
+    years.add(new Date().getFullYear().toString())
     inventory.forEach(item => {
-      if (item.sale_date) {
-        const year = item.sale_date.substring(0, 4)
-        years.add(year)
-      }
-      if (item.purchase_date) {
-        const year = item.purchase_date.substring(0, 4)
-        years.add(year)
-      }
+      const saleYear = extractYear(item.sale_date)
+      if (saleYear) years.add(saleYear)
+      const purchaseYear = extractYear(item.purchase_date)
+      if (purchaseYear) years.add(purchaseYear)
     })
     return [...years].sort().reverse()
   }, [inventory])
 
   // 月のリスト（年間オプション付き）
   const months = ['all', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+
+  // 有効な日付形式かどうかをチェック（YYYY-MM-DD または YYYY/MM/DD形式）
+  const isValidDate = (dateStr: string | null): boolean => {
+    if (!dateStr) return false
+    // 「返品」「不明」などの除外
+    if (/返品|不明|キャンセル/.test(dateStr)) return false
+    // YYYY-MM-DD または YYYY/MM/DD 形式かチェック
+    return /^\d{4}[-/]\d{2}[-/]\d{2}/.test(dateStr)
+  }
+
+  // 日付を統一形式（YYYY-MM）に変換
+  const normalizeYearMonth = (dateStr: string): string => {
+    // YYYY/MM/DD → YYYY-MM、YYYY-MM-DD → YYYY-MM
+    return dateStr.substring(0, 7).replace('/', '-')
+  }
+
+  // 日付を統一形式（YYYY-MM-DD）に変換
+  const normalizeDate = (dateStr: string): string => {
+    // YYYY/MM/DD → YYYY-MM-DD
+    return dateStr.substring(0, 10).replace(/\//g, '-')
+  }
 
   // 選択された年月でフィルタリングした集計
   const summary = useMemo(() => {
@@ -74,28 +124,31 @@ export default function SummaryPage() {
     const isYearly = selectedMonth === 'all'
     const yearMonth = `${selectedYear}-${selectedMonth}`
 
-    // 売却日が選択年月のアイテム
+    // 売却日が選択年月のアイテム（売上日に日付が入っているもの）
     const soldItems = inventory.filter(item => {
-      if (!item.sale_date || item.status !== '売却済み') return false
+      if (!isValidDate(item.sale_date)) return false
+      const normalized = normalizeYearMonth(item.sale_date!)
       return isYearly
-        ? item.sale_date.startsWith(selectedYear)
-        : item.sale_date.startsWith(yearMonth)
+        ? normalized.startsWith(selectedYear)
+        : normalized === yearMonth
     })
 
     // 仕入日が選択年月のアイテム
     const purchasedItems = inventory.filter(item => {
-      if (!item.purchase_date) return false
+      if (!isValidDate(item.purchase_date)) return false
+      const normalized = normalizeYearMonth(item.purchase_date!)
       return isYearly
-        ? item.purchase_date.startsWith(selectedYear)
-        : item.purchase_date.startsWith(yearMonth)
+        ? normalized.startsWith(selectedYear)
+        : normalized === yearMonth
     })
 
     // 出品日が選択年月のアイテム
     const listedItems = inventory.filter(item => {
-      if (!item.listing_date) return false
+      if (!isValidDate(item.listing_date)) return false
+      const normalized = normalizeYearMonth(item.listing_date!)
       return isYearly
-        ? item.listing_date.startsWith(selectedYear)
-        : item.listing_date.startsWith(yearMonth)
+        ? normalized.startsWith(selectedYear)
+        : normalized === yearMonth
     })
 
     // 販売件数
@@ -156,16 +209,22 @@ export default function SummaryPage() {
 
     // 月末在庫を計算するためのヘルパー関数
     const getEndOfMonthStock = (year: string, month: string) => {
-      const yearMonth = `${year}-${month}`
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-      const endDate = `${yearMonth}-${lastDay.toString().padStart(2, '0')}`
+      const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
 
       return inventory.filter(item => {
         // 仕入日が月末以前で、売却日がない or 売却日が月末より後
         const purchaseDate = item.purchase_date
         const saleDate = item.sale_date
-        if (!purchaseDate || purchaseDate > endDate) return false
-        if (item.status === '売却済み' && saleDate && saleDate <= endDate) return false
+        // 有効な仕入日がないか、月末より後の仕入れは除外
+        if (!isValidDate(purchaseDate)) return false
+        const normalizedPurchase = normalizeDate(purchaseDate!)
+        if (normalizedPurchase > endDate) return false
+        // 有効な売却日があり、月末以前に売却されていれば除外
+        if (isValidDate(saleDate)) {
+          const normalizedSale = normalizeDate(saleDate!)
+          if (normalizedSale <= endDate) return false
+        }
         return true
       })
     }
@@ -184,20 +243,23 @@ export default function SummaryPage() {
     return monthList.map(month => {
       const yearMonth = `${selectedYear}-${month}`
 
-      // 当月販売
-      const soldItems = inventory.filter(item =>
-        item.sale_date?.startsWith(yearMonth) && item.status === '売却済み'
-      )
+      // 当月販売（売上日に日付が入っているもの）
+      const soldItems = inventory.filter(item => {
+        if (!isValidDate(item.sale_date)) return false
+        return normalizeYearMonth(item.sale_date!) === yearMonth
+      })
 
-      // 当月仕入
-      const purchasedItems = inventory.filter(item =>
-        item.purchase_date?.startsWith(yearMonth)
-      )
+      // 当月仕入（有効な日付形式のみ）
+      const purchasedItems = inventory.filter(item => {
+        if (!isValidDate(item.purchase_date)) return false
+        return normalizeYearMonth(item.purchase_date!) === yearMonth
+      })
 
-      // 当月出品
-      const listedItems = inventory.filter(item =>
-        item.listing_date?.startsWith(yearMonth)
-      )
+      // 当月出品（有効な日付形式のみ）
+      const listedItems = inventory.filter(item => {
+        if (!isValidDate(item.listing_date)) return false
+        return normalizeYearMonth(item.listing_date!) === yearMonth
+      })
 
       // 前月末在庫・当月末在庫
       const prevMonthEndStockItems = getPrevMonthEndStock(selectedYear, month)
@@ -335,7 +397,7 @@ export default function SummaryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">集計・分析</h1>
 
         {/* 年月選択 */}
@@ -440,11 +502,11 @@ export default function SummaryPage() {
               <h2 className="text-base font-semibold text-white">{selectedYear}年 月別レポート</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm whitespace-nowrap">
                 <thead>
                   {/* セクションラベル行 */}
                   <tr className="bg-slate-700">
-                    <th className="px-4 py-2"></th>
+                    <th className="px-4 py-2 w-16"></th>
                     <th colSpan={4} className="px-4 py-2 text-center text-[11px] font-semibold text-indigo-300 tracking-wide border-l border-slate-500">成果</th>
                     <th colSpan={2} className="px-4 py-2 text-center text-[11px] font-semibold text-teal-300 tracking-wide border-l border-slate-500">活動</th>
                     <th colSpan={3} className="px-4 py-2 text-center text-[11px] font-semibold text-orange-300 tracking-wide border-l border-slate-500">仕入</th>
@@ -453,55 +515,55 @@ export default function SummaryPage() {
                   </tr>
                   {/* 項目名行 */}
                   <tr className="bg-slate-600">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-white"></th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white w-16">月</th>
                     {/* 成果 */}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white border-l border-slate-500">売上</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">利益</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">利益率</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">収益性</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white border-l border-slate-500">売上</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">利益</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">利益率</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">収益性</th>
                     {/* 活動の結果 */}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white border-l border-slate-500">出品</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">販売</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white border-l border-slate-500">出品</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">販売</th>
                     {/* コスト */}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white border-l border-slate-500">件数</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">金額</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">単価</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white border-l border-slate-500">件数</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">金額</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">単価</th>
                     {/* 在庫状態 */}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white border-l border-slate-500">期首数</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">期首高</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">期末数</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">期末高</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white border-l border-slate-500">期首数</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">期首高</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">期末数</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">期末高</th>
                     {/* 効率性 */}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white border-l border-slate-500">数量</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">売上</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-white">原価</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white border-l border-slate-500">数量</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">売上</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-white">原価</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {monthlyData.map((data) => (
                     <tr key={data.month} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-4 py-3.5 text-gray-900 font-semibold">{data.month}月</td>
+                      <td className="px-4 py-3.5 text-gray-900 font-semibold w-16 text-center">{data.month}月</td>
                       {/* 成果 */}
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums border-l border-gray-200">¥{data.totalSales.toLocaleString()}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">¥{data.totalProfit.toLocaleString()}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.profitRate}%</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.overallProfitability}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">¥{data.totalSales.toLocaleString()}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.totalProfit.toLocaleString()}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.profitRate}%</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.overallProfitability}</td>
                       {/* 活動の結果 */}
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums border-l border-gray-200">{data.listedCount}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.soldCount}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.listedCount}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.soldCount}</td>
                       {/* コスト */}
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums border-l border-gray-200">{data.purchasedCount}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">¥{data.purchaseValue.toLocaleString()}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">¥{data.avgPurchasePrice.toLocaleString()}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.purchasedCount}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.purchaseValue.toLocaleString()}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.avgPurchasePrice.toLocaleString()}</td>
                       {/* 在庫状態 */}
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums border-l border-gray-200">{data.prevMonthEndStockCount}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">¥{data.beginningStockValue.toLocaleString()}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.currentMonthEndStockCount}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">¥{data.endingStockValue.toLocaleString()}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.prevMonthEndStockCount}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.beginningStockValue.toLocaleString()}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.currentMonthEndStockCount}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.endingStockValue.toLocaleString()}</td>
                       {/* 効率性 */}
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums border-l border-gray-200">{data.stockCountTurnover}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.salesTurnover}</td>
-                      <td className="px-4 py-3.5 text-right text-gray-700 tabular-nums">{data.costTurnover}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.stockCountTurnover}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.salesTurnover}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.costTurnover}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -509,28 +571,28 @@ export default function SummaryPage() {
                 {yearlyTotal && (
                   <tfoot>
                     <tr className="bg-slate-800 text-white">
-                      <td className="px-4 py-4 font-bold">合計</td>
+                      <td className="px-4 py-4 font-bold w-16 text-center">合計</td>
                       {/* 成果 */}
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold border-l border-slate-600">¥{yearlyTotal.totalSales.toLocaleString()}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">¥{yearlyTotal.totalProfit.toLocaleString()}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.profitRate}%</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.overallProfitability}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">¥{yearlyTotal.totalSales.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.totalProfit.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.profitRate}%</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.overallProfitability}</td>
                       {/* 活動の結果 */}
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.listedCount}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.soldCount}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.listedCount}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.soldCount}</td>
                       {/* コスト */}
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.purchasedCount}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">¥{yearlyTotal.purchaseValue.toLocaleString()}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">¥{yearlyTotal.avgPurchasePrice.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.purchasedCount}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.purchaseValue.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.avgPurchasePrice.toLocaleString()}</td>
                       {/* 在庫状態 */}
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.prevMonthEndStockCount}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">¥{yearlyTotal.beginningStockValue.toLocaleString()}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.currentMonthEndStockCount}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">¥{yearlyTotal.endingStockValue.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.prevMonthEndStockCount}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.beginningStockValue.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.currentMonthEndStockCount}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.endingStockValue.toLocaleString()}</td>
                       {/* 効率性 */}
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.stockCountTurnover}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.salesTurnover}</td>
-                      <td className="px-4 py-4 text-right tabular-nums font-semibold">{yearlyTotal.costTurnover}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.stockCountTurnover}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.salesTurnover}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.costTurnover}</td>
                     </tr>
                   </tfoot>
                 )}

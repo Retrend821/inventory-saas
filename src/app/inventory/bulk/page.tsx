@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 
 type BulkPurchase = {
   id: string
@@ -52,6 +54,7 @@ type Platform = {
 }
 
 export default function BulkInventoryPage() {
+  const { user } = useAuth()
   const [bulkPurchases, setBulkPurchases] = useState<BulkPurchase[]>([])
   const [bulkSales, setBulkSales] = useState<BulkSale[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -67,9 +70,19 @@ export default function BulkInventoryPage() {
   const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
 
   // 編集機能用ステート
-  const [editingCell, setEditingCell] = useState<{ id: string; field: keyof BulkSale | keyof BulkPurchase; type: 'sale' | 'purchase' } | null>(null)
+  const [editingCell, setEditingCell] = useState<{ id: string; field: keyof BulkSale | keyof BulkPurchase; type: 'sale' | 'purchase'; mode?: 'text' | 'dropdown' } | null>(null)
   const [editValue, setEditValue] = useState<string>('')
-  const editCellRef = useRef<HTMLDivElement>(null)
+  const editCellRef = useRef<HTMLTableCellElement>(null)
+  const editInputRef = useRef<HTMLInputElement>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null)
+
+  // 複数選択用ステート
+  type SelectedCell = { id: string; field: string; type: 'sale' | 'purchase'; rowIndex: number; colIndex: number }
+  const [selectedCells, setSelectedCells] = useState<SelectedCell[]>([])
+  const [selectionStart, setSelectionStart] = useState<SelectedCell | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState<SelectedCell | null>(null)
+  const tableRef = useRef<HTMLTableElement>(null)
 
   // 新規まとめ仕入れフォーム
   const [newPurchase, setNewPurchase] = useState({
@@ -348,7 +361,74 @@ export default function BulkInventoryPage() {
     return rows as (MixedRow & { cumulativeProfit: number })[]
   }, [filteredPurchases, filteredSales, getPurchaseForSale])
 
-  // 新規まとめ仕入れ登録
+  // ジャンルを追加（仕入れと販売を空で1行ずつ作成）
+  const handleAddGenre = async () => {
+    const genreName = prompt('ジャンル名を入力してください')
+    if (!genreName || genreName.trim() === '') {
+      return
+    }
+
+    const trimmedName = genreName.trim()
+    // 既存のジャンルと重複チェック
+    if (genres.includes(trimmedName)) {
+      alert('同じ名前のジャンルが既に存在します')
+      return
+    }
+
+    // 仕入れデータを作成（デフォルト値）
+    const { data: newPurchaseData, error: purchaseError } = await supabase
+      .from('bulk_purchases')
+      .insert({
+        genre: trimmedName,
+        purchase_date: new Date().toISOString().split('T')[0],
+        purchase_source: null,
+        total_amount: 0,
+        total_quantity: 0,
+        memo: null,
+        user_id: user?.id
+      })
+      .select()
+      .single()
+
+    if (purchaseError) {
+      console.error('Error adding genre:', purchaseError)
+      alert('追加に失敗しました: ' + purchaseError.message)
+      return
+    }
+
+    // 売上行を追加（デフォルト値）
+    const { error: saleError } = await supabase
+      .from('bulk_sales')
+      .insert({
+        bulk_purchase_id: newPurchaseData.id,
+        sale_date: new Date().toISOString().split('T')[0],
+        sale_destination: null,
+        quantity: 0,
+        sale_amount: 0,
+        commission: 0,
+        shipping_cost: 0,
+        memo: null,
+        product_name: null,
+        brand_name: null,
+        category: null,
+        image_url: null,
+        purchase_price: null,
+        other_cost: 0,
+        deposit_amount: null,
+        listing_date: null,
+        user_id: user?.id
+      })
+
+    if (saleError) {
+      console.error('Error adding sale:', saleError)
+      alert('売上行の追加に失敗しました: ' + saleError.message)
+    }
+
+    fetchData()
+    setSelectedGenre(trimmedName)
+  }
+
+  // 新規まとめ仕入れ登録（既存のモーダル用）
   const handleAddPurchase = async () => {
     if (!newPurchase.genre || !newPurchase.total_amount || !newPurchase.total_quantity) {
       alert('ジャンル、仕入総額、総数量は必須です')
@@ -363,7 +443,8 @@ export default function BulkInventoryPage() {
         purchase_source: newPurchase.purchase_source || null,
         total_amount: parseInt(newPurchase.total_amount),
         total_quantity: parseInt(newPurchase.total_quantity),
-        memo: newPurchase.memo || null
+        memo: newPurchase.memo || null,
+        user_id: user?.id
       })
 
     if (error) {
@@ -409,7 +490,8 @@ export default function BulkInventoryPage() {
         purchase_price: newSale.purchase_price ? parseInt(newSale.purchase_price) : null,
         other_cost: newSale.other_cost ? parseInt(newSale.other_cost) : 0,
         deposit_amount: newSale.deposit_amount ? parseInt(newSale.deposit_amount) : null,
-        listing_date: newSale.listing_date || null
+        listing_date: newSale.listing_date || null,
+        user_id: user?.id
       })
 
     if (error) {
@@ -482,7 +564,11 @@ export default function BulkInventoryPage() {
     }
 
     const value = sale[field]
-    setEditValue(value !== null && value !== undefined ? String(value) : '')
+    // 数値フィールドで0の場合は空として扱う（表示が-になるため）
+    const numericFields = ['sale_amount', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'deposit_amount', 'quantity']
+    const isNumericField = numericFields.includes(field)
+    const shouldBeEmpty = value === null || value === undefined || (isNumericField && value === 0)
+    setEditValue(shouldBeEmpty ? '' : String(value))
     setEditingCell({ id: sale.id, field, type: 'sale' })
   }
 
@@ -496,90 +582,13 @@ export default function BulkInventoryPage() {
     }
 
     const value = purchase[field]
-    setEditValue(value !== null && value !== undefined ? String(value) : '')
+    // 数値フィールドで0の場合は空として扱う（表示が-になるため）
+    const numericFields = ['total_amount', 'total_quantity', 'purchase_price']
+    const isNumericField = numericFields.includes(field)
+    const shouldBeEmpty = value === null || value === undefined || (isNumericField && value === 0)
+    setEditValue(shouldBeEmpty ? '' : String(value))
     setEditingCell({ id: purchase.id, field: field as keyof BulkSale | keyof BulkPurchase, type: 'purchase' })
   }
-
-  // 編集内容を保存
-  const saveEditingCell = useCallback(async () => {
-    if (!editingCell) return
-
-    const { id, field, type } = editingCell
-
-    if (type === 'sale') {
-      // 販売の保存
-      const sale = bulkSales.find(s => s.id === id)
-      if (!sale) {
-        setEditingCell(null)
-        return
-      }
-
-      let newValue: string | number | null = editValue
-
-      // 数値フィールドの変換
-      const numericFields = ['quantity', 'sale_amount', 'commission', 'shipping_cost', 'purchase_price', 'other_cost', 'deposit_amount']
-      if (numericFields.includes(field)) {
-        newValue = editValue ? parseInt(editValue) : null
-      }
-
-      // 変更がない場合はスキップ
-      const currentValue = sale[field as keyof BulkSale]
-      if (String(currentValue ?? '') === String(newValue ?? '')) {
-        setEditingCell(null)
-        return
-      }
-
-      const { error } = await supabase
-        .from('bulk_sales')
-        .update({ [field]: newValue })
-        .eq('id', id)
-
-      if (error) {
-        console.error('Error updating sale:', error)
-      } else {
-        setBulkSales(prev => prev.map(s =>
-          s.id === id ? { ...s, [field]: newValue } : s
-        ))
-      }
-    } else {
-      // 仕入れの保存
-      const purchase = bulkPurchases.find(p => p.id === id)
-      if (!purchase) {
-        setEditingCell(null)
-        return
-      }
-
-      let newValue: string | number | null = editValue
-
-      // 数値フィールドの変換
-      const numericFields = ['total_amount', 'total_quantity', 'purchase_price']
-      if (numericFields.includes(field)) {
-        newValue = editValue ? parseInt(editValue) : null
-      }
-
-      // 変更がない場合はスキップ
-      const currentValue = purchase[field as keyof BulkPurchase]
-      if (String(currentValue ?? '') === String(newValue ?? '')) {
-        setEditingCell(null)
-        return
-      }
-
-      const { error } = await supabase
-        .from('bulk_purchases')
-        .update({ [field]: newValue })
-        .eq('id', id)
-
-      if (error) {
-        console.error('Error updating purchase:', error, 'field:', field, 'value:', newValue)
-      } else {
-        setBulkPurchases(prev => prev.map(p =>
-          p.id === id ? { ...p, [field]: newValue } : p
-        ))
-      }
-    }
-
-    setEditingCell(null)
-  }, [editingCell, editValue, bulkSales, bulkPurchases])
 
   // 販売先に応じた手数料計算（正の数で返す）
   const calculateCommission = (destination: string | null, salePrice: number | null, saleDate?: string | null): number | null => {
@@ -652,6 +661,107 @@ export default function BulkInventoryPage() {
     }
   }
 
+  // 編集内容を保存
+  const saveEditingCell = useCallback(async () => {
+    if (!editingCell) return
+
+    const { id, field, type } = editingCell
+
+    if (type === 'sale') {
+      // 販売の保存
+      const sale = bulkSales.find(s => s.id === id)
+      if (!sale) {
+        setEditingCell(null)
+        return
+      }
+
+      let newValue: string | number | null = editValue
+
+      // 数値フィールドの変換
+      const numericFields = ['quantity', 'sale_amount', 'commission', 'shipping_cost', 'purchase_price', 'other_cost', 'deposit_amount']
+      // NOT NULL制約があるフィールドは0をデフォルトに
+      const notNullFields = ['sale_amount', 'commission', 'shipping_cost', 'quantity']
+      if (numericFields.includes(field)) {
+        if (editValue) {
+          newValue = parseInt(editValue)
+        } else if (notNullFields.includes(field)) {
+          newValue = 0
+        } else {
+          newValue = null
+        }
+      }
+
+      // 変更がない場合はスキップ
+      const currentValue = sale[field as keyof BulkSale]
+      if (String(currentValue ?? '') === String(newValue ?? '')) {
+        setEditingCell(null)
+        return
+      }
+
+      // 売上額を変更した場合、販売先が設定されていれば手数料も再計算
+      let updateData: Record<string, string | number | null> = { [field]: newValue }
+      if (field === 'sale_amount' && sale.sale_destination && typeof newValue === 'number') {
+        const newCommission = calculateCommission(sale.sale_destination, newValue, sale.sale_date)
+        if (newCommission !== null) {
+          updateData.commission = newCommission
+        }
+      }
+
+      console.log('Updating sale:', id, 'field:', field, 'updateData:', updateData)
+      const { error, data } = await supabase
+        .from('bulk_sales')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+
+      console.log('Update result - error:', error, 'data:', data)
+      if (error) {
+        console.error('Error updating sale:', error, error.message, error.details)
+      } else {
+        setBulkSales(prev => prev.map(s =>
+          s.id === id ? { ...s, ...updateData } : s
+        ))
+      }
+    } else {
+      // 仕入れの保存
+      const purchase = bulkPurchases.find(p => p.id === id)
+      if (!purchase) {
+        setEditingCell(null)
+        return
+      }
+
+      let newValue: string | number | null = editValue
+
+      // 数値フィールドの変換
+      const numericFields = ['total_amount', 'total_quantity', 'purchase_price']
+      if (numericFields.includes(field)) {
+        newValue = editValue ? parseInt(editValue) : null
+      }
+
+      // 変更がない場合はスキップ
+      const currentValue = purchase[field as keyof BulkPurchase]
+      if (String(currentValue ?? '') === String(newValue ?? '')) {
+        setEditingCell(null)
+        return
+      }
+
+      const { error } = await supabase
+        .from('bulk_purchases')
+        .update({ [field]: newValue })
+        .eq('id', id)
+
+      if (error) {
+        console.error('Error updating purchase:', error, 'field:', field, 'value:', newValue)
+      } else {
+        setBulkPurchases(prev => prev.map(p =>
+          p.id === id ? { ...p, [field]: newValue } : p
+        ))
+      }
+    }
+
+    setEditingCell(null)
+  }, [editingCell, editValue, bulkSales, bulkPurchases])
+
   // セレクトボックス専用の即時保存（販売先など）+ 手数料自動計算
   const handleSelectChange = async (saleId: string, field: keyof BulkSale, value: string) => {
     const newValue = value || null
@@ -681,6 +791,25 @@ export default function BulkInventoryPage() {
     setEditingCell(null)
   }
 
+  // 仕入先セレクトボックス専用の即時保存
+  const handlePurchaseSelectChange = async (purchaseId: string, field: keyof BulkPurchase, value: string) => {
+    const newValue = value || null
+
+    const { error } = await supabase
+      .from('bulk_purchases')
+      .update({ [field]: newValue })
+      .eq('id', purchaseId)
+
+    if (error) {
+      console.error('Error updating purchase:', error)
+    } else {
+      setBulkPurchases(prev => prev.map(p =>
+        p.id === purchaseId ? { ...p, [field]: newValue } : p
+      ))
+    }
+    setEditingCell(null)
+  }
+
   // キー入力処理
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // IME変換中は処理しない（変換確定のEnterで編集モードを終了しないように）
@@ -691,22 +820,258 @@ export default function BulkInventoryPage() {
       saveEditingCell()
     } else if (e.key === 'Escape') {
       setEditingCell(null)
+      setSelectedCells([])
     } else if (e.key === 'Tab') {
       e.preventDefault()
       saveEditingCell()
+    } else if (e.key === 'Delete') {
+      // Deleteキーで中身を一括削除
+      setEditValue('')
     }
   }
+
+  // セルが選択されているかチェック
+  const isCellSelected = (id: string, field: string, type: 'sale' | 'purchase') => {
+    return selectedCells.some(cell => cell.id === id && cell.field === field && cell.type === type)
+  }
+
+  // セルのマウスダウン（ドラッグ開始）
+  const handleCellMouseDown = (
+    e: React.MouseEvent,
+    cell: SelectedCell,
+    onEdit: () => void
+  ) => {
+    // ダブルクリックは編集モードへ
+    if (e.detail === 2) {
+      setSelectedCells([])
+      setIsDragging(false)
+      setDragStart(null)
+      onEdit()
+      return
+    }
+
+    // 編集中は選択モードに入らない
+    if (editingCell) return
+
+    // 既に選択中のセルをクリックしたら編集モードへ
+    const isAlreadySelected = selectedCells.some(c => c.id === cell.id && c.field === cell.field && c.type === cell.type)
+    if (isAlreadySelected && selectedCells.length === 1) {
+      setSelectedCells([])
+      onEdit()
+      return
+    }
+
+    // Cmd/Ctrl+クリックで追加選択
+    if (e.metaKey || e.ctrlKey) {
+      setSelectedCells(prev => {
+        const exists = prev.some(c => c.id === cell.id && c.field === cell.field && c.type === cell.type)
+        if (exists) {
+          return prev.filter(c => !(c.id === cell.id && c.field === cell.field && c.type === cell.type))
+        }
+        return [...prev, cell]
+      })
+      return
+    }
+
+    // ドラッグ開始
+    setIsDragging(true)
+    setDragStart(cell)
+    setSelectedCells([cell])
+    setSelectionStart(cell)
+  }
+
+  // セルのマウスエンター（ドラッグ中）
+  const handleCellMouseEnter = (cell: SelectedCell) => {
+    if (!isDragging || !dragStart) return
+
+    // dragStartからcellまでの範囲を選択
+    const minRow = Math.min(dragStart.rowIndex, cell.rowIndex)
+    const maxRow = Math.max(dragStart.rowIndex, cell.rowIndex)
+    const minCol = Math.min(dragStart.colIndex, cell.colIndex)
+    const maxCol = Math.max(dragStart.colIndex, cell.colIndex)
+
+    // 範囲内のセルを全て選択するために、allCellsMapを使う
+    // 簡易実装: dragStartとcellの2点を保持し、renderCell側で範囲判定
+    setSelectedCells(prev => {
+      // 一旦dragStartのみ保持して、範囲はrowIndex/colIndexで判定
+      return [{ ...dragStart, minRow, maxRow, minCol, maxCol } as SelectedCell]
+    })
+    // 範囲選択用に開始と終了を保持
+    setSelectionStart(dragStart)
+  }
+
+  // マウスアップ（ドラッグ終了）
+  useEffect(() => {
+    const handleMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false)
+      }
+    }
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [isDragging])
+
+  // 範囲内かどうかをチェック（ドラッグ中も終了後も機能）
+  const isCellInRange = (rowIndex: number, colIndex: number): boolean => {
+    if (selectedCells.length === 0) return false
+
+    const cell = selectedCells[0] as SelectedCell & { minRow?: number; maxRow?: number; minCol?: number; maxCol?: number }
+    if (cell.minRow !== undefined && cell.maxRow !== undefined && cell.minCol !== undefined && cell.maxCol !== undefined) {
+      return rowIndex >= cell.minRow && rowIndex <= cell.maxRow && colIndex >= cell.minCol && colIndex <= cell.maxCol
+    }
+    return false
+  }
+
+  // セルの値を取得
+  const getCellValue = (id: string, field: string, type: 'sale' | 'purchase'): string => {
+    if (type === 'sale') {
+      const sale = bulkSales.find(s => s.id === id)
+      if (!sale) return ''
+      const value = sale[field as keyof BulkSale]
+      return value !== null && value !== undefined ? String(value) : ''
+    } else {
+      const purchase = bulkPurchases.find(p => p.id === id)
+      if (!purchase) return ''
+      const value = purchase[field as keyof BulkPurchase]
+      return value !== null && value !== undefined ? String(value) : ''
+    }
+  }
+
+  // 列インデックスからフィールド名を取得
+  const getFieldByColIndex = (colIndex: number, type: 'sale' | 'purchase'): string => {
+    const saleFields: Record<number, string> = {
+      1: 'sale_date',
+      4: 'category',
+      5: 'brand_name',
+      6: 'product_name',
+      8: 'sale_destination',
+      9: 'sale_amount',
+      10: 'commission',
+      11: 'shipping_cost',
+      12: 'other_cost',
+      13: 'purchase_price',
+      15: 'deposit_amount',
+    }
+    const purchaseFields: Record<number, string> = {
+      1: 'purchase_date',
+      4: 'genre',
+      6: 'memo',
+      13: 'purchase_price',
+      14: 'total_amount',
+    }
+    return type === 'sale' ? saleFields[colIndex] || '' : purchaseFields[colIndex] || ''
+  }
+
+  // Ctrl+Cでコピー
+  useEffect(() => {
+    const handleCopy = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedCells.length > 0 && !editingCell) {
+        e.preventDefault()
+
+        const cell = selectedCells[0] as SelectedCell & { minRow?: number; maxRow?: number; minCol?: number; maxCol?: number }
+
+        // 範囲選択の場合
+        if (cell.minRow !== undefined && cell.maxRow !== undefined && cell.minCol !== undefined && cell.maxCol !== undefined) {
+          const rows: string[][] = []
+
+          for (let rowIdx = cell.minRow; rowIdx <= cell.maxRow; rowIdx++) {
+            const row = mixedRows[rowIdx]
+            if (!row) continue
+
+            const rowValues: string[] = []
+            const sale = row.saleData
+            const purchase = row.purchaseData
+            const isSale = row.type === 'sale'
+
+            for (let colIdx = cell.minCol; colIdx <= cell.maxCol; colIdx++) {
+              let value = ''
+              if (isSale && sale) {
+                const field = getFieldByColIndex(colIdx, 'sale')
+                if (field) {
+                  value = getCellValue(sale.id, field, 'sale')
+                }
+              } else if (!isSale && purchase) {
+                const field = getFieldByColIndex(colIdx, 'purchase')
+                if (field) {
+                  value = getCellValue(purchase.id, field, 'purchase')
+                }
+              }
+              rowValues.push(value)
+            }
+            rows.push(rowValues)
+          }
+
+          // 行は改行、列はタブで区切る
+          const text = rows.map(r => r.join('\t')).join('\n')
+          navigator.clipboard.writeText(text).then(() => {
+            console.log('Copied:', text)
+          }).catch(err => {
+            console.error('Copy failed:', err)
+          })
+        } else {
+          // 単一セルまたは複数の個別セル選択の場合
+          const values = selectedCells.map(c => getCellValue(c.id, c.field, c.type))
+          const text = values.join('\t')
+          navigator.clipboard.writeText(text).then(() => {
+            console.log('Copied:', text)
+          }).catch(err => {
+            console.error('Copy failed:', err)
+          })
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleCopy)
+    return () => document.removeEventListener('keydown', handleCopy)
+  }, [selectedCells, editingCell, bulkSales, bulkPurchases, mixedRows])
 
   // 外側クリックで保存
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (editingCell && editCellRef.current && !editCellRef.current.contains(e.target as Node)) {
-        saveEditingCell()
+        // Portalでレンダリングしたドロップダウン内のクリックは無視
+        const target = e.target as HTMLElement
+        if (target.closest('.fixed.z-\\[9999\\]')) {
+          return
+        }
+        // ドロップダウンモードの場合は単に閉じる
+        if (editingCell.mode === 'dropdown') {
+          setEditingCell(null)
+          setDropdownPosition(null)
+        } else {
+          saveEditingCell()
+        }
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [editingCell, saveEditingCell])
+
+  // 編集モードになったらinputにフォーカス
+  useEffect(() => {
+    if (editingCell && editingCell.mode !== 'dropdown') {
+      // DOMレンダリング後にフォーカスを当てる
+      setTimeout(() => {
+        // editInputRefがある場合（仕入先・販売先のテキストモード）
+        if (editInputRef.current) {
+          editInputRef.current.focus()
+          const len = editInputRef.current.value.length
+          editInputRef.current.setSelectionRange(len, len)
+        } else {
+          // 一般的な編集セル内のinput要素を探す
+          const editCell = editCellRef.current
+          if (editCell) {
+            const input = editCell.querySelector('input') as HTMLInputElement
+            if (input) {
+              input.focus()
+              const len = input.value.length
+              input.setSelectionRange(len, len)
+            }
+          }
+        }
+      }, 10)
+    }
+  }, [editingCell])
 
   // 入力タイプ判定
   const getInputType = (field: keyof BulkSale): 'text' | 'number' | 'date' | 'sale_destination' => {
@@ -736,10 +1101,10 @@ export default function BulkInventoryPage() {
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-gray-900">まとめ仕入れ在庫一覧</h1>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={handleAddGenre}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            新規まとめ仕入れ登録
+            ジャンルを追加
           </button>
         </div>
 
@@ -787,18 +1152,40 @@ export default function BulkInventoryPage() {
             </button>
             {genres.map(genre => {
               const count = bulkPurchases.filter(p => p.genre === genre).length
+              const genrePurchases = bulkPurchases.filter(p => p.genre === genre)
               return (
-                <button
-                  key={genre}
-                  onClick={() => setSelectedGenre(genre)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedGenre === genre
-                      ? 'bg-slate-700 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {genre} ({count})
-                </button>
+                <div key={genre} className="relative group">
+                  <button
+                    onClick={() => setSelectedGenre(genre)}
+                    className={`px-4 py-2 pr-8 rounded-lg text-sm font-medium transition-colors ${
+                      selectedGenre === genre
+                        ? 'bg-slate-700 text-white'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {genre} ({count})
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (!confirm(`「${genre}」のジャンルを削除しますか？\n関連する${count}件の仕入れと売上データも全て削除されます。`)) return
+                      // ジャンルに紐づく全ての仕入れを削除（関連売上も自動削除）
+                      for (const purchase of genrePurchases) {
+                        await supabase.from('bulk_sales').delete().eq('bulk_purchase_id', purchase.id)
+                        await supabase.from('bulk_purchases').delete().eq('id', purchase.id)
+                      }
+                      if (selectedGenre === genre) setSelectedGenre('all')
+                      fetchData()
+                    }}
+                    className={`absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white transition-colors ${
+                      selectedGenre === genre ? 'text-white/70' : 'text-gray-400'
+                    }`}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               )
             })}
           </div>
@@ -900,7 +1287,8 @@ export default function BulkInventoryPage() {
                       purchase_price: null,
                       other_cost: 0,
                       deposit_amount: null,
-                      listing_date: null
+                      listing_date: null,
+                      user_id: user?.id
                     })
                   if (error) {
                     alert('エラー: ' + error.message)
@@ -961,12 +1349,15 @@ export default function BulkInventoryPage() {
                         displayValue: string,
                         dataType: 'sale' | 'purchase',
                         inputType: 'text' | 'number' | 'date' | 'select' = 'text',
-                        extraClass: string = ''
+                        extraClass: string = '',
+                        colIndex: number = 0
                       ) => {
                         const targetId = dataType === 'sale' ? sale?.id : purchase?.id
                         const isEditing = editingCell?.id === targetId && editingCell?.field === field && editingCell?.type === dataType
+                        const isSelected = targetId ? isCellSelected(targetId, field, dataType) : false
+                        const isInRange = isCellInRange(index, colIndex)
 
-                        const handleClick = () => {
+                        const handleEdit = () => {
                           if (dataType === 'sale' && sale) {
                             handleSaleCellClick(sale, field as keyof BulkSale)
                           } else if (dataType === 'purchase' && purchase) {
@@ -974,50 +1365,62 @@ export default function BulkInventoryPage() {
                           }
                         }
 
+                        const handleMouseDown = (e: React.MouseEvent) => {
+                          if (!targetId) return
+                          handleCellMouseDown(
+                            e,
+                            { id: targetId, field, type: dataType, rowIndex: index, colIndex },
+                            handleEdit
+                          )
+                        }
+
+                        const handleMouseEnter = () => {
+                          if (!targetId) return
+                          handleCellMouseEnter({ id: targetId, field, type: dataType, rowIndex: index, colIndex })
+                        }
+
                         if (isEditing) {
                           if (inputType === 'select') {
                             return (
-                              <td className={`px-2 py-1 border-r border-gray-100 ${extraClass}`}>
-                                <div ref={editCellRef}>
-                                  <select
-                                    value={editValue}
-                                    onChange={(e) => {
-                                      setEditValue(e.target.value)
-                                      setTimeout(() => saveEditingCell(), 0)
-                                    }}
-                                    onKeyDown={handleKeyDown}
-                                    className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    autoFocus
-                                  >
-                                    <option value="">-</option>
-                                    {platforms.map(p => (
-                                      <option key={p.name} value={p.name}>{p.name}</option>
-                                    ))}
-                                  </select>
-                                </div>
+                              <td className={`px-2 py-1 border-r border-gray-100 ring-2 ring-blue-500 ring-inset ${extraClass}`} ref={editCellRef}>
+                                <select
+                                  value={editValue}
+                                  onChange={(e) => {
+                                    setEditValue(e.target.value)
+                                    setTimeout(() => saveEditingCell(), 0)
+                                  }}
+                                  onKeyDown={handleKeyDown}
+                                  className="w-full h-full px-0 py-0 text-xs border-none outline-none bg-transparent text-gray-900 font-medium"
+                                  autoFocus
+                                >
+                                  <option value="">-</option>
+                                  {platforms.map(p => (
+                                    <option key={p.name} value={p.name}>{p.name}</option>
+                                  ))}
+                                </select>
                               </td>
                             )
                           }
                           return (
-                            <td className={`px-2 py-1 border-r border-gray-100 ${extraClass}`}>
-                              <div ref={editCellRef}>
-                                <input
-                                  type={inputType}
-                                  value={editValue}
-                                  onChange={(e) => setEditValue(e.target.value)}
-                                  onKeyDown={handleKeyDown}
-                                  className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  autoFocus
-                                />
-                              </div>
+                            <td className={`px-2 py-1 border-r border-gray-100 ring-2 ring-blue-500 ring-inset ${extraClass}`} ref={editCellRef}>
+                              <input
+                                type={inputType === 'number' ? 'text' : inputType}
+                                inputMode={inputType === 'number' ? 'numeric' : undefined}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                className="w-full h-full px-0 py-0 text-xs border-none outline-none bg-transparent text-gray-900 font-medium"
+                                autoFocus
+                              />
                             </td>
                           )
                         }
 
                         return (
                           <td
-                            className={`px-2 py-1 border-r border-gray-100 cursor-pointer hover:bg-blue-50 ${extraClass}`}
-                            onClick={handleClick}
+                            className={`px-2 py-1 border-r border-gray-100 cursor-pointer select-none ${isSelected || isInRange ? 'ring-2 ring-blue-500 ring-inset' : 'hover:bg-blue-50'} ${extraClass}`}
+                            onMouseDown={handleMouseDown}
+                            onMouseEnter={handleMouseEnter}
                           >
                             {displayValue}
                           </td>
@@ -1041,8 +1444,8 @@ export default function BulkInventoryPage() {
                           <td className="px-2 py-1 border-r border-gray-100 text-center text-gray-500">{index + 1}</td>
                           {/* 日付 */}
                           {isPurchase && purchase
-                            ? renderCell('purchase_date', row.date, 'purchase', 'date', 'text-gray-900')
-                            : sale ? renderCell('sale_date', row.date, 'sale', 'date', 'text-gray-900')
+                            ? renderCell('purchase_date', row.date, 'purchase', 'date', 'text-gray-900', 1)
+                            : sale ? renderCell('sale_date', row.date, 'sale', 'date', 'text-gray-900', 1)
                             : <td className="px-2 py-1 border-r border-gray-100 text-gray-900">{row.date}</td>}
                           {/* 種別 */}
                           <td className="px-2 py-1 border-r border-gray-100 text-center">
@@ -1060,88 +1463,272 @@ export default function BulkInventoryPage() {
                           )}
                           {/* ジャンル */}
                           {isPurchase && purchase
-                            ? renderCell('genre', row.genre || '-', 'purchase', 'text', 'text-gray-900')
-                            : sale ? renderCell('category', row.genre || '-', 'sale', 'text', 'text-gray-900')
+                            ? renderCell('genre', row.genre || '-', 'purchase', 'text', 'text-gray-900', 4)
+                            : sale ? renderCell('category', row.genre || '-', 'sale', 'text', 'text-gray-900', 4)
                             : <td className="px-2 py-1 border-r border-gray-100 text-gray-900">{row.genre}</td>}
                           {/* ブランド */}
                           {sale
-                            ? renderCell('brand_name', row.brandName || '-', 'sale', 'text', 'text-gray-900 truncate')
+                            ? renderCell('brand_name', row.brandName || '-', 'sale', 'text', 'text-gray-900 truncate', 5)
                             : <td className="px-2 py-1 border-r border-gray-100 text-gray-400">-</td>}
                           {/* 商品名 */}
                           {sale
-                            ? renderCell('product_name', row.productName || '-', 'sale', 'text', 'text-gray-900 truncate')
+                            ? renderCell('product_name', row.productName || '-', 'sale', 'text', 'text-gray-900 truncate', 6)
                             : isPurchase && purchase
-                              ? renderCell('memo', row.productName || '-', 'purchase', 'text', 'text-gray-900 truncate')
+                              ? renderCell('memo', row.productName || '-', 'purchase', 'text', 'text-gray-900 truncate', 6)
                               : <td className="px-2 py-1 border-r border-gray-100">{row.productName || '-'}</td>}
                           {/* 仕入先 */}
-                          {isPurchase && purchase?.purchase_source ? (
-                            <td className="px-2 py-1 border-r border-gray-100 text-center overflow-hidden">
-                              <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${platformColors[purchase.purchase_source] || 'bg-gray-100 text-gray-800'}`} title={purchase.purchase_source}>
-                                {purchase.purchase_source}
-                              </span>
-                            </td>
-                          ) : isPurchase ? (
-                            <td className="px-2 py-1 border-r border-gray-100 text-center text-gray-400">-</td>
-                          ) : (
+                          {isPurchase && purchase ? (() => {
+                            const isEditing = editingCell?.id === purchase.id && editingCell?.field === 'purchase_source' && editingCell?.type === 'purchase'
+                            const isDropdownMode = isEditing && editingCell?.mode === 'dropdown'
+                            const isTextMode = isEditing && editingCell?.mode === 'text'
+                            const isSelected = isCellSelected(purchase.id, 'purchase_source', 'purchase') || isCellInRange(index, 7)
+                            const sourceColor = platformColors[purchase.purchase_source || ''] || 'bg-gray-100 text-gray-800'
+
+                            const handleDropdownClick = (e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              const target = e.currentTarget as HTMLElement
+                              const rect = target.closest('td')?.getBoundingClientRect()
+                              if (rect) {
+                                setDropdownPosition({ top: rect.bottom + 2, left: rect.left })
+                              }
+                              setTimeout(() => {
+                                setEditingCell({ id: purchase.id, field: 'purchase_source', type: 'purchase', mode: 'dropdown' })
+                                setEditValue(purchase.purchase_source || '')
+                              }, 0)
+                            }
+
+                            const handleTextEdit = () => {
+                              setEditingCell({ id: purchase.id, field: 'purchase_source', type: 'purchase', mode: 'text' })
+                              setEditValue(purchase.purchase_source || '')
+                            }
+
+                            return (
+                              <td
+                                className={`px-1 py-1 border-r border-gray-100 cursor-pointer select-none relative ${isDropdownMode ? 'overflow-visible' : 'overflow-hidden'} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : isSelected ? 'ring-2 ring-blue-500 ring-inset' : 'hover:bg-blue-50'}`}
+                                onMouseDown={(e) => {
+                                  if (!(e.target as HTMLElement).closest('.dropdown-trigger')) {
+                                    handleCellMouseDown(e, { id: purchase.id, field: 'purchase_source', type: 'purchase', rowIndex: index, colIndex: 7 }, handleTextEdit)
+                                  }
+                                }}
+                                onMouseEnter={() => handleCellMouseEnter({ id: purchase.id, field: 'purchase_source', type: 'purchase', rowIndex: index, colIndex: 7 })}
+                                ref={isEditing ? editCellRef : null}
+                              >
+                                {isDropdownMode ? (
+                                  <>
+                                    <div className="flex items-center justify-between gap-1">
+                                      <div className="flex-1 text-center overflow-hidden">
+                                        {purchase.purchase_source ? (
+                                          <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${sourceColor}`}>{purchase.purchase_source}</span>
+                                        ) : (
+                                          <span className="text-gray-400">-</span>
+                                        )}
+                                      </div>
+                                      <div className="dropdown-trigger flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                                        <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                    {dropdownPosition && createPortal(
+                                      <div
+                                        className="fixed z-[9999] w-32 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-auto"
+                                        style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                                      >
+                                        {[{ name: '' }, ...suppliers].map((s) => (
+                                          <div
+                                            key={s.name || 'empty'}
+                                            className={`px-3 py-1.5 text-xs text-gray-900 cursor-pointer hover:bg-blue-100 ${editValue === s.name ? 'bg-blue-50 font-medium' : ''}`}
+                                            onMouseDown={(e) => {
+                                              e.preventDefault()
+                                              handlePurchaseSelectChange(purchase.id, 'purchase_source', s.name)
+                                            }}
+                                          >
+                                            {s.name || '-'}
+                                          </div>
+                                        ))}
+                                      </div>,
+                                      document.body
+                                    )}
+                                  </>
+                                ) : isTextMode ? (
+                                  <input
+                                    ref={editInputRef}
+                                    type="text"
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    className="w-full h-full px-0 py-0 text-xs border-none outline-none bg-transparent text-gray-900 font-medium text-center"
+                                  />
+                                ) : (
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex-1 text-center overflow-hidden cursor-pointer">
+                                      {purchase.purchase_source ? (
+                                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${sourceColor}`}>{purchase.purchase_source}</span>
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </div>
+                                    <div
+                                      className="dropdown-trigger flex-shrink-0 w-4 h-4 flex items-center justify-center hover:bg-gray-200 rounded cursor-pointer"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        handleDropdownClick(e)
+                                      }}
+                                    >
+                                      <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                            )
+                          })() : (
                             <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>
                           )}
                           {/* 販売先 */}
-                          {sale && row.saleDestination ? (
-                            <td className="px-2 py-1 border-r border-gray-100 text-center cursor-pointer hover:bg-blue-50 overflow-hidden" onClick={() => handleSaleCellClick(sale, 'sale_destination')}>
-                              {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale' ? (
-                                <div ref={editCellRef}>
-                                  <select value={editValue} onChange={(e) => handleSelectChange(sale.id, 'sale_destination', e.target.value)} onKeyDown={handleKeyDown} className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded bg-white text-gray-900" autoFocus>
-                                    <option value="">-</option>
-                                    {platforms.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                                  </select>
-                                </div>
-                              ) : (
-                                <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${destColor || 'bg-gray-100 text-gray-800'}`} title={row.saleDestination}>{row.saleDestination}</span>
-                              )}
-                            </td>
-                          ) : sale ? (
-                            <td className="px-2 py-1 border-r border-gray-100 text-center cursor-pointer hover:bg-blue-50 text-gray-400" onClick={() => handleSaleCellClick(sale, 'sale_destination')}>
-                              {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale' ? (
-                                <div ref={editCellRef}>
-                                  <select value={editValue} onChange={(e) => handleSelectChange(sale.id, 'sale_destination', e.target.value)} onKeyDown={handleKeyDown} className="w-full px-1 py-0.5 text-xs border border-blue-400 rounded bg-white text-gray-900" autoFocus>
-                                    <option value="">-</option>
-                                    {platforms.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                                  </select>
-                                </div>
-                              ) : '-'}
-                            </td>
-                          ) : (
+                          {sale ? (() => {
+                            const isEditing = editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale'
+                            const isDropdownMode = isEditing && editingCell?.mode === 'dropdown'
+                            const isTextMode = isEditing && editingCell?.mode === 'text'
+                            const isSelected = isCellSelected(sale.id, 'sale_destination', 'sale') || isCellInRange(index, 8)
+
+                            const handleDropdownClick = (e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              const target = e.currentTarget as HTMLElement
+                              const rect = target.closest('td')?.getBoundingClientRect()
+                              if (rect) {
+                                setDropdownPosition({ top: rect.bottom + 2, left: rect.left })
+                              }
+                              setTimeout(() => {
+                                setEditingCell({ id: sale.id, field: 'sale_destination', type: 'sale', mode: 'dropdown' })
+                                setEditValue(sale.sale_destination || '')
+                              }, 0)
+                            }
+
+                            const handleTextEdit = () => {
+                              setEditingCell({ id: sale.id, field: 'sale_destination', type: 'sale', mode: 'text' })
+                              setEditValue(sale.sale_destination || '')
+                            }
+
+                            return (
+                              <td
+                                className={`px-1 py-1 border-r border-gray-100 cursor-pointer select-none relative ${isDropdownMode ? 'overflow-visible' : 'overflow-hidden'} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : isSelected ? 'ring-2 ring-blue-500 ring-inset' : 'hover:bg-blue-50'}`}
+                                onMouseDown={(e) => {
+                                  if (!(e.target as HTMLElement).closest('.dropdown-trigger')) {
+                                    handleCellMouseDown(e, { id: sale.id, field: 'sale_destination', type: 'sale', rowIndex: index, colIndex: 8 }, handleTextEdit)
+                                  }
+                                }}
+                                onMouseEnter={() => handleCellMouseEnter({ id: sale.id, field: 'sale_destination', type: 'sale', rowIndex: index, colIndex: 8 })}
+                                ref={isEditing ? editCellRef : null}
+                              >
+                                {isDropdownMode ? (
+                                  <>
+                                    <div className="relative w-full h-full">
+                                      <div className="text-center overflow-hidden pr-4">
+                                        {row.saleDestination ? (
+                                          <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${destColor || 'bg-gray-100 text-gray-800'}`}>{row.saleDestination}</span>
+                                        ) : (
+                                          <span className="text-gray-400">-</span>
+                                        )}
+                                      </div>
+                                      <div className="dropdown-trigger absolute top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center" style={{ right: '-2px' }}>
+                                        <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                    {dropdownPosition && createPortal(
+                                      <div
+                                        className="fixed z-[9999] w-32 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-auto"
+                                        style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                                      >
+                                        {[{ name: '' }, ...platforms].map((p) => (
+                                          <div
+                                            key={p.name || 'empty'}
+                                            className={`px-3 py-1.5 text-xs text-gray-900 cursor-pointer hover:bg-blue-100 ${editValue === p.name ? 'bg-blue-50 font-medium' : ''}`}
+                                            onMouseDown={(e) => {
+                                              e.preventDefault()
+                                              handleSelectChange(sale.id, 'sale_destination', p.name)
+                                            }}
+                                          >
+                                            {p.name || '-'}
+                                          </div>
+                                        ))}
+                                      </div>,
+                                      document.body
+                                    )}
+                                  </>
+                                ) : isTextMode ? (
+                                  <input
+                                    ref={editInputRef}
+                                    type="text"
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    className="w-full h-full px-0 py-0 text-xs border-none outline-none bg-transparent text-gray-900 font-medium text-center"
+                                  />
+                                ) : (
+                                  <div className="relative w-full h-full">
+                                    <div className="text-center overflow-hidden cursor-pointer pr-4">
+                                      {row.saleDestination ? (
+                                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${destColor || 'bg-gray-100 text-gray-800'}`}>{row.saleDestination}</span>
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </div>
+                                    <div
+                                      className="dropdown-trigger absolute top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center hover:bg-gray-200 rounded cursor-pointer"
+                                      style={{ right: '-2px' }}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        handleDropdownClick(e)
+                                      }}
+                                    >
+                                      <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                            )
+                          })() : (
                             <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>
                           )}
                           {/* 売値 */}
                           {sale
-                            ? renderCell('sale_amount', sale.sale_amount ? `¥${sale.sale_amount.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-900')
+                            ? renderCell('sale_amount', sale.sale_amount ? `¥${sale.sale_amount.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-900', 9)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 手数料 */}
                           {sale
-                            ? renderCell('commission', sale.commission ? `¥${sale.commission.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600')
+                            ? renderCell('commission', sale.commission ? `¥${sale.commission.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 10)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 送料 */}
                           {sale
-                            ? renderCell('shipping_cost', sale.shipping_cost ? `¥${sale.shipping_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600')
+                            ? renderCell('shipping_cost', sale.shipping_cost ? `¥${sale.shipping_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 11)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* その他 */}
                           {sale
-                            ? renderCell('other_cost', sale.other_cost ? `¥${sale.other_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600')
+                            ? renderCell('other_cost', sale.other_cost ? `¥${sale.other_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 12)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 正味仕入額 */}
                           {sale
-                            ? renderCell('purchase_price', sale.purchase_price ? `¥${sale.purchase_price.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-red-600')
+                            ? renderCell('purchase_price', sale.purchase_price ? `¥${sale.purchase_price.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-red-600', 13)
                             : isPurchase && purchase
-                              ? renderCell('purchase_price', purchase.purchase_price ? `¥${purchase.purchase_price.toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-red-600')
+                              ? renderCell('purchase_price', purchase.purchase_price ? `¥${purchase.purchase_price.toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-red-600', 13)
                               : <td className="px-2 py-1 border-r border-gray-100 text-right text-gray-400">-</td>}
                           {/* 仕入総額 */}
                           {isPurchase && purchase
-                            ? renderCell('total_amount', `¥${row.purchaseAmount.toLocaleString()}`, 'purchase', 'number', 'text-right text-red-600 font-medium')
+                            ? renderCell('total_amount', `¥${row.purchaseAmount.toLocaleString()}`, 'purchase', 'number', 'text-right text-red-600 font-medium', 14)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 入金額 */}
                           {sale
-                            ? renderCell('deposit_amount', `¥${depositAmount.toLocaleString()}`, 'sale', 'number', 'text-right text-blue-600')
+                            ? renderCell('deposit_amount', `¥${depositAmount.toLocaleString()}`, 'sale', 'number', 'text-right text-blue-600', 15)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 利益 */}
                           <td className={`px-2 py-1 border-r border-gray-100 text-right font-bold ${row.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1406,7 +1993,7 @@ export default function BulkInventoryPage() {
 
                                   return (
                                     <td
-                                      className={`px-2 py-1 border-r border-gray-100 cursor-pointer hover:bg-blue-50 relative ${align === 'right' ? 'text-right' : 'text-left'} ${extraClass}`}
+                                      className={`px-2 py-1 border-r border-gray-100 cursor-pointer relative ${align === 'right' ? 'text-right' : 'text-left'} ${extraClass} ${isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : 'hover:bg-blue-50'}`}
                                       onClick={() => handleSaleCellClick(sale, field)}
                                     >
                                       {isEditing ? (
@@ -1513,7 +2100,7 @@ export default function BulkInventoryPage() {
                                     <td className="px-2 py-1 border-r border-gray-100 overflow-hidden">
                                       <div className="flex justify-center">
                                         {purchase.purchase_source ? (
-                                          <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full max-w-full truncate ${sourceColor || 'bg-gray-100 text-gray-800'}`} title={purchase.purchase_source}>
+                                          <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full max-w-full truncate ${sourceColor || 'bg-gray-100 text-gray-800'}`}>
                                             {purchase.purchase_source}
                                           </span>
                                         ) : (
@@ -1524,7 +2111,7 @@ export default function BulkInventoryPage() {
 
                                     {/* 販売先 - チップ表示 */}
                                     <td
-                                      className="px-2 py-1 border-r border-gray-100 cursor-pointer hover:bg-blue-50"
+                                      className={`px-2 py-1 border-r border-gray-100 cursor-pointer ${editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale' ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : 'hover:bg-blue-50'}`}
                                       onClick={() => handleSaleCellClick(sale, 'sale_destination')}
                                     >
                                       {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale' ? (
@@ -1548,7 +2135,7 @@ export default function BulkInventoryPage() {
                                       ) : (
                                         <div className="flex justify-center overflow-hidden">
                                           {sale.sale_destination ? (
-                                            <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full max-w-full truncate ${destColor || 'bg-gray-100 text-gray-800'}`} title={sale.sale_destination}>
+                                            <span className={`inline-flex items-center px-2 py-1 text-xs font-bold rounded-full max-w-full truncate ${destColor || 'bg-gray-100 text-gray-800'}`}>
                                               {sale.sale_destination}
                                             </span>
                                           ) : (

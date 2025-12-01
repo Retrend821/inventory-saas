@@ -13,6 +13,15 @@ interface Platform {
   is_active: boolean
   is_hidden: boolean
   created_at: string
+  // 古物台帳用フィールド
+  address: string | null
+  representative_name: string | null
+  occupation: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  verification_method: string | null
+  is_anonymous: boolean
 }
 
 interface Supplier {
@@ -23,6 +32,15 @@ interface Supplier {
   is_active: boolean
   is_hidden: boolean
   created_at: string
+  // 古物台帳用フィールド
+  address: string | null
+  representative_name: string | null
+  occupation: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  verification_method: string | null
+  is_anonymous: boolean
 }
 
 // デフォルト販路の設定（色と手数料率と販売区分）
@@ -149,6 +167,18 @@ export default function PlatformsPage() {
   const [platformDragIndex, setPlatformDragIndex] = useState<number | null>(null)
   const [platformDragOverIndex, setPlatformDragOverIndex] = useState<number | null>(null)
   const [showHiddenPlatforms, setShowHiddenPlatforms] = useState(false)
+  // 古物台帳詳細編集用
+  const [platformDetailEditingId, setPlatformDetailEditingId] = useState<string | null>(null)
+  const [platformDetailForm, setPlatformDetailForm] = useState({
+    address: '',
+    representative_name: '',
+    occupation: '',
+    phone: '',
+    email: '',
+    website: '',
+    verification_method: '',
+    is_anonymous: false,
+  })
 
   // 仕入先マスタ用state
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -164,6 +194,18 @@ export default function PlatformsPage() {
   const [supplierDragIndex, setSupplierDragIndex] = useState<number | null>(null)
   const [supplierDragOverIndex, setSupplierDragOverIndex] = useState<number | null>(null)
   const [showHiddenSuppliers, setShowHiddenSuppliers] = useState(false)
+  // 古物台帳詳細編集用
+  const [supplierDetailEditingId, setSupplierDetailEditingId] = useState<string | null>(null)
+  const [supplierDetailForm, setSupplierDetailForm] = useState({
+    address: '',
+    representative_name: '',
+    occupation: '',
+    phone: '',
+    email: '',
+    website: '',
+    verification_method: '',
+    is_anonymous: false,
+  })
 
   useEffect(() => {
     fetchPlatforms()
@@ -339,6 +381,46 @@ export default function PlatformsPage() {
   const handlePlatformDragEnd = () => {
     setPlatformDragIndex(null)
     setPlatformDragOverIndex(null)
+  }
+
+  const openPlatformDetailEdit = (platform: Platform) => {
+    setPlatformDetailEditingId(platform.id)
+    setPlatformDetailForm({
+      address: platform.address || '',
+      representative_name: platform.representative_name || '',
+      occupation: platform.occupation || '',
+      phone: platform.phone || '',
+      email: platform.email || '',
+      website: platform.website || '',
+      verification_method: platform.verification_method || '',
+      is_anonymous: platform.is_anonymous || false,
+    })
+  }
+
+  const savePlatformDetail = async () => {
+    if (!platformDetailEditingId) return
+
+    const { error } = await supabase
+      .from('platforms')
+      .update({
+        address: platformDetailForm.address || null,
+        representative_name: platformDetailForm.representative_name || null,
+        occupation: platformDetailForm.occupation || null,
+        phone: platformDetailForm.phone || null,
+        email: platformDetailForm.email || null,
+        website: platformDetailForm.website || null,
+        verification_method: platformDetailForm.verification_method || null,
+        is_anonymous: platformDetailForm.is_anonymous,
+      })
+      .eq('id', platformDetailEditingId)
+
+    if (error) {
+      console.error('Error updating platform detail:', error)
+      alert('更新に失敗しました: ' + error.message)
+    } else {
+      setPlatformDetailEditingId(null)
+      fetchPlatforms()
+    }
   }
 
   const initializePlatformDefaults = async () => {
@@ -536,6 +618,46 @@ export default function PlatformsPage() {
   const handleSupplierDragEnd = () => {
     setSupplierDragIndex(null)
     setSupplierDragOverIndex(null)
+  }
+
+  const openSupplierDetailEdit = (supplier: Supplier) => {
+    setSupplierDetailEditingId(supplier.id)
+    setSupplierDetailForm({
+      address: supplier.address || '',
+      representative_name: supplier.representative_name || '',
+      occupation: supplier.occupation || '',
+      phone: supplier.phone || '',
+      email: supplier.email || '',
+      website: supplier.website || '',
+      verification_method: supplier.verification_method || '',
+      is_anonymous: supplier.is_anonymous || false,
+    })
+  }
+
+  const saveSupplierDetail = async () => {
+    if (!supplierDetailEditingId) return
+
+    const { error } = await supabase
+      .from('suppliers')
+      .update({
+        address: supplierDetailForm.address || null,
+        representative_name: supplierDetailForm.representative_name || null,
+        occupation: supplierDetailForm.occupation || null,
+        phone: supplierDetailForm.phone || null,
+        email: supplierDetailForm.email || null,
+        website: supplierDetailForm.website || null,
+        verification_method: supplierDetailForm.verification_method || null,
+        is_anonymous: supplierDetailForm.is_anonymous,
+      })
+      .eq('id', supplierDetailEditingId)
+
+    if (error) {
+      console.error('Error updating supplier detail:', error)
+      alert('更新に失敗しました: ' + error.message)
+    } else {
+      setSupplierDetailEditingId(null)
+      fetchSuppliers()
+    }
   }
 
   const initializeSupplierDefaults = async () => {
@@ -741,6 +863,7 @@ export default function PlatformsPage() {
                       <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">有効</th>
                       <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">非表示</th>
                       <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">編集</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">台帳情報</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -896,11 +1019,23 @@ export default function PlatformsPage() {
                             </button>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <button
+                            onClick={() => openPlatformDetailEdit(platform)}
+                            className={`px-2 py-1 rounded text-xs ${
+                              platform.representative_name || platform.address
+                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                            }`}
+                          >
+                            {platform.representative_name || platform.address ? '編集' : '未設定'}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {platforms.filter(p => showHiddenPlatforms || !p.is_hidden).length === 0 && (
                       <tr>
-                        <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                           販路が登録されていません。「デフォルト販路を追加」ボタンで初期データを追加できます。
                         </td>
                       </tr>
@@ -1044,6 +1179,7 @@ export default function PlatformsPage() {
                       <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">有効</th>
                       <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">非表示</th>
                       <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">編集</th>
+                      <th className="text-center px-4 py-3 text-sm font-semibold text-white whitespace-nowrap">台帳情報</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1146,11 +1282,23 @@ export default function PlatformsPage() {
                             </button>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <button
+                            onClick={() => openSupplierDetailEdit(supplier)}
+                            className={`px-2 py-1 rounded text-xs ${
+                              supplier.representative_name || supplier.address
+                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                            }`}
+                          >
+                            {supplier.representative_name || supplier.address ? '編集' : '未設定'}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {suppliers.filter(s => showHiddenSuppliers || !s.is_hidden).length === 0 && (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                           仕入先が登録されていません。「デフォルト仕入先を追加」ボタンで初期データを追加できます。
                         </td>
                       </tr>
@@ -1182,6 +1330,240 @@ export default function PlatformsPage() {
             {commissionDetails[detailPopup.name]}
           </div>
         </>
+      )}
+
+      {/* 販路 古物台帳詳細編集モーダル */}
+      {platformDetailEditingId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              古物台帳情報 - {platforms.find(p => p.id === platformDetailEditingId)?.name}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">代表者氏名</label>
+                <input
+                  type="text"
+                  value={platformDetailForm.representative_name}
+                  onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, representative_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: 山田太郎"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">住所</label>
+                <input
+                  type="text"
+                  value={platformDetailForm.address}
+                  onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, address: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: 東京都渋谷区..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">職業</label>
+                <input
+                  type="text"
+                  value={platformDetailForm.occupation}
+                  onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, occupation: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: 会社員"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
+                  <input
+                    type="text"
+                    value={platformDetailForm.phone}
+                    onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, phone: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    placeholder="例: 03-1234-5678"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+                  <input
+                    type="email"
+                    value={platformDetailForm.email}
+                    onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, email: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    placeholder="例: info@example.com"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ホームページ</label>
+                <input
+                  type="url"
+                  value={platformDetailForm.website}
+                  onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, website: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: https://example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">本人確認方法</label>
+                <select
+                  value={platformDetailForm.verification_method}
+                  onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, verification_method: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                >
+                  <option value="">選択してください</option>
+                  <option value="運転免許証">運転免許証</option>
+                  <option value="マイナンバーカード">マイナンバーカード</option>
+                  <option value="パスポート">パスポート</option>
+                  <option value="健康保険証">健康保険証</option>
+                  <option value="住民票">住民票</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="platform_is_anonymous"
+                  checked={platformDetailForm.is_anonymous}
+                  onChange={(e) => setPlatformDetailForm({ ...platformDetailForm, is_anonymous: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="platform_is_anonymous" className="text-sm text-gray-700">
+                  匿名取引（本人確認不要）
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setPlatformDetailEditingId(null)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={savePlatformDetail}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 仕入先 古物台帳詳細編集モーダル */}
+      {supplierDetailEditingId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              古物台帳情報 - {suppliers.find(s => s.id === supplierDetailEditingId)?.name}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">代表者氏名</label>
+                <input
+                  type="text"
+                  value={supplierDetailForm.representative_name}
+                  onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, representative_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: 山田太郎"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">住所</label>
+                <input
+                  type="text"
+                  value={supplierDetailForm.address}
+                  onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, address: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: 東京都渋谷区..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">職業</label>
+                <input
+                  type="text"
+                  value={supplierDetailForm.occupation}
+                  onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, occupation: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: 会社員"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
+                  <input
+                    type="text"
+                    value={supplierDetailForm.phone}
+                    onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, phone: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    placeholder="例: 03-1234-5678"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+                  <input
+                    type="email"
+                    value={supplierDetailForm.email}
+                    onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, email: e.target.value })}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    placeholder="例: info@example.com"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ホームページ</label>
+                <input
+                  type="url"
+                  value={supplierDetailForm.website}
+                  onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, website: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="例: https://example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">本人確認方法</label>
+                <select
+                  value={supplierDetailForm.verification_method}
+                  onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, verification_method: e.target.value })}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                >
+                  <option value="">選択してください</option>
+                  <option value="運転免許証">運転免許証</option>
+                  <option value="マイナンバーカード">マイナンバーカード</option>
+                  <option value="パスポート">パスポート</option>
+                  <option value="健康保険証">健康保険証</option>
+                  <option value="住民票">住民票</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="supplier_is_anonymous"
+                  checked={supplierDetailForm.is_anonymous}
+                  onChange={(e) => setSupplierDetailForm({ ...supplierDetailForm, is_anonymous: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="supplier_is_anonymous" className="text-sm text-gray-700">
+                  匿名取引（本人確認不要）
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setSupplierDetailEditingId(null)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={saveSupplierDetail}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
