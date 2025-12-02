@@ -44,11 +44,14 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      if (item.external_id) {
+      // 重複チェック（商品名+売却日+売価で判定）
+      if (item.product_name && item.sale_date && item.sale_price) {
         const { data: existing } = await supabase
           .from('manual_sales')
           .select('id')
-          .eq('external_id', item.external_id)
+          .eq('product_name', item.product_name)
+          .eq('sale_date', item.sale_date)
+          .eq('sale_price', item.sale_price)
           .single()
 
         if (existing) {
@@ -76,7 +79,6 @@ export async function POST(request: NextRequest) {
           profit,
           profit_rate: profitRate,
           sale_type: 'main',
-          external_id: item.external_id || null,
         })
         .select()
         .single()
