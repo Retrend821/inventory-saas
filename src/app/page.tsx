@@ -377,13 +377,18 @@ export default function Home() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   // URLパラメータから初期フィルターを設定（ダッシュボードからのリンク対応）
-  const initialQuickFilter = (): 'all' | 'unsold' | 'unlisted' => {
+  const initialQuickFilter = (): 'all' | 'unsold' | 'unlisted' | 'stale30' | 'stale90' => {
+    const quickFilterParam = searchParams.get('quickFilter')
+    if (quickFilterParam === 'unsold') return 'unsold'
+    if (quickFilterParam === 'unlisted') return 'unlisted'
+    if (quickFilterParam === 'stale30') return 'stale30'
+    if (quickFilterParam === 'stale90' || quickFilterParam === 'stale') return 'stale90'
     const status = searchParams.get('status')
     if (status === '未出品') return 'unlisted'
     if (status === '未販売') return 'unsold'
     return 'all'
   }
-  const [quickFilter, setQuickFilter] = useState<'all' | 'unsold' | 'unlisted'>(initialQuickFilter)
+  const [quickFilter, setQuickFilter] = useState<'all' | 'unsold' | 'unlisted' | 'stale30' | 'stale90'>(initialQuickFilter)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // 選択状態の遅延値（UIの応答性を維持）
   const deferredSelectedIds = useDeferredValue(selectedIds)
@@ -481,7 +486,7 @@ export default function Home() {
     { key: 'commission', label: '手数料', draggable: true, width: 'w-16' },
     { key: 'shipping_cost', label: '送料', draggable: true, width: 'w-16' },
     { key: 'other_cost', label: 'その他', draggable: true, width: 'w-16' },
-    { key: 'purchase_price', label: '正味\n仕入値', draggable: true, width: 'w-20' },
+    { key: 'purchase_price', label: '原価', draggable: true, width: 'w-20' },
     { key: 'purchase_total', label: '仕入\n総額', draggable: true, width: 'w-20' },
     { key: 'deposit_amount', label: '入金額', draggable: true, width: 'w-20' },
     { key: 'profit', label: '利益', draggable: true, width: 'w-20' },
@@ -2274,6 +2279,28 @@ export default function Home() {
     // 未出品在庫額の割合（仕入総額に対する未出品在庫額の割合）
     const unlistedStockRate = totalPurchaseValue > 0 ? Math.round((unlistedStockValue / totalPurchaseValue) * 100) : 0
 
+    // 滞留在庫数（出品からの経過日数でフィルタ）
+    const now = new Date()
+    const calcStaleDays = (listingDate: string) => {
+      return Math.floor((now.getTime() - new Date(listingDate).getTime()) / (1000 * 60 * 60 * 24))
+    }
+
+    // 30日以上
+    const stale30Items = unsoldItems.filter(i => {
+      if (!i.listing_date) return false
+      return calcStaleDays(i.listing_date) >= 30
+    })
+    const stale30Count = stale30Items.length
+    const stale30StockValue = stale30Items.reduce((sum, i) => sum + (i.purchase_total || 0), 0)
+
+    // 90日以上
+    const stale90Items = unsoldItems.filter(i => {
+      if (!i.listing_date) return false
+      return calcStaleDays(i.listing_date) >= 90
+    })
+    const stale90Count = stale90Items.length
+    const stale90StockValue = stale90Items.reduce((sum, i) => sum + (i.purchase_total || 0), 0)
+
     return {
       totalCount,
       unsoldCount,
@@ -2284,6 +2311,10 @@ export default function Home() {
       avgUnitPrice,
       unlistedRate,
       unlistedStockRate,
+      stale30Count,
+      stale30StockValue,
+      stale90Count,
+      stale90StockValue,
     }
   }, [inventory])
 
@@ -2472,13 +2503,24 @@ export default function Home() {
       })
     }
 
-    // クイックフィルター（未販売・未出品）
+    // クイックフィルター（未販売・未出品・滞留）
     if (quickFilter === 'unsold') {
       // 未販売：売却済みでないもの
       result = result.filter(item => item.status !== '売却済み')
     } else if (quickFilter === 'unlisted') {
       // 未出品：出品日が空欄のもの
       result = result.filter(item => !item.listing_date)
+    } else if (quickFilter === 'stale30' || quickFilter === 'stale90') {
+      // 滞留在庫：出品から指定日数以上経過、かつ未販売
+      const now = new Date()
+      const threshold = quickFilter === 'stale30' ? 30 : 90
+      result = result.filter(item => {
+        if (item.status === '売却済み') return false
+        if (!item.listing_date) return false
+        const listingDate = new Date(item.listing_date)
+        const days = Math.floor((now.getTime() - listingDate.getTime()) / (1000 * 60 * 60 * 24))
+        return days >= threshold
+      })
     }
 
     return result
@@ -3260,6 +3302,26 @@ export default function Home() {
               >
                 未出品 ({inventoryStats.unlistedCount})
               </button>
+              <button
+                onClick={() => setQuickFilter('stale30')}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  quickFilter === 'stale30'
+                    ? 'border-yellow-600 text-yellow-600 bg-yellow-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                滞留30日以上 ({inventoryStats.stale30Count})
+              </button>
+              <button
+                onClick={() => setQuickFilter('stale90')}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  quickFilter === 'stale90'
+                    ? 'border-red-600 text-red-600 bg-red-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                滞留90日以上 ({inventoryStats.stale90Count})
+              </button>
               {/* タブに応じた金額表示 */}
               <div className="ml-auto flex items-center gap-4 pr-4 text-sm">
                 {quickFilter === 'all' && (
@@ -3284,6 +3346,16 @@ export default function Home() {
                 {quickFilter === 'unlisted' && (
                   <span className="text-gray-600">
                     未出品在庫額: <span className="font-semibold text-orange-600">¥{inventoryStats.unlistedStockValue.toLocaleString()}</span>
+                  </span>
+                )}
+                {quickFilter === 'stale30' && (
+                  <span className="text-gray-600">
+                    滞留在庫額: <span className="font-semibold text-yellow-600">¥{inventoryStats.stale30StockValue.toLocaleString()}</span>
+                  </span>
+                )}
+                {quickFilter === 'stale90' && (
+                  <span className="text-gray-600">
+                    滞留在庫額: <span className="font-semibold text-red-600">¥{inventoryStats.stale90StockValue.toLocaleString()}</span>
                   </span>
                 )}
               </div>

@@ -1,8 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// リフレッシュトークンを使ってアクセストークンを更新
+async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string; expires_in: number } | null> {
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    })
+
+    const data = await response.json()
+    if (data.error) {
+      console.error('Token refresh error:', data)
+      return null
+    }
+
+    return {
+      access_token: data.access_token,
+      expires_in: data.expires_in,
+    }
+  } catch (error) {
+    console.error('Token refresh error:', error)
+    return null
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get('google_access_token')?.value
+    let accessToken = request.cookies.get('google_access_token')?.value
+    const refreshToken = request.cookies.get('google_refresh_token')?.value
+    let newAccessToken: { access_token: string; expires_in: number } | null = null
+
+    // アクセストークンがない場合、リフレッシュトークンで更新を試みる
+    if (!accessToken && refreshToken) {
+      newAccessToken = await refreshAccessToken(refreshToken)
+      if (newAccessToken) {
+        accessToken = newAccessToken.access_token
+      }
+    }
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Not authenticated with Google' }, { status: 401 })
@@ -64,11 +106,23 @@ export async function POST(request: NextRequest) {
     // 公開URLを返す
     const publicUrl = `https://drive.google.com/uc?export=view&id=${fileData.id}`
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       fileId: fileData.id,
       url: publicUrl,
     })
+
+    // 新しいアクセストークンを取得した場合はクッキーを更新
+    if (newAccessToken) {
+      response.cookies.set('google_access_token', newAccessToken.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: newAccessToken.expires_in,
+      })
+    }
+
+    return response
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

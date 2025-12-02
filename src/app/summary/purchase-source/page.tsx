@@ -36,15 +36,32 @@ export default function PurchaseSourcePage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('id, purchase_source, purchase_date, sale_date, purchase_total, deposit_amount, other_cost, status')
+      // 全件取得するためにページネーションで取得
+      let allInventory: InventoryItem[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
 
-      if (error) {
-        console.error('Error fetching inventory:', error)
-      } else {
-        setInventory(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('id, purchase_source, purchase_date, sale_date, purchase_total, deposit_amount, other_cost, status')
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching inventory:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allInventory = [...allInventory, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
       }
+      setInventory(allInventory)
       setLoading(false)
     }
 
@@ -56,10 +73,18 @@ export default function PurchaseSourcePage() {
   // 利用可能な年のリスト
   const availableYears = useMemo(() => {
     const years = new Set<number>()
+    // 現在の年を必ず含める
+    years.add(new Date().getFullYear())
     inventory.forEach(item => {
       if (item.purchase_date) {
-        const year = new Date(item.purchase_date).getFullYear()
-        years.add(year)
+        // YYYY-MM-DD形式かチェック
+        const yearStr = item.purchase_date.substring(0, 4)
+        if (/^\d{4}$/.test(yearStr)) {
+          const year = parseInt(yearStr, 10)
+          if (!isNaN(year) && year >= 2000) {
+            years.add(year)
+          }
+        }
       }
     })
     return ['all' as const, ...Array.from(years).sort((a, b) => b - a)]

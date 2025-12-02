@@ -10,9 +10,11 @@ export default function Navigation() {
   const { user, signOut } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [analysisOpen, setAnalysisOpen] = useState(false)
   const [inventoryOpen, setInventoryOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const summaryDropdownRef = useRef<HTMLDivElement>(null)
+  const analysisDropdownRef = useRef<HTMLDivElement>(null)
   const inventoryDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -23,6 +25,9 @@ export default function Navigation() {
       if (summaryDropdownRef.current && !summaryDropdownRef.current.contains(event.target as Node)) {
         setSummaryOpen(false)
       }
+      if (analysisDropdownRef.current && !analysisDropdownRef.current.contains(event.target as Node)) {
+        setAnalysisOpen(false)
+      }
       if (inventoryDropdownRef.current && !inventoryDropdownRef.current.contains(event.target as Node)) {
         setInventoryOpen(false)
       }
@@ -31,16 +36,18 @@ export default function Navigation() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // スタイルの共通化
+  const baseLinkStyle = "font-medium text-white hover:text-blue-300 transition-colors duration-200";
+  const activeLinkStyle = "font-bold text-blue-300 border-b-2 border-blue-300 pb-1";
+  const dropdownItemStyle = "block px-4 py-2 text-sm text-white hover:bg-slate-600";
+
   return (
-    <nav className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 shadow-lg border-b border-gray-700 fixed top-0 left-0 right-0 z-[100]">
+    <nav className="bg-slate-700 shadow-lg border-b border-black/20 fixed top-0 left-0 right-0 z-[100]">
       <div className="max-w-full mx-auto px-4">
         <div className="flex items-center h-14 gap-6">
           <Link
             href="/dashboard"
-            className={pathname === '/dashboard'
-              ? "text-white font-bold border-b-2 border-white pb-1"
-              : "text-white font-medium hover:text-yellow-300"
-            }
+            className={pathname === '/dashboard' ? activeLinkStyle : baseLinkStyle}
           >
             TOP
           </Link>
@@ -49,38 +56,18 @@ export default function Navigation() {
               onClick={() => {
                 setInventoryOpen(!inventoryOpen)
                 setSummaryOpen(false)
+                setAnalysisOpen(false)
                 setSettingsOpen(false)
               }}
-              className={pathname === '/' || pathname.startsWith('/inventory') || pathname.startsWith('/returns')
-                ? "text-white font-bold border-b-2 border-white pb-1"
-                : "text-white font-medium hover:text-yellow-300"
-              }
+              className={pathname === '/' || pathname.startsWith('/inventory') || pathname.startsWith('/returns') ? activeLinkStyle : baseLinkStyle}
             >
               在庫管理
             </button>
             {inventoryOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg py-1 whitespace-nowrap">
-                <Link
-                  href="/"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setInventoryOpen(false)}
-                >
-                  在庫一覧
-                </Link>
-                <Link
-                  href="/inventory/bulk"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setInventoryOpen(false)}
-                >
-                  まとめ仕入れ在庫一覧
-                </Link>
-                <Link
-                  href="/returns"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setInventoryOpen(false)}
-                >
-                  返品管理
-                </Link>
+              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                <Link href="/" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>単品仕入在庫一覧</Link>
+                <Link href="/inventory/bulk" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>まとめ仕入れ在庫一覧</Link>
+                <Link href="/returns" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>返品在庫一覧</Link>
               </div>
             )}
           </div>
@@ -90,60 +77,41 @@ export default function Navigation() {
                 setSummaryOpen(!summaryOpen)
                 setSettingsOpen(false)
                 setInventoryOpen(false)
+                setAnalysisOpen(false)
               }}
-              className={pathname.startsWith('/summary')
-                ? "text-white font-bold border-b-2 border-white pb-1"
-                : "text-white font-medium hover:text-yellow-300"
-              }
+              className={pathname === '/summary' || pathname.startsWith('/sales') ? activeLinkStyle : baseLinkStyle}
             >
-              集計・分析
+              集計
             </button>
             {summaryOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg py-1 whitespace-nowrap">
-                <Link
-                  href="/summary"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSummaryOpen(false)}
-                >
-                  年間・月別
-                </Link>
-                <Link
-                  href="/summary/retail"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSummaryOpen(false)}
-                >
-                  小売販売データ
-                </Link>
-                <Link
-                  href="/summary/wholesale"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSummaryOpen(false)}
-                >
-                  業販販売データ
-                </Link>
-                <Link
-                  href="/summary/all"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSummaryOpen(false)}
-                >
-                  全販売データ
-                </Link>
-                <Link
-                  href="/summary/purchase-source"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSummaryOpen(false)}
-                >
-                  仕入先別データ
-                </Link>
+              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>年間・月別</Link>
+                <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>手入力売上表</Link>
+              </div>
+            )}
+          </div>
+          <div className="relative" ref={analysisDropdownRef}>
+            <button
+              onClick={() => {
+                setAnalysisOpen(!analysisOpen)
+                setSettingsOpen(false)
+                setInventoryOpen(false)
+                setSummaryOpen(false)
+              }}
+              className={pathname === '/summary/retail' || pathname === '/summary/wholesale' || pathname === '/summary/all' || pathname === '/summary/purchase-source' ? activeLinkStyle : baseLinkStyle}
+            >
+              分析
+            </button>
+            {analysisOpen && (
+              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setAnalysisOpen(false)}>販売データ</Link>
+                <Link href="/summary/purchase-source" className={dropdownItemStyle} onClick={() => setAnalysisOpen(false)}>仕入先別データ</Link>
               </div>
             )}
           </div>
           <Link
             href="/ledger"
-            className={pathname === '/ledger'
-              ? "text-white font-bold border-b-2 border-white pb-1"
-              : "text-white font-medium hover:text-yellow-300"
-            }
+            className={pathname === '/ledger' ? activeLinkStyle : baseLinkStyle}
           >
             古物台帳
           </Link>
@@ -152,38 +120,18 @@ export default function Navigation() {
               onClick={() => {
                 setSettingsOpen(!settingsOpen)
                 setSummaryOpen(false)
+                setAnalysisOpen(false)
                 setInventoryOpen(false)
               }}
-              className={pathname.startsWith('/settings')
-                ? "text-white font-bold border-b-2 border-white pb-1"
-                : "text-white font-medium hover:text-yellow-300"
-              }
+              className={pathname.startsWith('/settings') ? activeLinkStyle : baseLinkStyle}
             >
               設定
             </button>
             {settingsOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg py-1 whitespace-nowrap">
-                <Link
-                  href="/settings/platforms"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSettingsOpen(false)}
-                >
-                  仕入先・販路マスタ設定
-                </Link>
-                <Link
-                  href="/settings/ledger"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSettingsOpen(false)}
-                >
-                  古物台帳マスタ設定
-                </Link>
-                <Link
-                  href="/settings/google-drive"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  onClick={() => setSettingsOpen(false)}
-                >
-                  Googleドライブ連携
-                </Link>
+              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                <Link href="/settings/platforms" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>仕入先・販路マスタ設定</Link>
+                <Link href="/settings/ledger" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>古物台帳マスタ設定</Link>
+                <Link href="/settings/google-drive" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>Googleドライブ連携</Link>
               </div>
             )}
           </div>
@@ -192,10 +140,10 @@ export default function Navigation() {
           {/* ユーザー情報・ログアウト */}
           {user && (
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-300">{user.email}</span>
+              <span className="text-sm text-white/80">{user.email}</span>
               <button
                 onClick={() => signOut()}
-                className="text-sm text-red-400 hover:text-red-300"
+                className="text-sm text-red-500 hover:text-red-400 transition-colors duration-200"
               >
                 ログアウト
               </button>

@@ -39,15 +39,33 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
+      // 全件取得のためにページネーション
+      let allData: InventoryItem[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
 
-      if (error) {
-        console.error('Error fetching inventory:', error.message || error)
-      } else {
-        setInventory(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching inventory:', error.message || error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
       }
+
+      setInventory(allData)
       setLoading(false)
     }
 
@@ -171,37 +189,51 @@ export default function DashboardPage() {
 
   // 在庫状況
   const stockStats = useMemo(() => {
-    const inStock = inventory.filter(item => item.status === '在庫中')
-    const listed = inventory.filter(item => item.status === '出品中')
-    const sold = inventory.filter(item => item.status === '売却済み')
+    // 除外すべき文字列かどうかをチェック（在庫一覧ページと同じ）
+    const isExcludedText = (value: string | null) => {
+      if (!value) return false
+      return value.includes('返品') || value.includes('不明')
+    }
 
-    const inStockValue = inStock.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
-    const listedValue = listed.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
-
-    // 未出品（在庫中で出品日がないもの）
-    const unlisted = inventory.filter(item =>
-      (item.status === '在庫中' || item.status === '出品中') && !item.listing_date
+    // 除外対象：売却日または出品日に「返品」「不明」が含まれるもの
+    const validItems = inventory.filter(item =>
+      !isExcludedText(item.sale_date) && !isExcludedText(item.listing_date)
     )
+
+    // 売却済み：売却日があるもの
+    const sold = validItems.filter(item => item.sale_date)
+
+    // 未販売：売却日が空のもの（= 在庫数）
+    const unsold = validItems.filter(item => !item.sale_date)
+    const unsoldValue = unsold.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+
+    // 未出品：未販売かつ出品日が空のもの
+    const unlisted = unsold.filter(item => !item.listing_date)
     const unlistedValue = unlisted.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
+    // 出品中：未販売 - 未出品（出品日はあるが売却日がないもの）
+    const listedCount = unsold.length - unlisted.length
+    const listed = unsold.filter(item => item.listing_date)
+    const listedValue = listed.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+
     return {
-      inStockCount: inStock.length,
-      inStockValue,
-      listedCount: listed.length,
-      listedValue,
-      soldCount: sold.length,
-      unlistedCount: unlisted.length,
-      unlistedValue,
-      totalStockValue: inStockValue + listedValue
+      unsoldCount: unsold.length,       // 在庫数（未販売）
+      unsoldValue,                       // 在庫総額
+      listedCount,                       // 出品中（未販売 - 未出品）
+      listedValue,                       // 出品中の在庫金額
+      soldCount: sold.length,            // 売却済み
+      unlistedCount: unlisted.length,    // 未出品
+      unlistedValue,                     // 未出品の在庫金額
+      totalStockValue: unsoldValue       // 在庫総額（= 未販売の総額）
     }
   }, [inventory])
 
   // 滞留在庫（出品日から90日以上売れていないもの）
-  const staleStock = useMemo(() => {
+  const { staleStock, staleStockCount } = useMemo(() => {
     const now = new Date()
     const threshold = 90 // 日
 
-    return inventory
+    const allStale = inventory
       .filter(item => {
         // 売却済は除外
         if (item.status === '売却済み') return false
@@ -217,45 +249,45 @@ export default function DashboardPage() {
         return { ...item, staleDays: days }
       })
       .sort((a, b) => b.staleDays - a.staleDays)
-      .slice(0, 10)
+
+    return {
+      staleStock: allStale.slice(0, 10),
+      staleStockCount: allStale.length
+    }
   }, [inventory])
 
   // クイックアクション生成
   const quickActions = useMemo(() => {
     const actions: { label: string; count: number; href: string; color: string; description: string }[] = []
 
-    // 未出品があれば
-    if (stockStats.unlistedCount > 0) {
-      actions.push({
-        label: '未出品の在庫を出品する',
-        count: stockStats.unlistedCount,
-        href: '/?status=未出品',
-        color: 'bg-orange-500 hover:bg-orange-600',
-        description: `${stockStats.unlistedCount}件の未出品在庫があります`
-      })
-    }
+    // 未出品
+    actions.push({
+      label: '未出品の在庫を確認する',
+      count: stockStats.unlistedCount,
+      href: '/?quickFilter=unlisted',
+      color: 'bg-orange-500 hover:bg-orange-600',
+      description: stockStats.unlistedCount > 0 ? `${stockStats.unlistedCount}件の未出品在庫があります` : '未出品在庫はありません'
+    })
 
     // 滞留在庫があれば
-    if (staleStock.length > 0) {
+    if (staleStockCount > 0) {
       actions.push({
         label: '滞留在庫を確認する',
-        count: staleStock.length,
-        href: '/?sort=purchase_date&order=asc',
+        count: staleStockCount,
+        href: '/?quickFilter=stale90',
         color: 'bg-red-500 hover:bg-red-600',
-        description: `${staleStock.length}件の滞留在庫（90日以上）があります`
+        description: `${staleStockCount}件の滞留在庫（90日以上）があります`
       })
     }
 
-    // 在庫中があれば
-    if (stockStats.inStockCount > 0) {
-      actions.push({
-        label: '在庫一覧を確認',
-        count: stockStats.inStockCount,
-        href: '/?status=未販売',
-        color: 'bg-blue-500 hover:bg-blue-600',
-        description: `現在${stockStats.inStockCount}件の在庫があります`
-      })
-    }
+    // 未販売（売却日が空のもの）
+    actions.push({
+      label: '未販売の在庫を確認する',
+      count: stockStats.unsoldCount,
+      href: '/?quickFilter=unsold',
+      color: 'bg-blue-500 hover:bg-blue-600',
+      description: stockStats.unsoldCount > 0 ? `現在${stockStats.unsoldCount}件の未販売在庫があります` : '未販売在庫はありません'
+    })
 
     // 今月の販売データ
     actions.push({
@@ -269,19 +301,54 @@ export default function DashboardPage() {
     return actions
   }, [stockStats, staleStock, monthlyStats])
 
+  // 日付文字列をパースするヘルパー関数
+  const parseDate = (dateStr: string | null): Date | null => {
+    if (!dateStr) return null
+
+    // YYYY-MM-DD形式
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return new Date(dateStr)
+    }
+
+    // YYYY/MM/DD形式
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
+      return new Date(dateStr.replace(/\//g, '-'))
+    }
+
+    // YYYY年MM月DD日形式
+    const jpMatch = dateStr.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/)
+    if (jpMatch) {
+      return new Date(`${jpMatch[1]}-${jpMatch[2].padStart(2, '0')}-${jpMatch[3].padStart(2, '0')}`)
+    }
+
+    // その他の形式はそのままパース
+    const parsed = new Date(dateStr)
+    return isNaN(parsed.getTime()) ? null : parsed
+  }
+
   // 最近売れた商品（直近10件）
   const recentSales = useMemo(() => {
     return inventory
-      .filter(item => item.status === '売却済み' && item.sale_date)
-      .sort((a, b) => new Date(b.sale_date!).getTime() - new Date(a.sale_date!).getTime())
+      .filter(item => item.status === '売却済み' && item.sale_date && parseDate(item.sale_date))
+      .sort((a, b) => {
+        const dateA = parseDate(a.sale_date)
+        const dateB = parseDate(b.sale_date)
+        if (!dateA || !dateB) return 0
+        return dateB.getTime() - dateA.getTime()
+      })
       .slice(0, 10)
   }, [inventory])
 
   // 最近仕入れた商品（直近10件）
   const recentPurchases = useMemo(() => {
     return inventory
-      .filter(item => item.purchase_date)
-      .sort((a, b) => new Date(b.purchase_date!).getTime() - new Date(a.purchase_date!).getTime())
+      .filter(item => item.purchase_date && parseDate(item.purchase_date))
+      .sort((a, b) => {
+        const dateA = parseDate(a.purchase_date)
+        const dateB = parseDate(b.purchase_date)
+        if (!dateA || !dateB) return 0
+        return dateB.getTime() - dateA.getTime()
+      })
       .slice(0, 10)
   }, [inventory])
 
@@ -467,10 +534,10 @@ export default function DashboardPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">在庫状況</h2>
             <div className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-gray-600">在庫中</span>
+                <span className="text-gray-600">在庫数</span>
                 <div className="text-right">
-                  <span className="font-semibold text-gray-900">{stockStats.inStockCount}件</span>
-                  <span className="text-sm text-gray-500 ml-2">¥{stockStats.inStockValue.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-900">{stockStats.unsoldCount}件</span>
+                  <span className="text-sm text-gray-500 ml-2">¥{stockStats.unsoldValue.toLocaleString()}</span>
                 </div>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
@@ -507,8 +574,8 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               滞留在庫（90日以上）
-              {staleStock.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-red-600">{staleStock.length}件</span>
+              {staleStockCount > 0 && (
+                <span className="ml-2 text-sm font-normal text-red-600">{staleStockCount}件</span>
               )}
             </h2>
             {staleStock.length === 0 ? (

@@ -48,6 +48,9 @@ export default function WholesaleSalesPage() {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<string>('sale_date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [imageEditModal, setImageEditModal] = useState<{ id: string; currentUrl: string | null } | null>(null)
+  const [imageUrlInput, setImageUrlInput] = useState('')
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
 
   // 列の設定
   const defaultColumns = [
@@ -550,6 +553,112 @@ export default function WholesaleSalesPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
 
+  // 画像URL保存（URLから画像を取得してGoogleドライブにアップロード）
+  const handleSaveImageUrl = async (id: string, url: string) => {
+    if (!url.trim()) return
+    try {
+      // URLから画像を取得
+      const response = await fetch(`/api/image-proxy?url=${encodeURIComponent(url.trim())}`)
+      if (!response.ok) {
+        throw new Error('画像の取得に失敗しました')
+      }
+      const blob = await response.blob()
+
+      // Googleドライブにアップロード
+      const formData = new FormData()
+      const extension = blob.type.split('/')[1] || 'jpg'
+      formData.append('file', blob, `inventory_${id}_${Date.now()}.${extension}`)
+      formData.append('fileName', `inventory_${id}_${Date.now()}.${extension}`)
+
+      const uploadResponse = await fetch('/api/google-drive/upload-file', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json()
+        if (uploadResponse.status === 401) {
+          alert('Googleドライブにログインしてください。設定画面からGoogleアカウントを連携できます。')
+          return
+        }
+        throw new Error(errorData.error || 'アップロードに失敗しました')
+      }
+
+      const { url: driveUrl } = await uploadResponse.json()
+
+      const { error } = await supabase
+        .from('inventory')
+        .update({ image_url: driveUrl })
+        .eq('id', id)
+      if (error) throw error
+
+      setInventory(prev => prev.map(item =>
+        item.id === id ? { ...item, image_url: driveUrl } : item
+      ))
+      setImageEditModal(null)
+      setImageUrlInput('')
+    } catch (error) {
+      console.error('Error saving image URL:', error)
+      alert('画像の保存に失敗しました')
+    }
+  }
+
+  // 画像ファイルをGoogleドライブにアップロード
+  const handleImageDrop = async (id: string, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('ファイルサイズは5MB以下にしてください')
+      return
+    }
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('fileName', `inventory_${id}_${Date.now()}.${file.type.split('/')[1] || 'jpg'}`)
+
+      const response = await fetch('/api/google-drive/upload-file', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        if (response.status === 401) {
+          alert('Googleドライブにログインしてください。設定画面からGoogleアカウントを連携できます。')
+          return
+        }
+        throw new Error(errorData.error || 'アップロードに失敗しました')
+      }
+
+      const { url } = await response.json()
+
+      const { error } = await supabase
+        .from('inventory')
+        .update({ image_url: url })
+        .eq('id', id)
+      if (error) throw error
+
+      setInventory(prev => prev.map(item =>
+        item.id === id ? { ...item, image_url: url } : item
+      ))
+      setImageEditModal(null)
+      setImageUrlInput('')
+      setIsDraggingImage(false)
+    } catch (error) {
+      console.error('Error saving image:', error)
+      alert('画像の保存に失敗しました')
+    }
+  }
+
+  // プロキシ画像URL取得
+  const getProxiedImageUrl = (url: string | null) => {
+    if (!url) return null
+    if (url.startsWith('/api/') || url.startsWith('data:')) return url
+    return `/api/image-proxy?url=${encodeURIComponent(url)}`
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-full mx-auto px-4 py-6">
@@ -856,24 +965,55 @@ export default function WholesaleSalesPage() {
                   <h2 className="text-base font-semibold text-white">販路別売上シェア</h2>
                 </div>
                 <div className="p-6">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={platformSummary}
-                        dataKey="sales"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                      >
-                        {platformSummary.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {(() => {
+                    const salesData = [...platformSummary].filter(p => p.sales > 0).sort((a, b) => b.sales - a.sales)
+                    const totalSales = salesData.reduce((sum, x) => sum + x.sales, 0)
+
+                    return salesData.length > 0 ? (
+                      <div className="flex items-center gap-4">
+                        <div className="flex-shrink-0" style={{ width: '55%' }}>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                              <Pie
+                                data={salesData}
+                                dataKey="sales"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                              >
+                                {salesData.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          {salesData.slice(0, 5).map((p, index) => {
+                            const percent = totalSales > 0 ? ((p.sales / totalSales) * 100).toFixed(1) : '0'
+                            return (
+                              <div key={p.name} className="flex items-center gap-2 text-sm">
+                                <div
+                                  className="w-3 h-3 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8] }}
+                                />
+                                <span className="text-gray-700 truncate flex-1">{p.name}</span>
+                                <span className="text-gray-900 font-medium tabular-nums">¥{p.sales.toLocaleString()}</span>
+                                <span className="text-gray-500 tabular-nums w-12 text-right">{percent}%</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-[250px] flex items-center justify-center text-gray-500">
+                        データがありません
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -882,24 +1022,55 @@ export default function WholesaleSalesPage() {
                   <h2 className="text-base font-semibold text-white">販路別利益シェア</h2>
                 </div>
                 <div className="p-6">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={platformSummary.filter(p => p.profit > 0)}
-                        dataKey="profit"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                      >
-                        {platformSummary.filter(p => p.profit > 0).map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {(() => {
+                    const profitData = [...platformSummary].filter(p => p.profit > 0).sort((a, b) => b.profit - a.profit)
+                    const totalProfit = profitData.reduce((sum, x) => sum + x.profit, 0)
+
+                    return profitData.length > 0 ? (
+                      <div className="flex items-center gap-4">
+                        <div className="flex-shrink-0" style={{ width: '55%' }}>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                              <Pie
+                                data={profitData}
+                                dataKey="profit"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
+                              >
+                                {profitData.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          {profitData.slice(0, 5).map((p, index) => {
+                            const percent = totalProfit > 0 ? ((p.profit / totalProfit) * 100).toFixed(1) : '0'
+                            return (
+                              <div key={p.name} className="flex items-center gap-2 text-sm">
+                                <div
+                                  className="w-3 h-3 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8] }}
+                                />
+                                <span className="text-gray-700 truncate flex-1">{p.name}</span>
+                                <span className="text-gray-900 font-medium tabular-nums">¥{p.profit.toLocaleString()}</span>
+                                <span className="text-gray-500 tabular-nums w-12 text-right">{percent}%</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-[250px] flex items-center justify-center text-gray-500">
+                        データがありません
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -986,18 +1157,31 @@ export default function WholesaleSalesPage() {
                                 : null
                               return (
                                 <td key={col.key} className="px-2 py-2">
-                                  {proxyImageUrl ? (
-                                    <img
-                                      src={proxyImageUrl}
-                                      alt={item.product_name}
-                                      className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => setEnlargedImage(proxyImageUrl)}
-                                    />
-                                  ) : (
-                                    <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">
-                                      No
-                                    </div>
-                                  )}
+                                  <div className="relative group">
+                                    {proxyImageUrl ? (
+                                      <img
+                                        src={proxyImageUrl}
+                                        alt={item.product_name}
+                                        className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                                        onClick={() => setEnlargedImage(proxyImageUrl)}
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">
+                                        No
+                                      </div>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setImageEditModal({ id: item.id, currentUrl: imgUrl })
+                                        setImageUrlInput('')
+                                      }}
+                                      className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-blue-600"
+                                      title="画像を追加/編集"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
                                 </td>
                               )
                             case 'category':
@@ -1091,6 +1275,159 @@ export default function WholesaleSalesPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 画像編集モーダル */}
+        {imageEditModal && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[300]"
+            onClick={() => {
+              setImageEditModal(null)
+              setImageUrlInput('')
+              setIsDraggingImage(false)
+            }}
+          >
+            <div
+              className={`bg-white rounded-lg shadow-xl p-6 w-full max-w-md ${isDraggingImage ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+              onClick={(e) => e.stopPropagation()}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setIsDraggingImage(true)
+              }}
+              onDragLeave={() => setIsDraggingImage(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDraggingImage(false)
+                const file = e.dataTransfer.files[0]
+                if (file) {
+                  handleImageDrop(imageEditModal.id, file)
+                }
+              }}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {imageEditModal.currentUrl ? '画像を編集' : '画像を追加'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setImageEditModal(null)
+                    setImageUrlInput('')
+                    setIsDraggingImage(false)
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {imageEditModal.currentUrl && (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-500 mb-2">現在の画像:</p>
+                  <img
+                    src={getProxiedImageUrl(imageEditModal.currentUrl) || ''}
+                    alt=""
+                    className="w-20 h-20 object-cover rounded border"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                </div>
+              )}
+
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center mb-4 transition-colors ${
+                  isDraggingImage ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  id="wholesale-image-upload"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      handleImageDrop(imageEditModal.id, file)
+                    }
+                  }}
+                />
+                <label htmlFor="wholesale-image-upload" className="cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-10 w-10 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-sm text-gray-600">
+                    画像をドラッグ&ドロップ<br />
+                    <span className="text-blue-600 hover:text-blue-700">またはクリックして選択</span>
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">最大5MB</p>
+                </label>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">または画像URLを入力</label>
+                <input
+                  type="text"
+                  value={imageUrlInput}
+                  onChange={(e) => setImageUrlInput(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && imageUrlInput.trim()) {
+                      handleSaveImageUrl(imageEditModal.id, imageUrlInput)
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setImageEditModal(null)
+                    setImageUrlInput('')
+                    setIsDraggingImage(false)
+                  }}
+                  className="flex-1 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={() => handleSaveImageUrl(imageEditModal.id, imageUrlInput)}
+                  disabled={!imageUrlInput.trim()}
+                  className="flex-1 px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  URL保存
+                </button>
+              </div>
+
+              {imageEditModal.currentUrl && (
+                <button
+                  onClick={async () => {
+                    if (confirm('画像を削除しますか？')) {
+                      try {
+                        const { error } = await supabase
+                          .from('inventory')
+                          .update({ image_url: null, saved_image_url: null })
+                          .eq('id', imageEditModal.id)
+                        if (error) throw error
+                        setInventory(prev => prev.map(item =>
+                          item.id === imageEditModal.id ? { ...item, image_url: null, saved_image_url: null } : item
+                        ))
+                        setImageEditModal(null)
+                        setImageUrlInput('')
+                      } catch (error) {
+                        console.error('Error deleting image:', error)
+                        alert('画像の削除に失敗しました')
+                      }
+                    }
+                  }}
+                  className="w-full mt-3 px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200"
+                >
+                  画像を削除
+                </button>
+              )}
             </div>
           </div>
         )}

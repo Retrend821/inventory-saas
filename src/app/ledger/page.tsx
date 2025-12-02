@@ -58,13 +58,40 @@ export default function LedgerPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [inventoryRes, platformsRes, suppliersRes] = await Promise.all([
-        supabase.from('inventory').select('*').order('purchase_date', { ascending: true }),
+      // 全件取得するためにページネーションで取得
+      let allInventory: InventoryItem[] = []
+      let from = 0
+      const pageSize = 1000
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('*')
+          .order('purchase_date', { ascending: true })
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching inventory:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allInventory = [...allInventory, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
+      }
+      setInventory(allInventory)
+
+      // プラットフォームとサプライヤーは通常1000件未満なのでそのまま
+      const [platformsRes, suppliersRes] = await Promise.all([
         supabase.from('platforms').select('name, address, representative_name, occupation, phone, email, website, verification_method, is_anonymous'),
         supabase.from('suppliers').select('name, address, representative_name, occupation, phone, email, website, verification_method, is_anonymous'),
       ])
 
-      if (!inventoryRes.error) setInventory(inventoryRes.data || [])
       if (!platformsRes.error) setPlatforms(platformsRes.data || [])
       if (!suppliersRes.error) setSuppliers(suppliersRes.data || [])
 
