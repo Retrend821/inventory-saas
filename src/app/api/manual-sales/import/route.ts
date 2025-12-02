@@ -15,7 +15,6 @@ type ManualSaleInput = {
   brand_name?: string
   category?: string
   inventory_number?: string
-  // 重複チェック用のユニークID（メールIDや商品コードなど）
   external_id?: string
 }
 
@@ -23,7 +22,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // 単一または複数のデータを受け付ける
     const items: ManualSaleInput[] = Array.isArray(body) ? body : [body]
 
     if (items.length === 0) {
@@ -34,13 +32,11 @@ export async function POST(request: NextRequest) {
     const errors = []
 
     for (const item of items) {
-      // 必須チェック
       if (!item.product_name) {
         errors.push({ item, error: 'product_name is required' })
         continue
       }
 
-      // 重複チェック（external_idがある場合）
       if (item.external_id) {
         const { data: existing } = await supabase
           .from('manual_sales')
@@ -54,13 +50,11 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 利益計算
       const salePrice = item.sale_price || 0
       const commission = item.commission || 0
       const profit = salePrice - commission
       const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
 
-      // データ挿入
       const { data, error } = await supabase
         .from('manual_sales')
         .insert({
@@ -75,6 +69,7 @@ export async function POST(request: NextRequest) {
           profit,
           profit_rate: profitRate,
           sale_type: 'main',
+          external_id: item.external_id || null,
         })
         .select()
         .single()
