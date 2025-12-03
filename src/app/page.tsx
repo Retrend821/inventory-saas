@@ -2527,21 +2527,16 @@ export default function Home() {
   }, [inventory, searchQuery, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations, dateFilters, dateRangeFilter, turnoverDaysFilter, quickFilter])
 
   // ソート済みのインベントリ
-  // 利益計算ヘルパー関数（保存値優先、なければ計算）
+  // 利益計算ヘルパー関数（常に計算で求める）
   const calcProfit = (item: InventoryItem): number | null => {
-    if (item.profit !== null && item.profit !== undefined) {
-      return item.profit
-    }
+    // 入金額がある場合のみ計算（売却済みの場合）
     return item.deposit_amount !== null
       ? Number(item.deposit_amount) - (item.purchase_total || 0) - (item.other_cost || 0)
       : null
   }
 
-  // 利益率計算ヘルパー関数（保存値優先、なければ計算）
+  // 利益率計算ヘルパー関数（常に計算で求める）
   const calcProfitRate = (item: InventoryItem): number | null => {
-    if (item.profit_rate !== null && item.profit_rate !== undefined) {
-      return item.profit_rate
-    }
     const profit = calcProfit(item)
     return (profit !== null && item.sale_price)
       ? Math.round((profit / Number(item.sale_price)) * 100)
@@ -4076,7 +4071,7 @@ export default function Home() {
                     const index = virtualRow.index
                     const item = paginatedInventory[index]
                     const globalIndex = (currentPage - 1) * itemsPerPage + index
-                    // 利益・利益率・回転日数（保存値優先、なければ計算）
+                    // 利益・利益率・回転日数（常に計算）
                     const profit = calcProfit(item)
                     const profitRate = calcProfitRate(item)
                     const turnoverDays = calcTurnoverDays(item)
