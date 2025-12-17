@@ -118,7 +118,7 @@ export default function ManualSalesPage() {
   // 固定横スクロールバー用
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const fixedScrollbarRef = useRef<HTMLDivElement>(null)
-  const [scrollWidth, setScrollWidth] = useState(1400)
+  const [scrollWidth, setScrollWidth] = useState(1560)
   const [isMounted, setIsMounted] = useState(false)
 
   // マウント状態を追跡（Portal用）
@@ -1905,7 +1905,7 @@ export default function ManualSalesPage() {
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: '1400px' }}>
+          <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: '1560px' }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
                 {visibleColumns.map(col => {
@@ -1915,7 +1915,7 @@ export default function ManualSalesPage() {
                     image_url: 50,         // 画像
                     category: 70,          // ジャンル
                     brand_name: 85,        // ブランド名
-                    product_name: 80,      // 商品名
+                    product_name: 240,     // 商品名
                     purchase_source: 60,   // 仕入先
                     sale_destination: 60,  // 販売先
                     sale_price: 50,        // 売価
