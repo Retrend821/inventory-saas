@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Navigation from '@/components/Navigation'
@@ -28,6 +28,7 @@ type ManualSale = {
   profit_rate: number | null
   turnover_days: number | null
   sale_type: 'main' | 'bulk'
+  image_url: string | null
   created_at: string
 }
 
@@ -42,9 +43,17 @@ export default function ManualSalesPage() {
   const [sales, setSales] = useState<ManualSale[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editData, setEditData] = useState<Partial<ManualSale>>({})
   const [isAdding, setIsAdding] = useState(false)
+  // セル編集用の状態
+  const [editingCell, setEditingCell] = useState<{ id: string; field: keyof ManualSale } | null>(null)
+  const [editValue, setEditValue] = useState<string>('')
+  const editCellRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null)
+  // 画像編集モーダル用の状態
+  const [imageEditModal, setImageEditModal] = useState<{ id: string; currentUrl: string | null } | null>(null)
+  const [imageUrlInput, setImageUrlInput] = useState('')
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [newSale, setNewSale] = useState<Partial<ManualSale>>({
     sale_type: 'main'
   })
@@ -192,6 +201,118 @@ export default function ManualSalesPage() {
     return diffDays >= 0 ? diffDays : null
   }
 
+  // セルクリックで編集開始
+  const handleCellClick = (sale: ManualSale, field: keyof ManualSale) => {
+    // 既に同じセルを編集中なら何もしない
+    if (editingCell?.id === sale.id && editingCell?.field === field) return
+
+    // 他のセルを編集中なら先に保存
+    if (editingCell) {
+      saveEditingCell()
+    }
+
+    // 編集不可のフィールドはスキップ
+    const readonlyFields: (keyof ManualSale)[] = ['id', 'profit', 'profit_rate', 'turnover_days', 'created_at']
+    if (readonlyFields.includes(field)) return
+
+    const value = sale[field]
+    setEditingCell({ id: sale.id, field })
+    setEditValue(value != null ? String(value) : '')
+  }
+
+  // セル編集の保存
+  const saveEditingCell = useCallback(async () => {
+    if (!editingCell) return
+
+    const { id, field } = editingCell
+    const sale = sales.find(s => s.id === id)
+    if (!sale) {
+      setEditingCell(null)
+      return
+    }
+
+    const currentValue = sale[field]
+    const currentValueStr = currentValue != null ? String(currentValue) : ''
+
+    // 値が変わっていなければ何もしない
+    if (editValue === currentValueStr) {
+      setEditingCell(null)
+      return
+    }
+
+    // 値の変換
+    let newValue: string | number | null = editValue
+    const numericFields: (keyof ManualSale)[] = ['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount']
+
+    if (numericFields.includes(field)) {
+      newValue = editValue === '' ? null : parseInt(editValue) || 0
+    } else if (editValue === '') {
+      newValue = null
+    }
+
+    // 日付フィールドの正規化
+    const dateFields: (keyof ManualSale)[] = ['purchase_date', 'listing_date', 'sale_date']
+    if (dateFields.includes(field) && newValue) {
+      newValue = normalizeDate(String(newValue))
+    }
+
+    // ローカル状態を更新
+    const updatedSale = { ...sale, [field]: newValue }
+
+    // 利益・利益率・回転日数を再計算
+    const profit = calculateProfit(updatedSale)
+    const profitRate = calculateProfitRate(updatedSale)
+    const turnoverDays = calculateTurnoverDays(updatedSale)
+
+    setSales(sales.map(s => s.id === id ? { ...s, [field]: newValue, profit, profit_rate: profitRate, turnover_days: turnoverDays } : s))
+    setEditingCell(null)
+
+    // DBに保存
+    const { error } = await supabase
+      .from('manual_sales')
+      .update({
+        [field]: newValue,
+        profit,
+        profit_rate: profitRate,
+        turnover_days: turnoverDays,
+      })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error updating cell:', error)
+      // エラー時は元に戻す
+      setSales(sales.map(s => s.id === id ? sale : s))
+    }
+  }, [editingCell, editValue, sales])
+
+  // 外側クリックで保存
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (editingCell && editCellRef.current && !editCellRef.current.contains(e.target as Node)) {
+        saveEditingCell()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [editingCell, saveEditingCell])
+
+  // キーボード操作
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!editingCell) return
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      saveEditingCell()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setEditingCell(null)
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      saveEditingCell()
+    }
+  }
+
   // 新規追加
   const handleAdd = async () => {
     if (!newSale.product_name) {
@@ -229,42 +350,94 @@ export default function ManualSalesPage() {
     }
   }
 
-  // 編集開始
-  const handleEditStart = (sale: ManualSale) => {
-    setEditingId(sale.id)
-    setEditData(sale)
+  // 画像モーダルを開く
+  const openImageModal = (sale: ManualSale) => {
+    setImageEditModal({ id: sale.id, currentUrl: sale.image_url })
+    setImageUrlInput(sale.image_url || '')
   }
 
-  // 編集保存
-  const handleEditSave = async () => {
-    if (!editingId) return
 
-    const profit = calculateProfit(editData)
-    const profitRate = calculateProfitRate(editData)
-    const turnoverDays = calculateTurnoverDays(editData)
-
-    const { error } = await supabase
-      .from('manual_sales')
-      .update({
-        ...editData,
-        profit,
-        profit_rate: profitRate,
-        turnover_days: turnoverDays,
-        purchase_date: normalizeDate(editData.purchase_date || null),
-        listing_date: normalizeDate(editData.listing_date || null),
-        sale_date: normalizeDate(editData.sale_date || null),
-      })
-      .eq('id', editingId)
-
-    if (error) {
-      console.error('Error updating sale:', error)
-      alert('更新に失敗しました')
+  // ファイルアップロード処理（ドラッグ&ドロップ対応）
+  const handleImageDrop = async (id: string, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください')
       return
     }
 
-    setSales(sales.map(s => s.id === editingId ? { ...s, ...editData, profit, profit_rate: profitRate, turnover_days: turnoverDays } : s))
-    setEditingId(null)
-    setEditData({})
+    if (file.size > 5 * 1024 * 1024) {
+      alert('ファイルサイズは5MB以下にしてください')
+      return
+    }
+
+    setIsUploadingImage(true)
+
+    try {
+      const reader = new FileReader()
+      reader.onload = async () => {
+        const base64 = reader.result as string
+
+        const response = await fetch('/api/save-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageData: base64,
+            fileName: file.name,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Upload failed')
+        }
+
+        const { url } = await response.json()
+
+        const { error } = await supabase
+          .from('manual_sales')
+          .update({ image_url: url })
+          .eq('id', id)
+
+        if (error) {
+          console.error('Error updating image:', error)
+          alert('画像の保存に失敗しました')
+          setIsUploadingImage(false)
+          return
+        }
+
+        setSales(sales.map(s =>
+          s.id === id ? { ...s, image_url: url } : s
+        ))
+        setImageEditModal(null)
+        setImageUrlInput('')
+        setIsUploadingImage(false)
+      }
+      reader.readAsDataURL(file)
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('アップロードに失敗しました')
+      setIsUploadingImage(false)
+    }
+  }
+
+  // URL保存処理
+  const handleSaveImageUrl = async (id: string, url: string) => {
+    if (!url.trim()) return
+
+    const { error } = await supabase
+      .from('manual_sales')
+      .update({ image_url: url.trim() })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error updating image:', error)
+      alert('画像の保存に失敗しました')
+      return
+    }
+
+    setSales(sales.map(s =>
+      s.id === id ? { ...s, image_url: url.trim() } : s
+    ))
+    setImageEditModal(null)
+    setImageUrlInput('')
   }
 
   // 削除
@@ -604,262 +777,369 @@ export default function ManualSalesPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredSales.map((sale) => (
+              {filteredSales.map((sale, index) => (
                 <tr key={sale.id} className="hover:bg-slate-800">
-                  {editingId === sale.id ? (
-                    // 編集モード
-                    <>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {filteredSales.indexOf(sale) + 1}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="text"
-                          value={editData.inventory_number || ''}
-                          onChange={(e) => setEditData({ ...editData, inventory_number: e.target.value })}
-                          className="w-full px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        -
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="text"
-                          value={editData.category || ''}
-                          onChange={(e) => setEditData({ ...editData, category: e.target.value })}
-                          className="w-full px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="text"
-                          value={editData.brand_name || ''}
-                          onChange={(e) => setEditData({ ...editData, brand_name: e.target.value })}
-                          className="w-full px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="text"
-                          value={editData.product_name || ''}
-                          onChange={(e) => setEditData({ ...editData, product_name: e.target.value })}
-                          className="w-full px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <select
-                          value={editData.purchase_source || ''}
-                          onChange={(e) => setEditData({ ...editData, purchase_source: e.target.value })}
-                          className="w-full px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        >
-                          <option value="">選択</option>
-                          {purchasePlatforms.map(p => (
-                            <option key={p.id} value={p.name}>{p.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <select
-                          value={editData.sale_destination || ''}
-                          onChange={(e) => setEditData({ ...editData, sale_destination: e.target.value })}
-                          className="w-full px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        >
-                          <option value="">選択</option>
-                          {salePlatforms.map(p => (
-                            <option key={p.id} value={p.name}>{p.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="number"
-                          value={editData.sale_price || ''}
-                          onChange={(e) => setEditData({ ...editData, sale_price: parseInt(e.target.value) || null })}
-                          className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="number"
-                          value={editData.commission || ''}
-                          onChange={(e) => setEditData({ ...editData, commission: parseInt(e.target.value) || null })}
-                          className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="number"
-                          value={editData.shipping_cost || ''}
-                          onChange={(e) => setEditData({ ...editData, shipping_cost: parseInt(e.target.value) || null })}
-                          className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="number"
-                          value={editData.other_cost || ''}
-                          onChange={(e) => setEditData({ ...editData, other_cost: parseInt(e.target.value) || null })}
-                          className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="number"
-                          value={editData.purchase_price || ''}
-                          onChange={(e) => setEditData({ ...editData, purchase_price: parseInt(e.target.value) || null })}
-                          className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="number"
-                          value={editData.purchase_total || ''}
-                          onChange={(e) => setEditData({ ...editData, purchase_total: parseInt(e.target.value) || null })}
-                          className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="number"
-                          value={editData.deposit_amount || ''}
-                          onChange={(e) => setEditData({ ...editData, deposit_amount: parseInt(e.target.value) || null })}
-                          className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {calculateProfit(editData).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {calculateProfitRate(editData)}%
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="date"
-                          value={editData.purchase_date || ''}
-                          onChange={(e) => setEditData({ ...editData, purchase_date: e.target.value })}
-                          className="px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="date"
-                          value={editData.listing_date || ''}
-                          onChange={(e) => setEditData({ ...editData, listing_date: e.target.value })}
-                          className="px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600">
-                        <input
-                          type="date"
-                          value={editData.sale_date || ''}
-                          onChange={(e) => setEditData({ ...editData, sale_date: e.target.value })}
-                          className="px-1 py-0.5 bg-slate-700 text-white border border-slate-600 rounded text-sm"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {calculateTurnoverDays(editData) ?? '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        <button
-                          onClick={handleEditSave}
-                          className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 mr-1"
-                        >
-                          保存
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingId(null)
-                            setEditData({})
-                          }}
-                          className="px-2 py-1 bg-slate-600 text-white rounded text-xs hover:bg-slate-500"
-                        >
-                          取消
-                        </button>
-                      </td>
-                    </>
-                  ) : (
-                    // 表示モード
-                    <>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {filteredSales.indexOf(sale) + 1}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.inventory_number || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        -
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.category || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.brand_name || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.product_name}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.purchase_source || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.sale_destination || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.sale_price?.toLocaleString() || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.commission?.toLocaleString() || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.shipping_cost?.toLocaleString() || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.other_cost?.toLocaleString() || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.purchase_price?.toLocaleString() || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.purchase_total?.toLocaleString() || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.deposit_amount?.toLocaleString() || '-'}
-                      </td>
-                      <td className={`px-3 py-2 text-center text-sm border border-slate-600 whitespace-nowrap ${(sale.profit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {sale.profit?.toLocaleString() || '-'}
-                      </td>
-                      <td className={`px-3 py-2 text-center text-sm border border-slate-600 whitespace-nowrap ${(sale.profit_rate || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.purchase_date || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.listing_date || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.sale_date || '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        {sale.turnover_days ?? '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                        <button
-                          onClick={() => handleEditStart(sale)}
-                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 mr-1"
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => handleDelete(sale.id)}
-                          className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
-                        >
-                          削除
-                        </button>
-                      </td>
-                    </>
-                  )}
+                  {/* No */}
+                  <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
+                    {index + 1}
+                  </td>
+                  {/* 管理番号 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'inventory_number')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'inventory_number' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.inventory_number || '-'
+                    )}
+                  </td>
+                  {/* 画像 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => openImageModal(sale)}
+                  >
+                    {sale.image_url ? (
+                      <img
+                        src={sale.image_url}
+                        alt=""
+                        className="w-10 h-10 object-cover mx-auto rounded"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none'
+                        }}
+                      />
+                    ) : (
+                      <span className="text-slate-500">+</span>
+                    )}
+                  </td>
+                  {/* ジャンル */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'category')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'category' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.category || '-'
+                    )}
+                  </td>
+                  {/* ブランド名 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'brand_name')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'brand_name' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.brand_name || '-'
+                    )}
+                  </td>
+                  {/* 商品名 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'product_name')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'product_name' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.product_name || '-'
+                    )}
+                  </td>
+                  {/* 仕入先 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'purchase_source')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_source' ? (
+                      <select
+                        ref={(el) => { editCellRef.current = el }}
+                        value={editValue}
+                        onChange={(e) => {
+                          setEditValue(e.target.value)
+                          setTimeout(() => saveEditingCell(), 0)
+                        }}
+                        onKeyDown={handleKeyDown}
+                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      >
+                        <option value="">選択</option>
+                        {purchasePlatforms.map(p => (
+                          <option key={p.id} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      sale.purchase_source || '-'
+                    )}
+                  </td>
+                  {/* 販売先 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'sale_destination')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' ? (
+                      <select
+                        ref={(el) => { editCellRef.current = el }}
+                        value={editValue}
+                        onChange={(e) => {
+                          setEditValue(e.target.value)
+                          setTimeout(() => saveEditingCell(), 0)
+                        }}
+                        onKeyDown={handleKeyDown}
+                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      >
+                        <option value="">選択</option>
+                        {salePlatforms.map(p => (
+                          <option key={p.id} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      sale.sale_destination || '-'
+                    )}
+                  </td>
+                  {/* 売価 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'sale_price')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'sale_price' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.sale_price?.toLocaleString() || '-'
+                    )}
+                  </td>
+                  {/* 手数料 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'commission')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'commission' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.commission?.toLocaleString() || '-'
+                    )}
+                  </td>
+                  {/* 送料 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'shipping_cost')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'shipping_cost' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.shipping_cost?.toLocaleString() || '-'
+                    )}
+                  </td>
+                  {/* その他 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'other_cost')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'other_cost' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.other_cost?.toLocaleString() || '-'
+                    )}
+                  </td>
+                  {/* 原価 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'purchase_price')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_price' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.purchase_price?.toLocaleString() || '-'
+                    )}
+                  </td>
+                  {/* 仕入総額 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'purchase_total')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_total' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.purchase_total?.toLocaleString() || '-'
+                    )}
+                  </td>
+                  {/* 入金額 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'deposit_amount')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'deposit_amount' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.deposit_amount?.toLocaleString() || '-'
+                    )}
+                  </td>
+                  {/* 利益（自動計算） */}
+                  <td className={`px-3 py-2 text-center text-sm border border-slate-600 whitespace-nowrap ${(sale.profit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {sale.profit?.toLocaleString() || '-'}
+                  </td>
+                  {/* 利益率（自動計算） */}
+                  <td className={`px-3 py-2 text-center text-sm border border-slate-600 whitespace-nowrap ${(sale.profit_rate || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}
+                  </td>
+                  {/* 仕入日 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'purchase_date')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_date' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="date"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.purchase_date || '-'
+                    )}
+                  </td>
+                  {/* 出品日 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'listing_date')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'listing_date' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="date"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.listing_date || '-'
+                    )}
+                  </td>
+                  {/* 売却日 */}
+                  <td
+                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
+                    onClick={() => handleCellClick(sale, 'sale_date')}
+                  >
+                    {editingCell?.id === sale.id && editingCell?.field === 'sale_date' ? (
+                      <input
+                        ref={(el) => { editCellRef.current = el }}
+                        type="date"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
+                        autoFocus
+                      />
+                    ) : (
+                      sale.sale_date || '-'
+                    )}
+                  </td>
+                  {/* 回転日数（自動計算） */}
+                  <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
+                    {sale.turnover_days ?? '-'}
+                  </td>
+                  {/* 操作 */}
+                  <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
+                    <button
+                      onClick={() => handleDelete(sale.id)}
+                      className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                    >
+                      削除
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -872,6 +1152,169 @@ export default function ManualSalesPage() {
           </div>
         )}
       </div>
+
+      {/* 画像編集モーダル */}
+      {imageEditModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          onClick={() => {
+            setImageEditModal(null)
+            setImageUrlInput('')
+            setIsDraggingImage(false)
+          }}
+        >
+          <div
+            className={`bg-white rounded-lg shadow-xl p-6 w-full max-w-md ${isDraggingImage ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setIsDraggingImage(true)
+            }}
+            onDragLeave={() => setIsDraggingImage(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setIsDraggingImage(false)
+              const file = e.dataTransfer.files[0]
+              if (file) {
+                handleImageDrop(imageEditModal.id, file)
+              }
+            }}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {imageEditModal.currentUrl ? '画像を編集' : '画像を追加'}
+              </h3>
+              <button
+                onClick={() => {
+                  setImageEditModal(null)
+                  setImageUrlInput('')
+                  setIsDraggingImage(false)
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 現在の画像プレビュー */}
+            {imageEditModal.currentUrl && (
+              <div className="mb-4">
+                <p className="text-sm text-gray-500 mb-2">現在の画像:</p>
+                <img
+                  src={imageEditModal.currentUrl}
+                  alt=""
+                  className="w-20 h-20 object-cover rounded border"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              </div>
+            )}
+
+            {/* ドラッグ&ドロップエリア */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 text-center mb-4 transition-colors ${
+                isDraggingImage ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                id="image-upload-manual"
+                ref={imageInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    handleImageDrop(imageEditModal.id, file)
+                  }
+                }}
+              />
+              <label htmlFor="image-upload-manual" className="cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-10 w-10 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm text-gray-600">
+                  {isUploadingImage ? 'アップロード中...' : (
+                    <>
+                      画像をドラッグ&ドロップ<br />
+                      <span className="text-blue-600 hover:text-blue-700">またはクリックして選択</span>
+                    </>
+                  )}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">最大5MB</p>
+              </label>
+            </div>
+
+            {/* URL入力 */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">または画像URLを入力</label>
+              <input
+                type="text"
+                value={imageUrlInput}
+                onChange={(e) => setImageUrlInput(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && imageUrlInput.trim()) {
+                    handleSaveImageUrl(imageEditModal.id, imageUrlInput)
+                  }
+                }}
+              />
+            </div>
+
+            {/* ボタン */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setImageEditModal(null)
+                  setImageUrlInput('')
+                  setIsDraggingImage(false)
+                }}
+                className="flex-1 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => handleSaveImageUrl(imageEditModal.id, imageUrlInput)}
+                disabled={!imageUrlInput.trim()}
+                className="flex-1 px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                URL保存
+              </button>
+            </div>
+
+            {/* 画像削除ボタン */}
+            {imageEditModal.currentUrl && (
+              <button
+                onClick={async () => {
+                  if (confirm('画像を削除しますか？')) {
+                    try {
+                      const { error } = await supabase
+                        .from('manual_sales')
+                        .update({ image_url: null })
+                        .eq('id', imageEditModal.id)
+                      if (error) throw error
+                      setSales(prev => prev.map(item =>
+                        item.id === imageEditModal.id ? { ...item, image_url: null } : item
+                      ))
+                      setImageEditModal(null)
+                      setImageUrlInput('')
+                    } catch (error) {
+                      console.error('Error deleting image:', error)
+                      alert('画像の削除に失敗しました')
+                    }
+                  }
+                }}
+                className="w-full mt-3 px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200"
+              >
+                画像を削除
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

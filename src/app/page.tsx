@@ -371,6 +371,7 @@ export default function Home() {
   const [imageEditModal, setImageEditModal] = useState<{ id: string; currentUrl: string | null } | null>(null)
   const [imageUrlInput, setImageUrlInput] = useState('')
   const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set())
   const [pendingCSV, setPendingCSV] = useState<{ file: File; needsDate: boolean; type?: string } | null>(null)
   const [csvPurchaseDate, setCsvPurchaseDate] = useState<string>('')
   const [starBuyersImageCSV, setStarBuyersImageCSV] = useState<File | null>(null)
@@ -474,7 +475,7 @@ export default function Home() {
   // 列の順序管理（開発用）
   const defaultColumns = [
     { key: 'checkbox', label: '', draggable: false, width: 'w-8' },
-    { key: 'index', label: 'No.', draggable: false, width: 'w-10' },
+    { key: 'index', label: 'No.', draggable: false, width: 'w-14' },
     { key: 'inventory_number', label: '管理\n番号', draggable: true, width: 'w-16' },
     { key: 'image', label: '画像', draggable: true, width: 'w-16' },
     { key: 'category', label: 'ジャンル', draggable: true, width: 'w-20' },
@@ -732,8 +733,11 @@ export default function Home() {
         : currentItem.commission
       const shippingCost = getUpdatedValue('shipping_cost') as number | null
 
-      if (salePrice !== null) {
+      if (salePrice !== null && salePrice !== 0) {
         updateData.deposit_amount = salePrice - (commission || 0) - (shippingCost || 0)
+      } else {
+        // 売値が0またはnullの場合、入金額もリセット
+        updateData.deposit_amount = null
       }
     }
 
@@ -1221,8 +1225,10 @@ export default function Home() {
         }
 
         Object.entries(mapping).forEach(([csvHeader, inventoryColumn]) => {
+          // profit/profit_rateは常に計算で求めるのでインポートしない
+          if (['profit', 'profit_rate'].includes(inventoryColumn)) return
           let value = row[csvHeader]
-          if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount', 'profit', 'profit_rate'].includes(inventoryColumn)) {
+          if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(inventoryColumn)) {
             record[inventoryColumn] = parseGenericNumber(value)
           } else if (inventoryColumn === 'turnover_days') {
             const numVal = parseGenericNumber(value)
@@ -2529,7 +2535,9 @@ export default function Home() {
   // ソート済みのインベントリ
   // 利益計算ヘルパー関数（常に計算で求める）
   const calcProfit = (item: InventoryItem): number | null => {
-    // 入金額がある場合のみ計算（売却済みの場合）
+    // 売上日がある場合のみ計算（売却確定時）
+    if (!item.sale_date) return null
+    // 入金額がある場合のみ計算
     return item.deposit_amount !== null
       ? Number(item.deposit_amount) - (item.purchase_total || 0) - (item.other_cost || 0)
       : null
@@ -2674,6 +2682,12 @@ export default function Home() {
       setInventory(prev => prev.map(item =>
         item.id === id ? { ...item, image_url: url.trim() } : item
       ))
+      // 画像エラー状態をクリア
+      setImageErrors(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
       setImageEditModal(null)
       setImageUrlInput('')
     } catch (error) {
@@ -2724,6 +2738,12 @@ export default function Home() {
       setInventory(prev => prev.map(item =>
         item.id === id ? { ...item, image_url: url } : item
       ))
+      // 画像エラー状態をクリア
+      setImageErrors(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
       setImageEditModal(null)
       setImageUrlInput('')
       setIsDraggingImage(false)
@@ -2969,6 +2989,95 @@ export default function Home() {
     document.addEventListener('keydown', handleUndoRedoKey)
     return () => document.removeEventListener('keydown', handleUndoRedoKey)
   }, [editingCell, executeUndo, executeRedo])
+
+  // 矢印キーでセル移動
+  useEffect(() => {
+    const handleArrowKey = (e: KeyboardEvent) => {
+      // 編集中は無視
+      if (editingCell) return
+      // セルが選択されていない場合は無視
+      if (!selectedCell) return
+      // 矢印キー以外は無視
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
+
+      e.preventDefault()
+
+      // 現在の行と列のインデックスを取得
+      const currentRowIndex = sortedInventory.findIndex(item => item.id === selectedCell.id)
+      const currentColIndex = visibleColumns.findIndex(col => col.key === selectedCell.field)
+
+      if (currentRowIndex === -1 || currentColIndex === -1) return
+
+      let newRowIndex = currentRowIndex
+      let newColIndex = currentColIndex
+
+      switch (e.key) {
+        case 'ArrowUp':
+          newRowIndex = Math.max(0, currentRowIndex - 1)
+          break
+        case 'ArrowDown':
+          newRowIndex = Math.min(sortedInventory.length - 1, currentRowIndex + 1)
+          break
+        case 'ArrowLeft':
+          newColIndex = Math.max(0, currentColIndex - 1)
+          break
+        case 'ArrowRight':
+          newColIndex = Math.min(visibleColumns.length - 1, currentColIndex + 1)
+          break
+      }
+
+      // 移動先のセルを選択
+      const newItem = sortedInventory[newRowIndex]
+      const newCol = visibleColumns[newColIndex]
+      if (newItem && newCol) {
+        setSelectedCell({ id: newItem.id, field: newCol.key as keyof InventoryItem })
+        setSelectionRange(null)
+      }
+    }
+    document.addEventListener('keydown', handleArrowKey)
+    return () => document.removeEventListener('keydown', handleArrowKey)
+  }, [editingCell, selectedCell, sortedInventory, visibleColumns])
+
+  // セル選択中に直接入力で編集開始
+  useEffect(() => {
+    const handleDirectInput = (e: KeyboardEvent) => {
+      // 編集中は無視
+      if (editingCell) return
+      // セルが選択されていない場合は無視
+      if (!selectedCell) return
+      // モーダルが開いている場合は無視
+      if (modalEdit || imageEditModal) return
+      // 修飾キーが押されている場合は無視（ショートカット用）
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      // 特殊キーは無視
+      if (['Escape', 'Tab', 'Enter', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'].includes(e.key)) return
+
+      // 編集不可フィールドは無視
+      const nonEditableFields = ['id', 'created_at', 'checkbox', 'index', 'image', 'profit', 'profit_rate', 'turnover_days', 'deposit_amount', 'commission', 'inventory_number']
+      if (nonEditableFields.includes(selectedCell.field)) return
+
+      // 現在のアイテムを取得
+      const currentItem = sortedInventory.find(item => item.id === selectedCell.id)
+      if (!currentItem) return
+
+      // 商品名はモーダルで編集
+      if (selectedCell.field === 'product_name') {
+        setModalEdit({ id: currentItem.id, field: 'product_name', value: e.key })
+        e.preventDefault()
+        return
+      }
+
+      // 仕入先・販売先はドロップダウンなので直接入力は無視
+      if (selectedCell.field === 'purchase_source' || selectedCell.field === 'sale_destination') return
+
+      // 編集モードを開始し、入力された文字をセット
+      setEditingCell({ id: selectedCell.id, field: selectedCell.field })
+      setEditValue(e.key)
+      e.preventDefault()
+    }
+    document.addEventListener('keydown', handleDirectInput)
+    return () => document.removeEventListener('keydown', handleDirectInput)
+  }, [editingCell, selectedCell, sortedInventory, modalEdit, imageEditModal])
 
   // オートフィル実行
   const executeAutoFill = useCallback(async () => {
@@ -4308,43 +4417,59 @@ export default function Home() {
                                 {(() => {
                                   const imageUrl = item.saved_image_url || item.image_url
                                   const proxiedUrl = getProxiedImageUrl(imageUrl)
-                                  return imageUrl ? (
-                                    <div className="relative group">
-                                      <img
-                                        src={proxiedUrl || ''}
-                                        alt=""
-                                        className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80"
-                                        onClick={() => setImageModal(proxiedUrl)}
-                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                                      />
-                                      <button
-                                        className="absolute -top-1 -right-1 w-4 h-4 bg-gray-500 hover:bg-gray-700 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setImageEditModal({ id: item.id, currentUrl: imageUrl })
-                                          setImageUrlInput(imageUrl || '')
-                                        }}
-                                        title="画像を編集"
-                                      >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  ) : (
+                                  const hasImageError = imageErrors.has(item.id)
+
+                                  // 画像URLがあり、エラーが発生していない場合
+                                  if (imageUrl && !hasImageError) {
+                                    return (
+                                      <div className="relative group">
+                                        <img
+                                          src={proxiedUrl || ''}
+                                          alt=""
+                                          className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80"
+                                          onClick={() => setImageModal(proxiedUrl)}
+                                          onError={() => setImageErrors(prev => new Set(prev).add(item.id))}
+                                        />
+                                        <button
+                                          className="absolute -top-1 -right-1 w-4 h-4 bg-gray-500 hover:bg-gray-700 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setImageEditModal({ id: item.id, currentUrl: imageUrl })
+                                            setImageUrlInput(imageUrl || '')
+                                          }}
+                                          title="画像を編集"
+                                        >
+                                          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    )
+                                  }
+
+                                  // 画像URLがない、またはエラーが発生した場合
+                                  return (
                                     <div
-                                      className="w-10 h-10 bg-gray-200 hover:bg-gray-300 rounded flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
+                                      className={`w-10 h-10 ${hasImageError ? 'bg-red-100 hover:bg-red-200' : 'bg-gray-200 hover:bg-gray-300'} rounded flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-pointer transition-colors`}
                                       onClick={() => {
-                                        setImageEditModal({ id: item.id, currentUrl: null })
-                                        setImageUrlInput('')
+                                        setImageEditModal({ id: item.id, currentUrl: imageUrl })
+                                        setImageUrlInput(imageUrl || '')
                                       }}
-                                      title="画像を追加"
+                                      title={hasImageError ? '画像の読み込みに失敗しました。クリックして編集' : '画像を追加'}
                                     >
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <line x1="12" y1="5" x2="12" y2="19" />
-                                        <line x1="5" y1="12" x2="19" y2="12" />
-                                      </svg>
+                                      {hasImageError ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <circle cx="12" cy="12" r="10" />
+                                          <line x1="12" y1="8" x2="12" y2="12" />
+                                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                                        </svg>
+                                      ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <line x1="12" y1="5" x2="12" y2="19" />
+                                          <line x1="5" y1="12" x2="19" y2="12" />
+                                        </svg>
+                                      )}
                                     </div>
                                   )
                                 })()}
