@@ -2666,9 +2666,19 @@ export default function ManualSalesPage() {
       {/* 固定横スクロールバー */}
       <div
         ref={fixedScrollbarRef}
-        className="fixed-horizontal-scrollbar"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '16px',
+          backgroundColor: '#e5e7eb',
+          zIndex: 9999,
+          overflowX: 'scroll',
+          overflowY: 'hidden'
+        }}
       >
-        <div style={{ width: scrollWidth, height: 1 }} />
+        <div style={{ width: scrollWidth > 0 ? scrollWidth : '100%', height: 1 }} />
       </div>
     </div>
   )
