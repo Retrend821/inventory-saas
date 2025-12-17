@@ -128,50 +128,8 @@ export default function ManualSalesPage() {
   } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  // 列幅リサイズ用
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
-  const [resizing, setResizing] = useState<{ key: string; startX: number; startWidth: number } | null>(null)
-
   // 表示する列をフィルタリング
   const visibleColumns = columns.filter(col => !hiddenColumns.has(col.key))
-
-  // 列幅リサイズのハンドラ
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent, colKey: string, currentWidth: number) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setResizing({ key: colKey, startX: e.clientX, startWidth: currentWidth })
-  }, [])
-
-  useEffect(() => {
-    if (!resizing) return
-
-    // リサイズ中はカーソルを変更し、テキスト選択を防止
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    const handleMouseMove = (e: MouseEvent) => {
-      e.preventDefault()
-      const diff = e.clientX - resizing.startX
-      const newWidth = Math.max(40, resizing.startWidth + diff)
-      setColumnWidths(prev => ({ ...prev, [resizing.key]: newWidth }))
-    }
-
-    const handleMouseUp = () => {
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      setResizing(null)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [resizing])
 
   // 固定横スクロールバーの同期
   useEffect(() => {
@@ -1923,70 +1881,18 @@ export default function ManualSalesPage() {
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table className="border-collapse min-w-full">
+          <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
-                {visibleColumns.map(col => {
-                  const defaultWidths: Record<string, number> = {
-                    no: 40,
-                    actions: 60,
-                    inventory_number: 70,
-                    image_url: 60,
-                    category: 80,
-                    brand_name: 100,
-                    product_name: 150,
-                    purchase_source: 90,
-                    sale_destination: 90,
-                    sale_price: 70,
-                    commission: 70,
-                    shipping_cost: 70,
-                    other_cost: 70,
-                    purchase_price: 70,
-                    purchase_total: 80,
-                    deposit_amount: 80,
-                    profit: 70,
-                    profit_rate: 70,
-                    purchase_date: 100,
-                    listing_date: 100,
-                    sale_date: 100,
-                    memo: 100,
-                    turnover_days: 80,
-                    cost_recovered: 80,
-                  }
-                  const defaultWidth = defaultWidths[col.key] || 100
-                  const width = columnWidths[col.key] || defaultWidth
-                  return (
-                    <th
-                      key={col.key}
-                      style={{
-                        backgroundColor: '#334155',
-                        color: '#ffffff',
-                        minWidth: `${width}px`,
-                        position: 'relative',
-                        padding: '8px 12px'
-                      }}
-                      className="text-center text-sm font-medium border border-slate-600 whitespace-nowrap"
-                    >
-                      {col.label}
-                      {col.key !== 'actions' && col.key !== 'no' && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            right: 0,
-                            top: 0,
-                            width: '4px',
-                            height: '100%',
-                            cursor: 'col-resize',
-                            backgroundColor: '#475569'
-                          }}
-                          onMouseDown={(e) => handleResizeMouseDown(e, col.key, width)}
-                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#3b82f6')}
-                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#475569')}
-                        />
-                      )}
-                    </th>
-                  )
-                })}
+                {visibleColumns.map(col => (
+                  <th
+                    key={col.key}
+                    style={{ backgroundColor: '#334155', color: '#ffffff' }}
+                    className={`px-3 py-2 text-center text-sm font-medium border border-slate-600 whitespace-nowrap ${col.key === 'inventory_number' ? 'w-16' : ''}`}
+                  >
+                    {col.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
