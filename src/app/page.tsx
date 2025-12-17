@@ -4508,7 +4508,39 @@ export default function Home() {
                         case 'brand_name':
                           return renderCell('brand_name', <span className="text-sm text-gray-900 block text-center" title={item.brand_name || ''}>{item.brand_name || '-'}</span>, 'datalist', uniqueBrands, colIndex)
                         case 'product_name':
-                          return renderCell('product_name', <span className="text-sm text-gray-900 block max-w-[100px] truncate" title={item.product_name}>{item.product_name}</span>, 'text', undefined, colIndex)
+                          const isProductEditing = isEditingCell('product_name')
+                          const isProductSelected = isSelectedCell('product_name') && !isProductEditing && !selectionRange
+                          const productInRange = colIndex !== undefined && isCellInRange(index, colIndex)
+                          const productAutoFillRange = colIndex !== undefined && isCellInAutoFillRange(index, colIndex)
+                          return (
+                            <td
+                              key={colKey}
+                              className={`${cellClass} ${isProductEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${isProductSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${productInRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''} ${productAutoFillRange ? 'bg-green-100 ring-1 ring-green-500 ring-inset' : ''} ${groupEndColumns.has('product_name') ? 'border-r border-gray-300' : ''} select-none relative`}
+                              onClick={() => {
+                                if (!isProductEditing && item.product_name) {
+                                  setModalEdit({ id: item.id, field: 'product_name', value: item.product_name })
+                                }
+                                if (!isProductEditing) {
+                                  setSelectedCell({ id: item.id, field: 'product_name' })
+                                  setSelectionRange(null)
+                                }
+                              }}
+                              onDoubleClick={() => {
+                                if (!isProductEditing && item.product_name) {
+                                  setModalEdit({ id: item.id, field: 'product_name', value: item.product_name })
+                                }
+                              }}
+                              onMouseDown={(e) => colIndex !== undefined && handleCellMouseDown(index, colIndex, e)}
+                              onMouseEnter={() => {
+                                if (colIndex !== undefined) {
+                                  handleCellMouseEnter(index, colIndex)
+                                  handleAutoFillMouseEnter(index, colIndex)
+                                }
+                              }}
+                            >
+                              <span className="text-sm text-gray-900 block max-w-[100px] truncate" title={item.product_name}>{item.product_name}</span>
+                            </td>
+                          )
                         case 'purchase_source':
                           const sourceColor = item.purchase_source ? platformColors[item.purchase_source] : null
                           const isPurchaseSourceOpen = editingCell?.id === item.id && editingCell?.field === 'purchase_source' && dropdownPosition
