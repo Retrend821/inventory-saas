@@ -138,9 +138,19 @@ export default function ManualSalesPage() {
     if (!tableContainer || !fixedScrollbar) return
 
     const updateScrollWidth = () => {
-      setScrollWidth(tableContainer.scrollWidth)
+      const width = tableContainer.scrollWidth
+      if (width > 0) {
+        setScrollWidth(width)
+      }
     }
-    updateScrollWidth()
+
+    // 初期表示時に少し遅延させて確実にテーブルがレンダリングされた後に計算
+    const timeoutId = setTimeout(updateScrollWidth, 100)
+
+    // さらにrequestAnimationFrameでも確認
+    const rafId = requestAnimationFrame(() => {
+      requestAnimationFrame(updateScrollWidth)
+    })
 
     const resizeObserver = new ResizeObserver(updateScrollWidth)
     resizeObserver.observe(tableContainer)
@@ -161,11 +171,13 @@ export default function ManualSalesPage() {
     fixedScrollbar.addEventListener('scroll', handleFixedScroll)
 
     return () => {
+      clearTimeout(timeoutId)
+      cancelAnimationFrame(rafId)
       resizeObserver.disconnect()
       tableContainer.removeEventListener('scroll', handleTableScroll)
       fixedScrollbar.removeEventListener('scroll', handleFixedScroll)
     }
-  }, [sales])
+  }, [sales, loading])
 
   // データ取得
   useEffect(() => {
