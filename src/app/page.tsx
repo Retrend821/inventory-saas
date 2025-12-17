@@ -7,6 +7,7 @@ import Papa from 'papaparse'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/contexts/ThemeContext'
 
 type InventoryItem = {
   id: string
@@ -335,6 +336,7 @@ const MemoizedCheckbox = memo(function MemoizedCheckbox({
 
 export default function Home() {
   const { user } = useAuth()
+  const { isDark } = useTheme()
   const searchParams = useSearchParams()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -3314,14 +3316,14 @@ export default function Home() {
   }
 
   return (
-      <div className="min-h-screen bg-gray-50">
+      <div className={`min-h-screen ${isDark ? 'bg-slate-900' : 'bg-gray-50'}`}>
       <main className="px-4 py-6">
         {/* CSVアップロードエリア */}
         <div
           className={`mb-6 border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
             dragActive
               ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-gray-400'
+              : isDark ? 'border-slate-600 hover:border-slate-500' : 'border-gray-300 hover:border-gray-400'
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -3375,16 +3377,16 @@ export default function Home() {
         </div>
 
         {/* 在庫テーブル */}
-        <div className="bg-white rounded-lg shadow">
+        <div className={`rounded-lg shadow ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
           {/* タブ */}
-          <div className="border-b border-gray-200">
+          <div className={`border-b ${isDark ? 'border-slate-700' : 'border-gray-200'}`}>
             <div className="flex">
               <button
                 onClick={() => setQuickFilter('all')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   quickFilter === 'all'
-                    ? 'border-blue-600 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? isDark ? 'border-blue-400 text-blue-400 bg-slate-700' : 'border-blue-600 text-blue-600 bg-blue-50'
+                    : isDark ? 'border-transparent text-slate-400 hover:text-slate-300' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 全件 ({inventory.length})

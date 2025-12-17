@@ -32,6 +32,78 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
+/* ダークモード時のグローバルオーバーライド */
+:root.dark .bg-white {
+  background-color: #1e293b !important;
+}
+:root.dark .bg-gray-50 {
+  background-color: #0f172a !important;
+}
+:root.dark .bg-gray-100 {
+  background-color: #1e293b !important;
+}
+:root.dark .text-gray-900 {
+  color: #e2e8f0 !important;
+}
+:root.dark .text-gray-700 {
+  color: #cbd5e1 !important;
+}
+:root.dark .text-gray-600 {
+  color: #94a3b8 !important;
+}
+:root.dark .text-gray-500 {
+  color: #64748b !important;
+}
+:root.dark .text-black {
+  color: #e2e8f0 !important;
+}
+:root.dark .border-gray-200 {
+  border-color: #334155 !important;
+}
+:root.dark .border-gray-300 {
+  border-color: #475569 !important;
+}
+:root.dark .divide-gray-200 > * + * {
+  border-color: #334155 !important;
+}
+:root.dark input,
+:root.dark select,
+:root.dark textarea {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+:root.dark input::placeholder {
+  color: #64748b !important;
+}
+
+/* ライトモード時のダーク系クラスをオーバーライド（ナビゲーション以外） */
+:root:not(.dark) main .bg-slate-900,
+:root:not(.dark) .min-h-screen.bg-slate-900 {
+  background-color: #f8fafc !important;
+}
+:root:not(.dark) main .bg-slate-800 {
+  background-color: #ffffff !important;
+}
+:root:not(.dark) main .bg-slate-700 {
+  background-color: #f1f5f9 !important;
+}
+:root:not(.dark) main .text-white {
+  color: #1e293b !important;
+}
+:root:not(.dark) main .text-slate-400 {
+  color: #64748b !important;
+}
+:root:not(.dark) main .text-slate-300 {
+  color: #475569 !important;
+}
+:root:not(.dark) main .border-slate-600 {
+  border-color: #e2e8f0 !important;
+}
+:root:not(.dark) main .border-slate-700 {
+  border-color: #e2e8f0 !important;
+}
+
 /* テーブルスクロールコンテナ */
 .table-scroll-container {
   overflow-x: auto;
