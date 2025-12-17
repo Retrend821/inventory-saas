@@ -2776,7 +2776,7 @@ export default function ManualSalesPage() {
       )}
 
       {/* 固定横スクロールバー - Portalでbodyに直接レンダリング */}
-      {isMounted && createPortal(
+      {isMounted && scrollWidth > 0 && createPortal(
         <div
           ref={fixedScrollbarRef}
           style={{
@@ -2784,14 +2784,15 @@ export default function ManualSalesPage() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: '16px',
-            backgroundColor: '#e5e7eb',
+            height: '20px',
+            backgroundColor: '#d1d5db',
+            borderTop: '1px solid #9ca3af',
             zIndex: 99999,
             overflowX: 'scroll',
             overflowY: 'hidden'
           }}
         >
-          <div style={{ width: scrollWidth > 0 ? scrollWidth : '100%', height: 1 }} />
+          <div style={{ width: scrollWidth, height: 1 }} />
         </div>,
         document.body
       )}
