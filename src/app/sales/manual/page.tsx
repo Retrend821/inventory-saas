@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import Papa from 'papaparse'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Navigation from '@/components/Navigation'
@@ -60,6 +61,14 @@ export default function ManualSalesPage() {
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'main' | 'bulk'>('all')
+  // CSVインポート用state
+  const [csvImportModal, setCsvImportModal] = useState<{
+    step: 'mapping' | 'preview' | 'importing'
+    csvHeaders: string[]
+    csvData: Record<string, string>[]
+    mapping: Record<string, string>
+    progress: number
+  } | null>(null)
 
   // データ取得
   useEffect(() => {
@@ -313,6 +322,230 @@ export default function ManualSalesPage() {
     }
   }
 
+  // CSVインポート用の定数とユーティリティ
+  const CSV_IMPORT_COLUMNS = [
+    { key: 'inventory_number', label: '管理番号' },
+    { key: 'product_name', label: '商品名' },
+    { key: 'brand_name', label: 'ブランド' },
+    { key: 'category', label: 'カテゴリ' },
+    { key: 'purchase_price', label: '仕入値' },
+    { key: 'purchase_total', label: '仕入総額' },
+    { key: 'sale_price', label: '販売価格' },
+    { key: 'commission', label: '手数料' },
+    { key: 'shipping_cost', label: '送料' },
+    { key: 'other_cost', label: 'その他コスト' },
+    { key: 'deposit_amount', label: '入金額' },
+    { key: 'purchase_date', label: '仕入日' },
+    { key: 'listing_date', label: '出品日' },
+    { key: 'sale_date', label: '売上日' },
+    { key: 'purchase_source', label: '仕入先' },
+    { key: 'sale_destination', label: '販売先' },
+    { key: 'memo', label: 'メモ' },
+    { key: 'image_url', label: '画像URL' },
+  ]
+
+  const autoMappingCSV = (headers: string[]): Record<string, string> => {
+    const mapping: Record<string, string> = {}
+    const keywordMap: Record<string, string[]> = {
+      inventory_number: ['管理番号', '番号', 'No', 'no', 'ID'],
+      product_name: ['商品名', '商品', 'タイトル', 'name', '詳細'],
+      brand_name: ['ブランド', 'brand'],
+      category: ['カテゴリ', '商品区分', 'category'],
+      purchase_price: ['仕入値', '原価', '仕入れ値'],
+      purchase_total: ['仕入総額', '総額', '手数料・送料・税込'],
+      sale_price: ['販売価格', '売価', '売上'],
+      commission: ['手数料', '販売手数料'],
+      shipping_cost: ['送料'],
+      other_cost: ['その他', 'other'],
+      deposit_amount: ['入金額', '入金'],
+      purchase_date: ['仕入日', '購入日'],
+      listing_date: ['出品日'],
+      sale_date: ['売上日', '販売日', '落札日'],
+      purchase_source: ['仕入先', '仕入れ先'],
+      sale_destination: ['販売先', '最終販路'],
+      memo: ['メモ', '備考', 'memo'],
+      image_url: ['画像', 'image', 'URL'],
+    }
+
+    headers.forEach(header => {
+      const lowerHeader = header.toLowerCase()
+      for (const [key, keywords] of Object.entries(keywordMap)) {
+        if (keywords.some(kw => lowerHeader.includes(kw.toLowerCase()))) {
+          if (!Object.values(mapping).includes(key)) {
+            mapping[header] = key
+            break
+          }
+        }
+      }
+    })
+    return mapping
+  }
+
+  const parseNumber = (value: string): number | null => {
+    if (!value) return null
+    const cleaned = value.replace(/[¥￥,、\s()（）]/g, '').replace(/^-/, '')
+    const num = parseFloat(cleaned)
+    if (isNaN(num)) return null
+    return value.includes('(') || value.includes('（') || value.startsWith('-') ? -Math.abs(num) : num
+  }
+
+  const parseDate = (value: string): string | null => {
+    if (!value) return null
+    const cleaned = value.replace(/\//g, '-').trim()
+    const match = cleaned.match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
+    if (match) {
+      const [, year, month, day] = match
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+    }
+    return null
+  }
+
+  // CSVインポート処理
+  const handleCSVImport = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target?.result as string
+      Papa.parse(text, {
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const rows = results.data as string[][]
+          if (rows.length === 0) {
+            alert('データがありません')
+            return
+          }
+
+          // ヘッダー行を探す
+          let headerRowIndex = 0
+          const headerKeywords = ['商品', '仕入', 'ブランド', '販売', '価格', 'No', '売上']
+          for (let i = 0; i < Math.min(rows.length, 10); i++) {
+            const row = rows[i]
+            if (!row || row.length < 3) continue
+            const rowText = row.join(',')
+            const matchCount = headerKeywords.filter(kw => rowText.includes(kw)).length
+            if (matchCount >= 2) {
+              headerRowIndex = i
+              break
+            }
+          }
+
+          const headerRow = rows[headerRowIndex]
+          const dataRows = rows.slice(headerRowIndex + 1)
+
+          const headers = headerRow.map((h, i) => h?.trim() || `列${i + 1}`).filter(h => h)
+          const data = dataRows
+            .filter(row => row.some(cell => cell && cell.trim()))
+            .map(row => {
+              const obj: Record<string, string> = {}
+              headerRow.forEach((header, i) => {
+                const key = header?.trim() || `列${i + 1}`
+                if (key && row[i] !== undefined) {
+                  obj[key] = row[i]?.trim() || ''
+                }
+              })
+              return obj
+            })
+
+          if (data.length === 0) {
+            alert('データがありません')
+            return
+          }
+
+          const autoMapped = autoMappingCSV(headers)
+          setCsvImportModal({
+            step: 'mapping',
+            csvHeaders: headers,
+            csvData: data,
+            mapping: autoMapped,
+            progress: 0,
+          })
+        }
+      })
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  // CSVインポート実行
+  const executeCSVImport = async () => {
+    if (!user || !csvImportModal) return
+    const { csvData, mapping } = csvImportModal
+
+    setCsvImportModal({ ...csvImportModal, step: 'importing', progress: 0 })
+
+    let success = 0
+    let failed = 0
+    const batchSize = 50
+
+    for (let i = 0; i < csvData.length; i += batchSize) {
+      const batch = csvData.slice(i, i + batchSize)
+
+      const records = batch.map(row => {
+        const record: Record<string, unknown> = {
+          sale_type: 'main',
+        }
+
+        Object.entries(mapping).forEach(([csvHeader, dbColumn]) => {
+          const value = row[csvHeader]
+          if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(dbColumn)) {
+            record[dbColumn] = parseNumber(value)
+          } else if (['purchase_date', 'listing_date', 'sale_date'].includes(dbColumn)) {
+            record[dbColumn] = parseDate(value)
+          } else {
+            record[dbColumn] = value || null
+          }
+        })
+
+        // 利益計算
+        const salePrice = record.sale_price as number | null
+        const purchaseTotal = record.purchase_total as number | null
+        const otherCost = record.other_cost as number | null
+        const depositAmount = record.deposit_amount as number | null
+        const saleDate = record.sale_date as string | null
+
+        // 売上日がある場合のみ利益を計算
+        if (saleDate && depositAmount !== null) {
+          record.profit = depositAmount - (purchaseTotal || 0) - (otherCost || 0)
+          if (salePrice && salePrice > 0) {
+            record.profit_rate = Math.round(((record.profit as number) / salePrice) * 100)
+          }
+        }
+
+        // 回転日数
+        const purchaseDate = record.purchase_date as string | null
+        if (purchaseDate && saleDate) {
+          const pDate = new Date(purchaseDate)
+          const sDate = new Date(saleDate)
+          record.turnover_days = Math.ceil((sDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24))
+        }
+
+        return record
+      }).filter(record => record.product_name)
+
+      if (records.length === 0) continue
+
+      const { error } = await supabase.from('manual_sales').insert(records)
+      if (error) {
+        console.error('Import error:', error)
+        failed += records.length
+      } else {
+        success += records.length
+      }
+
+      setCsvImportModal(prev => prev ? { ...prev, progress: Math.round(((i + batch.length) / csvData.length) * 100) } : null)
+    }
+
+    setCsvImportModal(null)
+    const skipped = csvData.length - success - failed
+    alert(`インポート完了: ${success}件成功${failed > 0 ? `、${failed}件失敗` : ''}${skipped > 0 ? `、${skipped}件スキップ` : ''}`)
+
+    // データ再取得
+    const { data } = await supabase
+      .from('manual_sales')
+      .select('*')
+      .order('sale_date', { ascending: false })
+    if (data) setSales(data)
+  }
+
   // 新規追加
   const handleAdd = async () => {
     if (!newSale.product_name) {
@@ -500,12 +733,27 @@ export default function ManualSalesPage() {
       <div className="pt-14 px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-white">手入力売上表</h1>
-          <button
-            onClick={() => setIsAdding(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            新規追加
-          </button>
+          <div className="flex items-center gap-2">
+            <label className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 cursor-pointer">
+              CSVインポート
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleCSVImport(file)
+                  e.target.value = ''
+                }}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={() => setIsAdding(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              新規追加
+            </button>
+          </div>
         </div>
 
         {/* フィルター */}
@@ -1311,6 +1559,149 @@ export default function ManualSalesPage() {
               >
                 画像を削除
               </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CSVインポートモーダル */}
+      {csvImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {csvImportModal.step === 'mapping' && 'CSVインポート - 列のマッピング'}
+                {csvImportModal.step === 'preview' && 'CSVインポート - プレビュー'}
+                {csvImportModal.step === 'importing' && 'インポート中...'}
+              </h3>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {csvImportModal.step === 'mapping' && (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    CSVの各列をどの項目にインポートするか選択してください（{csvImportModal.csvData.length}件）
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="px-3 py-2 text-left font-semibold text-gray-900">CSV列名</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-900">サンプル値</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-900">インポート先</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvImportModal.csvHeaders.map((header, index) => (
+                          <tr key={`header-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-3 py-2 text-gray-900 font-medium">{header}</td>
+                            <td className="px-3 py-2 text-gray-600 max-w-[200px] truncate">
+                              {csvImportModal.csvData[0]?.[header] || '-'}
+                            </td>
+                            <td className="px-3 py-2">
+                              <select
+                                value={csvImportModal.mapping[header] || ''}
+                                onChange={(e) => setCsvImportModal({
+                                  ...csvImportModal,
+                                  mapping: { ...csvImportModal.mapping, [header]: e.target.value }
+                                })}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
+                              >
+                                <option value="">-- 無視 --</option>
+                                {CSV_IMPORT_COLUMNS.map(col => (
+                                  <option key={col.key} value={col.key}>{col.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {csvImportModal.step === 'preview' && (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {csvImportModal.csvData.length}件中 最初の5件を表示
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          {CSV_IMPORT_COLUMNS.filter(col => Object.values(csvImportModal.mapping).includes(col.key)).map(col => (
+                            <th key={col.key} className="px-3 py-2 text-left font-semibold text-gray-900 whitespace-nowrap">
+                              {col.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvImportModal.csvData.slice(0, 5).map((row, index) => (
+                          <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            {CSV_IMPORT_COLUMNS.filter(col => Object.values(csvImportModal.mapping).includes(col.key)).map(col => {
+                              const csvHeader = Object.keys(csvImportModal.mapping).find(k => csvImportModal.mapping[k] === col.key)
+                              return (
+                                <td key={col.key} className="px-3 py-2 text-gray-900 max-w-[150px] truncate">
+                                  {csvHeader ? row[csvHeader] || '-' : '-'}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {csvImportModal.step === 'importing' && (
+                <div className="text-center py-8">
+                  <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
+                    <div
+                      className="bg-blue-600 h-4 rounded-full transition-all duration-300"
+                      style={{ width: `${csvImportModal.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-gray-600">{csvImportModal.progress}% 完了</p>
+                </div>
+              )}
+            </div>
+
+            {csvImportModal.step !== 'importing' && (
+              <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                <button
+                  onClick={() => setCsvImportModal(null)}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                >
+                  キャンセル
+                </button>
+                {csvImportModal.step === 'mapping' && (
+                  <button
+                    onClick={() => setCsvImportModal({ ...csvImportModal, step: 'preview' })}
+                    className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+                  >
+                    次へ
+                  </button>
+                )}
+                {csvImportModal.step === 'preview' && (
+                  <>
+                    <button
+                      onClick={() => setCsvImportModal({ ...csvImportModal, step: 'mapping' })}
+                      className="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    >
+                      戻る
+                    </button>
+                    <button
+                      onClick={executeCSVImport}
+                      className="px-4 py-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg"
+                    >
+                      インポート実行
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
