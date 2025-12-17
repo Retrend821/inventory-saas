@@ -1911,29 +1911,29 @@ export default function ManualSalesPage() {
                 {visibleColumns.map(col => {
                   const colWidths: Record<string, number> = {
                     no: 30,
-                    inventory_number: 70,
-                    image_url: 50,
-                    category: 60,
-                    brand_name: 60,
-                    product_name: 80,
-                    purchase_source: 70,
-                    sale_destination: 70,
-                    sale_price: 60,
-                    commission: 50,
-                    shipping_cost: 50,
-                    other_cost: 50,
-                    purchase_price: 50,
-                    purchase_total: 60,
-                    deposit_amount: 60,
-                    profit: 60,
-                    profit_rate: 50,
-                    purchase_date: 80,
-                    listing_date: 80,
-                    sale_date: 80,
-                    memo: 80,
-                    turnover_days: 60,
-                    cost_recovered: 60,
-                    actions: 50,
+                    inventory_number: 70,  // 管理番号
+                    image_url: 50,         // 画像
+                    category: 70,          // ジャンル
+                    brand_name: 85,        // ブランド名
+                    product_name: 80,      // 商品名
+                    purchase_source: 60,   // 仕入先
+                    sale_destination: 60,  // 販売先
+                    sale_price: 50,        // 売価
+                    commission: 60,        // 手数料
+                    shipping_cost: 50,     // 送料
+                    other_cost: 60,        // その他
+                    purchase_price: 50,    // 原価
+                    purchase_total: 70,    // 仕入総額
+                    deposit_amount: 60,    // 入金額
+                    profit: 50,            // 利益
+                    profit_rate: 60,       // 利益率
+                    purchase_date: 70,     // 仕入日
+                    listing_date: 70,      // 出品日
+                    sale_date: 70,         // 売却日
+                    memo: 60,              // メモ
+                    turnover_days: 70,     // 回転日数
+                    cost_recovered: 70,    // 原価回収
+                    actions: 50,           // 操作
                   }
                   return (
                     <th
