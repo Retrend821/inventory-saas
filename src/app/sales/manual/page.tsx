@@ -1923,7 +1923,7 @@ export default function ManualSalesPage() {
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
+          <table className="border-collapse min-w-full">
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
                 {visibleColumns.map(col => {
@@ -1935,23 +1935,23 @@ export default function ManualSalesPage() {
                     category: 80,
                     brand_name: 100,
                     product_name: 150,
-                    purchase_source: 80,
-                    sale_destination: 80,
+                    purchase_source: 90,
+                    sale_destination: 90,
                     sale_price: 70,
                     commission: 70,
-                    shipping_cost: 60,
-                    other_cost: 60,
+                    shipping_cost: 70,
+                    other_cost: 70,
                     purchase_price: 70,
                     purchase_total: 80,
-                    deposit_amount: 70,
+                    deposit_amount: 80,
                     profit: 70,
-                    profit_rate: 60,
-                    purchase_date: 90,
-                    listing_date: 90,
-                    sale_date: 90,
+                    profit_rate: 70,
+                    purchase_date: 100,
+                    listing_date: 100,
+                    sale_date: 100,
                     memo: 100,
-                    turnover_days: 70,
-                    cost_recovered: 70,
+                    turnover_days: 80,
+                    cost_recovered: 80,
                   }
                   const defaultWidth = defaultWidths[col.key] || 100
                   const width = columnWidths[col.key] || defaultWidth
@@ -1961,22 +1961,29 @@ export default function ManualSalesPage() {
                       style={{
                         backgroundColor: '#334155',
                         color: '#ffffff',
-                        width: `${width}px`,
                         minWidth: `${width}px`,
-                        maxWidth: `${width}px`,
-                        position: 'relative'
+                        position: 'relative',
+                        padding: '8px 12px'
                       }}
-                      className="text-center text-sm font-medium border border-slate-600"
+                      className="text-center text-sm font-medium border border-slate-600 whitespace-nowrap"
                     >
-                      <div className="flex items-center justify-center">
-                        <span className="truncate px-1">{col.label}</span>
-                        {col.key !== 'actions' && (
-                          <div
-                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-slate-500 hover:bg-blue-500 opacity-50 hover:opacity-100"
-                            onMouseDown={(e) => handleResizeMouseDown(e, col.key, width)}
-                          />
-                        )}
-                      </div>
+                      {col.label}
+                      {col.key !== 'actions' && col.key !== 'no' && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: 0,
+                            width: '4px',
+                            height: '100%',
+                            cursor: 'col-resize',
+                            backgroundColor: '#475569'
+                          }}
+                          onMouseDown={(e) => handleResizeMouseDown(e, col.key, width)}
+                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#3b82f6')}
+                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#475569')}
+                        />
+                      )}
                     </th>
                   )
                 })}
