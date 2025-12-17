@@ -7,7 +7,6 @@ import Papa from 'papaparse'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { useTheme } from '@/contexts/ThemeContext'
 
 type InventoryItem = {
   id: string
@@ -336,7 +335,6 @@ const MemoizedCheckbox = memo(function MemoizedCheckbox({
 
 export default function Home() {
   const { user } = useAuth()
-  const { isDark } = useTheme()
   const searchParams = useSearchParams()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -436,6 +434,13 @@ export default function Home() {
   const [rakumaModalYearMonth, setRakumaModalYearMonth] = useState('')
   const [rakumaModalRate, setRakumaModalRate] = useState('')
   const [showRakumaSettingsModal, setShowRakumaSettingsModal] = useState(false)
+
+  // オークション出品モーダル
+  const [showAuctionExportModal, setShowAuctionExportModal] = useState(false)
+  const [auctionManagementField, setAuctionManagementField] = useState<'inventory_number' | 'memo'>('inventory_number')
+  const [selectedAuctionCompany, setSelectedAuctionCompany] = useState<string | null>(null)
+  const [selectedAuctionCategory, setSelectedAuctionCategory] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   // ページネーション
   const [currentPage, setCurrentPage] = useState(1)
@@ -3316,14 +3321,14 @@ export default function Home() {
   }
 
   return (
-      <div className={`min-h-screen ${isDark ? 'bg-slate-900' : 'bg-gray-50'}`}>
+      <div className="min-h-screen bg-gray-50">
       <main className="px-4 py-6">
         {/* CSVアップロードエリア */}
         <div
           className={`mb-6 border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
             dragActive
               ? 'border-blue-500 bg-blue-50'
-              : isDark ? 'border-slate-600 hover:border-slate-500' : 'border-gray-300 hover:border-gray-400'
+              : 'border-gray-300 hover:border-gray-400'
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -3377,16 +3382,16 @@ export default function Home() {
         </div>
 
         {/* 在庫テーブル */}
-        <div className={`rounded-lg shadow ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
+        <div className="rounded-lg shadow bg-white">
           {/* タブ */}
-          <div className={`border-b ${isDark ? 'border-slate-700' : 'border-gray-200'}`}>
+          <div className="border-b border-gray-200">
             <div className="flex">
               <button
                 onClick={() => setQuickFilter('all')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   quickFilter === 'all'
-                    ? isDark ? 'border-blue-400 text-blue-400 bg-slate-700' : 'border-blue-600 text-blue-600 bg-blue-50'
-                    : isDark ? 'border-transparent text-slate-400 hover:text-slate-300' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-blue-600 text-blue-600 bg-blue-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 全件 ({inventory.length})
@@ -3600,6 +3605,23 @@ export default function Home() {
               </button>
               <button
                 onClick={() => {
+                  if (selectedIds.size === 0) {
+                    alert('出品する商品を選択してください')
+                    return
+                  }
+                  setShowAuctionExportModal(true)
+                }}
+                disabled={selectedIds.size === 0}
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                  selectedIds.size > 0
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {selectedIds.size > 0 ? `${selectedIds.size}件をオークション出品` : 'オークション出品'}
+              </button>
+              <button
+                onClick={() => {
                   setRakumaModalYearMonth('')
                   setRakumaModalRate('')
                   setShowRakumaSettingsModal(true)
@@ -3658,12 +3680,12 @@ export default function Home() {
           ) : (
             <div ref={tableContainerRef} className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] table-scroll-container">
               <table className="w-full divide-y divide-gray-200 table-fixed">
-                <thead className="bg-slate-700 sticky top-0 z-20">
+                <thead className="sticky top-0 z-20" style={{ backgroundColor: '#334155' }}>
                   <tr>
                     {visibleColumns.map((col, colIndex) => {
                       if (col.key === 'checkbox') {
                         return (
-                          <th key={col.key} className={`px-2 py-2 ${col.width} ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}>
+                          <th key={col.key} style={{ backgroundColor: '#334155' }} className={`px-2 py-2 ${col.width} ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}>
                             <input
                               type="checkbox"
                               checked={sortedInventory.length > 0 && deferredSelectedIds.size === sortedInventory.length}
@@ -3695,8 +3717,8 @@ export default function Home() {
                           onDragStart={() => col.draggable && handleColumnDragStart(colIndex)}
                           onDragOver={(e) => handleColumnDragOver(e, colIndex)}
                           onDragEnd={handleColumnDragEnd}
-                          style={dynamicWidth}
-                          className={`px-2 py-2 text-xs font-medium text-white uppercase whitespace-pre-line select-none group relative text-center ${widthClass} ${col.draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isSortable ? 'hover:bg-slate-600 cursor-pointer' : ''} ${draggedCol === colIndex ? 'bg-slate-500' : ''} ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}
+                          style={{ ...dynamicWidth, color: '#ffffff', backgroundColor: '#334155' }}
+                          className={`px-2 py-2 text-xs font-medium uppercase whitespace-pre-line select-none group relative text-center ${widthClass} ${col.draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isSortable ? 'hover:bg-slate-600 cursor-pointer' : ''} ${draggedCol === colIndex ? 'bg-slate-500' : ''} ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}
                         >
                           <span
                             className="inline-flex items-center"
@@ -5730,6 +5752,375 @@ export default function Home() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* オークション出品モーダル */}
+      {showAuctionExportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">オークション出品</h2>
+              <button
+                onClick={() => setShowAuctionExportModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              <p className="mb-4 text-gray-800">
+                選択した {selectedIds.size} 件の商品をオークションに出品します。
+              </p>
+
+              {/* 選択商品一覧 */}
+              <div className="border rounded-lg overflow-hidden mb-4 max-h-64 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-gray-900 font-semibold">画像</th>
+                      <th className="px-3 py-2 text-left text-gray-900 font-semibold">商品名</th>
+                      <th className="px-3 py-2 text-right text-gray-900 font-semibold">仕入値</th>
+                      <th className="px-3 py-2 text-right text-gray-900 font-semibold">指値（+1万）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventory
+                      .filter(item => selectedIds.has(item.id))
+                      .map(item => (
+                        <tr key={item.id} className="border-t">
+                          <td className="px-3 py-2">
+                            {(item.saved_image_url || item.image_url) && (
+                              <img
+                                src={getProxiedImageUrl(item.saved_image_url || item.image_url) || ''}
+                                alt=""
+                                className="w-12 h-12 object-cover rounded"
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-gray-900">{item.product_name || '-'}</td>
+                          <td className="px-3 py-2 text-right text-gray-900">
+                            {item.purchase_price ? `¥${item.purchase_price.toLocaleString()}` : '-'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-medium text-orange-600">
+                            {item.purchase_price ? `¥${(item.purchase_price + 10000).toLocaleString()}` : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* オークション会社選択 */}
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-900 mb-3">出品先を選択</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => {
+                      if (selectedAuctionCompany === 'starbuyers') {
+                        setSelectedAuctionCompany(null)
+                        setSelectedAuctionCategory(null)
+                      } else {
+                        setSelectedAuctionCompany('starbuyers')
+                        setSelectedAuctionCategory(null)
+                      }
+                    }}
+                    className={`p-3 border-2 rounded-lg transition-colors text-center ${
+                      selectedAuctionCompany === 'starbuyers'
+                        ? 'border-blue-600 bg-blue-600'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`font-semibold ${selectedAuctionCompany === 'starbuyers' ? 'text-white' : 'text-gray-700'}`}>
+                      スターバイヤーズ
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedAuctionCompany === 'ecoring') {
+                        setSelectedAuctionCompany(null)
+                        setSelectedAuctionCategory(null)
+                      } else {
+                        setSelectedAuctionCompany('ecoring')
+                        setSelectedAuctionCategory(null)
+                      }
+                    }}
+                    className={`p-3 border-2 rounded-lg transition-colors text-center ${
+                      selectedAuctionCompany === 'ecoring'
+                        ? 'border-emerald-700 bg-emerald-600 text-white'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`font-semibold ${selectedAuctionCompany === 'ecoring' ? 'text-white' : 'text-gray-700'}`}>
+                      エコリング
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedAuctionCompany === 'appre') {
+                        setSelectedAuctionCompany(null)
+                        setSelectedAuctionCategory(null)
+                      } else {
+                        setSelectedAuctionCompany('appre')
+                        setSelectedAuctionCategory('appre-brand')
+                      }
+                    }}
+                    className={`p-3 border-2 rounded-lg transition-colors text-center ${
+                      selectedAuctionCompany === 'appre'
+                        ? 'border-orange-600 bg-orange-600'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`font-semibold ${selectedAuctionCompany === 'appre' ? 'text-white' : 'text-gray-700'}`}>
+                      アプレ
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* カテゴリ選択（スターバイヤーズ） */}
+              {selectedAuctionCompany === 'starbuyers' && (
+                <div className="mb-4 p-4 bg-blue-50 border-2 border-blue-600 rounded-lg">
+                  <h4 className="font-medium text-blue-800 mb-3">カテゴリを選択</h4>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button
+                      onClick={() => setSelectedAuctionCategory('starbuyers-bag')}
+                      className={`p-3 border-2 rounded-lg transition-colors text-center ${
+                        selectedAuctionCategory === 'starbuyers-bag'
+                          ? 'border-blue-600 bg-blue-600'
+                          : 'border-blue-300 bg-white hover:border-blue-400'
+                      }`}
+                    >
+                      <div className={`font-medium ${selectedAuctionCategory === 'starbuyers-bag' ? 'text-white' : 'text-blue-700'}`}>
+                        バッグ
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setSelectedAuctionCategory('starbuyers-accessory')}
+                      className={`p-3 border-2 rounded-lg transition-colors text-center ${
+                        selectedAuctionCategory === 'starbuyers-accessory'
+                          ? 'border-pink-600 bg-pink-600'
+                          : 'border-pink-300 bg-white hover:border-pink-400'
+                      }`}
+                    >
+                      <div className={`font-medium ${selectedAuctionCategory === 'starbuyers-accessory' ? 'text-white' : 'text-pink-700'}`}>
+                        アクセサリー
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* 詳細設定 */}
+                  <div className="pt-3 border-t border-blue-200">
+                    <h4 className="text-sm font-medium text-blue-800 mb-2">管理番号に使用するフィールド</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setAuctionManagementField('inventory_number')}
+                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
+                          auctionManagementField === 'inventory_number'
+                            ? 'border-blue-600 bg-blue-600'
+                            : 'border-blue-300 bg-white hover:border-blue-400'
+                        }`}
+                      >
+                        <div className={`text-sm font-medium ${auctionManagementField === 'inventory_number' ? 'text-white' : 'text-blue-700'}`}>
+                          管理番号
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setAuctionManagementField('memo')}
+                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
+                          auctionManagementField === 'memo'
+                            ? 'border-blue-600 bg-blue-600'
+                            : 'border-blue-300 bg-white hover:border-blue-400'
+                        }`}
+                      >
+                        <div className={`text-sm font-medium ${auctionManagementField === 'memo' ? 'text-white' : 'text-blue-700'}`}>
+                          メモ
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* カテゴリ選択（エコリング） */}
+              {selectedAuctionCompany === 'ecoring' && (
+                <div className="mb-4 p-4 bg-emerald-50 border-2 border-emerald-600 rounded-lg">
+                  <h4 className="font-medium text-emerald-800 mb-3">カテゴリを選択</h4>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button
+                      onClick={() => setSelectedAuctionCategory('ecoring-brand')}
+                      className={`p-3 border-2 rounded-lg transition-colors text-center ${
+                        selectedAuctionCategory === 'ecoring-brand'
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-emerald-300 bg-white hover:border-emerald-400'
+                      }`}
+                    >
+                      <div className={`font-medium ${selectedAuctionCategory === 'ecoring-brand' ? 'text-white' : 'text-emerald-700'}`}>
+                        ブランド
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setSelectedAuctionCategory('ecoring-dougu')}
+                      className={`p-3 border-2 rounded-lg transition-colors text-center ${
+                        selectedAuctionCategory === 'ecoring-dougu'
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-emerald-300 bg-white hover:border-emerald-400'
+                      }`}
+                    >
+                      <div className={`font-medium ${selectedAuctionCategory === 'ecoring-dougu' ? 'text-white' : 'text-emerald-700'}`}>
+                        道具
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* 詳細設定 */}
+                  <div className="pt-3 border-t border-emerald-200">
+                    <h4 className="text-sm font-medium text-emerald-800 mb-2">メモ欄に使用するフィールド</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setAuctionManagementField('inventory_number')}
+                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
+                          auctionManagementField === 'inventory_number'
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-emerald-300 bg-white hover:border-emerald-400'
+                        }`}
+                      >
+                        <div className={`text-sm font-medium ${auctionManagementField === 'inventory_number' ? 'text-white' : 'text-emerald-700'}`}>
+                          管理番号
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setAuctionManagementField('memo')}
+                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
+                          auctionManagementField === 'memo'
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-emerald-300 bg-white hover:border-emerald-400'
+                        }`}
+                      >
+                        <div className={`text-sm font-medium ${auctionManagementField === 'memo' ? 'text-white' : 'text-emerald-700'}`}>
+                          メモ
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* アプレオークション */}
+              {selectedAuctionCompany === 'appre' && (
+                <div className="mb-4 p-4 bg-orange-50 border-2 border-orange-600 rounded-lg">
+                  <h4 className="font-medium text-orange-800 mb-3">アプレオークション ブランド出品リスト</h4>
+
+                  {/* 詳細設定 */}
+                  <div className="pt-3 border-t border-orange-200">
+                    <h4 className="text-sm font-medium text-orange-800 mb-2">管理番号に使用するフィールド</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setAuctionManagementField('inventory_number')}
+                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
+                          auctionManagementField === 'inventory_number'
+                            ? 'border-orange-600 bg-orange-600 text-white'
+                            : 'border-orange-300 bg-white hover:border-orange-400'
+                        }`}
+                      >
+                        <div className={`text-sm font-medium ${auctionManagementField === 'inventory_number' ? 'text-white' : 'text-orange-700'}`}>
+                          管理番号
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setAuctionManagementField('memo')}
+                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
+                          auctionManagementField === 'memo'
+                            ? 'border-orange-600 bg-orange-600 text-white'
+                            : 'border-orange-300 bg-white hover:border-orange-400'
+                        }`}
+                      >
+                        <div className={`text-sm font-medium ${auctionManagementField === 'memo' ? 'text-white' : 'text-orange-700'}`}>
+                          メモ
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
+                <p className="text-yellow-800">
+                  <span className="font-medium">注意:</span> 指値は仕入値+1万円で自動計算されます。
+                  ランクはデフォルトで「B」が設定されます。必要に応じてExcelで編集してください。
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAuctionExportModal(false)
+                  setSelectedAuctionCompany(null)
+                  setSelectedAuctionCategory(null)
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-900"
+              >
+                閉じる
+              </button>
+              <button
+                onClick={async () => {
+                  if (!selectedAuctionCategory) {
+                    alert('カテゴリを選択してください')
+                    return
+                  }
+                  setIsExporting(true)
+                  const selectedItems = inventory.filter(item => selectedIds.has(item.id))
+                  try {
+                    const response = await fetch('/api/auction-export', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        items: selectedItems.map(item => ({
+                          id: item.id,
+                          brand_name: item.brand_name,
+                          product_name: item.product_name,
+                          condition_rank: 'B',
+                          accessories: '',
+                          notes: item.memo,
+                          purchase_price: item.purchase_price,
+                          management_number: auctionManagementField === 'inventory_number'
+                            ? item.inventory_number
+                            : item.memo,
+                        })),
+                        auctionType: selectedAuctionCategory
+                      }),
+                    })
+                    if (!response.ok) throw new Error('Export failed')
+                    const blob = await response.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${selectedAuctionCategory}_${new Date().toISOString().slice(0, 10)}.xlsx`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                    setShowAuctionExportModal(false)
+                    setSelectedAuctionCompany(null)
+                    setSelectedAuctionCategory(null)
+                  } catch (error) {
+                    alert('エクスポートに失敗しました')
+                    console.error(error)
+                  } finally {
+                    setIsExporting(false)
+                  }
+                }}
+                disabled={!selectedAuctionCategory || isExporting}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedAuctionCategory && !isExporting
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {isExporting ? '出力中...' : '出力'}
+              </button>
             </div>
           </div>
         </div>
