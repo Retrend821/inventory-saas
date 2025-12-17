@@ -1905,7 +1905,7 @@ export default function ManualSalesPage() {
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
+          <table className="border-collapse w-max">
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
                 {visibleColumns.map(col => {
@@ -1941,11 +1941,9 @@ export default function ManualSalesPage() {
                       style={{
                         backgroundColor: '#334155',
                         color: '#ffffff',
-                        width: colWidths[col.key] || '80px',
-                        minWidth: colWidths[col.key] || '80px',
                         maxWidth: colWidths[col.key] || '80px'
                       }}
-                      className="px-1 py-2 text-center text-xs font-medium border border-slate-600 whitespace-nowrap overflow-hidden"
+                      className="px-1 py-2 text-center text-xs font-medium border border-slate-600 whitespace-nowrap"
                     >
                       {col.label}
                     </th>
