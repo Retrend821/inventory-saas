@@ -348,23 +348,23 @@ export default function ManualSalesPage() {
     const mapping: Record<string, string> = {}
     const keywordMap: Record<string, string[]> = {
       inventory_number: ['管理番号', '番号', 'No', 'no', 'ID'],
-      product_name: ['商品名', '商品', 'タイトル', 'name', '詳細'],
-      brand_name: ['ブランド', 'brand'],
+      product_name: ['商品名', '　商品名'],
+      brand_name: ['ブランド名', 'ブランド', 'brand'],
       category: ['カテゴリ', '商品区分', 'category'],
       purchase_price: ['仕入値', '原価', '仕入れ値'],
       purchase_total: ['仕入総額', '総額', '手数料・送料・税込'],
-      sale_price: ['販売価格', '売価', '売上'],
-      commission: ['手数料', '販売手数料'],
+      sale_price: ['販売価格', '売価'],
+      commission: ['販売手数料', '手数料'],
       shipping_cost: ['送料'],
       other_cost: ['その他', 'other'],
       deposit_amount: ['入金額', '入金'],
       purchase_date: ['仕入日', '購入日'],
       listing_date: ['出品日'],
-      sale_date: ['売上日', '販売日', '落札日'],
+      sale_date: ['販売日', '売上日', '落札日'],
       purchase_source: ['仕入先', '仕入れ先'],
-      sale_destination: ['販売先', '最終販路'],
+      sale_destination: ['販路', '販売先', '最終販路'],
       memo: ['メモ', '備考', 'memo'],
-      image_url: ['画像', 'image', 'URL'],
+      image_url: ['画像URL', '画像', 'image'],
     }
 
     headers.forEach(header => {
