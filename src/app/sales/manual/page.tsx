@@ -115,17 +115,6 @@ export default function ManualSalesPage() {
   } | null>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
 
-  // ツールチップ用（セルクリックで全文表示）
-  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
-
-  // ツールチップを閉じる（外側クリック）
-  useEffect(() => {
-    if (!tooltip) return
-    const handleClick = () => setTooltip(null)
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
-  }, [tooltip])
-
   // 固定横スクロールバー用
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const fixedScrollbarRef = useRef<HTMLDivElement>(null)
@@ -2067,12 +2056,10 @@ export default function ManualSalesPage() {
                           key={colKey}
                           className={invCellClass}
                           style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
-                          onClick={(e) => {
+                          onClick={() => {
                             handleCellClick(sale, 'inventory_number')
                             if (invNum !== '-' && !isInvEditing) {
-                              const rect = e.currentTarget.getBoundingClientRect()
-                              setTooltip({ text: invNum, x: rect.left + rect.width / 2, y: rect.top })
-                              e.stopPropagation()
+                              setModalEdit({ id: sale.id, field: 'inventory_number', value: invNum })
                             }
                           }}
                           onDoubleClick={() => handleCellDoubleClick(sale, 'inventory_number')}
@@ -2129,12 +2116,10 @@ export default function ManualSalesPage() {
                           key={colKey}
                           className={brandCellClass}
                           style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
-                          onClick={(e) => {
+                          onClick={() => {
                             handleCellClick(sale, 'brand_name')
                             if (brandName !== '-' && !isBrandEditing) {
-                              const rect = e.currentTarget.getBoundingClientRect()
-                              setTooltip({ text: brandName, x: rect.left + rect.width / 2, y: rect.top })
-                              e.stopPropagation()
+                              setModalEdit({ id: sale.id, field: 'brand_name', value: brandName })
                             }
                           }}
                           onDoubleClick={() => handleCellDoubleClick(sale, 'brand_name')}
@@ -2165,12 +2150,10 @@ export default function ManualSalesPage() {
                           key={colKey}
                           className={productCellClass}
                           style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
-                          onClick={(e) => {
+                          onClick={() => {
                             handleCellClick(sale, 'product_name')
                             if (productName !== '-') {
-                              const rect = e.currentTarget.getBoundingClientRect()
-                              setTooltip({ text: productName, x: rect.left + rect.width / 2, y: rect.top })
-                              e.stopPropagation()
+                              setModalEdit({ id: sale.id, field: 'product_name', value: productName })
                             }
                           }}
                           onDoubleClick={() => handleCellDoubleClick(sale, 'product_name')}
@@ -2457,11 +2440,13 @@ export default function ManualSalesPage() {
         </div>
       )}
 
-      {/* 商品名編集バー（画面上部に固定表示） */}
+      {/* セル編集バー（画面上部に固定表示） */}
       {modalEdit && (
         <div className="fixed top-14 left-0 right-0 z-[110] bg-white shadow-lg border-b">
           <div className="px-4 py-3 flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-600 whitespace-nowrap">商品名:</span>
+            <span className="text-sm font-medium text-gray-600 whitespace-nowrap">
+              {modalEdit.field === 'product_name' ? '商品名' : modalEdit.field === 'brand_name' ? 'ブランド名' : modalEdit.field === 'inventory_number' ? '管理番号' : modalEdit.field}:
+            </span>
             <input
               type="text"
               value={modalEdit.value}
@@ -2810,45 +2795,6 @@ export default function ManualSalesPage() {
             )}
           </div>
         </div>
-      )}
-
-      {/* ツールチップ（セルの全文表示） */}
-      {tooltip && createPortal(
-        <div
-          style={{
-            position: 'fixed',
-            left: tooltip.x,
-            top: tooltip.y,
-            transform: 'translateX(-50%) translateY(-100%)',
-            marginTop: -8,
-            backgroundColor: '#1e293b',
-            color: '#ffffff',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            fontSize: '12px',
-            maxWidth: '300px',
-            wordBreak: 'break-all',
-            zIndex: 100000,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {tooltip.text}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: -6,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderTop: '6px solid #1e293b',
-            }}
-          />
-        </div>,
-        document.body
       )}
 
       {/* 固定横スクロールバー - Portalでbodyに直接レンダリング */}
