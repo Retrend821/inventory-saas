@@ -140,9 +140,11 @@ export default function ManualSalesPage() {
 
   // 固定横スクロールバーの同期
   useEffect(() => {
+    if (!isMounted) return
+
     const tableContainer = tableContainerRef.current
     const fixedScrollbar = fixedScrollbarRef.current
-    if (!tableContainer || !fixedScrollbar) return
+    if (!tableContainer) return
 
     const updateScrollWidth = () => {
       const width = tableContainer.scrollWidth
@@ -152,7 +154,7 @@ export default function ManualSalesPage() {
     }
 
     // 初期表示時に少し遅延させて確実にテーブルがレンダリングされた後に計算
-    const timeoutId = setTimeout(updateScrollWidth, 100)
+    const timeoutId = setTimeout(updateScrollWidth, 200)
 
     // さらにrequestAnimationFrameでも確認
     const rafId = requestAnimationFrame(() => {
@@ -163,28 +165,43 @@ export default function ManualSalesPage() {
     resizeObserver.observe(tableContainer)
 
     const handleTableScroll = () => {
-      if (fixedScrollbar) {
-        fixedScrollbar.scrollLeft = tableContainer.scrollLeft
+      const scrollbar = fixedScrollbarRef.current
+      if (scrollbar) {
+        scrollbar.scrollLeft = tableContainer.scrollLeft
       }
     }
 
     const handleFixedScroll = () => {
-      if (tableContainer) {
-        tableContainer.scrollLeft = fixedScrollbar.scrollLeft
+      const scrollbar = fixedScrollbarRef.current
+      if (tableContainer && scrollbar) {
+        tableContainer.scrollLeft = scrollbar.scrollLeft
       }
     }
 
     tableContainer.addEventListener('scroll', handleTableScroll)
-    fixedScrollbar.addEventListener('scroll', handleFixedScroll)
+
+    // fixedScrollbarが存在する場合のみイベント登録
+    const setupFixedScrollbar = () => {
+      const scrollbar = fixedScrollbarRef.current
+      if (scrollbar) {
+        scrollbar.addEventListener('scroll', handleFixedScroll)
+      }
+    }
+
+    // Portalのレンダリング後にイベント登録
+    setTimeout(setupFixedScrollbar, 100)
 
     return () => {
       clearTimeout(timeoutId)
       cancelAnimationFrame(rafId)
       resizeObserver.disconnect()
       tableContainer.removeEventListener('scroll', handleTableScroll)
-      fixedScrollbar.removeEventListener('scroll', handleFixedScroll)
+      const scrollbar = fixedScrollbarRef.current
+      if (scrollbar) {
+        scrollbar.removeEventListener('scroll', handleFixedScroll)
+      }
     }
-  }, [sales, loading])
+  }, [sales, loading, isMounted])
 
   // データ取得
   useEffect(() => {
@@ -1888,18 +1905,52 @@ export default function ManualSalesPage() {
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table className="w-full border-collapse">
+          <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
-                {visibleColumns.map(col => (
-                  <th
-                    key={col.key}
-                    style={{ backgroundColor: '#334155', color: '#ffffff' }}
-                    className={`px-3 py-2 text-center text-sm font-medium border border-slate-600 whitespace-nowrap ${col.key === 'inventory_number' ? 'w-16' : ''}`}
-                  >
-                    {col.label}
-                  </th>
-                ))}
+                {visibleColumns.map(col => {
+                  const colWidths: Record<string, string> = {
+                    no: '30px',
+                    inventory_number: '60px',
+                    image_url: '50px',
+                    category: '60px',
+                    brand_name: '80px',
+                    product_name: '120px',
+                    purchase_source: '70px',
+                    sale_destination: '70px',
+                    sale_price: '60px',
+                    commission: '50px',
+                    shipping_cost: '50px',
+                    other_cost: '50px',
+                    purchase_price: '50px',
+                    purchase_total: '60px',
+                    deposit_amount: '60px',
+                    profit: '60px',
+                    profit_rate: '50px',
+                    purchase_date: '80px',
+                    listing_date: '80px',
+                    sale_date: '80px',
+                    memo: '80px',
+                    turnover_days: '60px',
+                    cost_recovered: '60px',
+                    actions: '50px',
+                  }
+                  return (
+                    <th
+                      key={col.key}
+                      style={{
+                        backgroundColor: '#334155',
+                        color: '#ffffff',
+                        width: colWidths[col.key] || '80px',
+                        minWidth: colWidths[col.key] || '80px',
+                        maxWidth: colWidths[col.key] || '80px'
+                      }}
+                      className="px-1 py-2 text-center text-xs font-medium border border-slate-600 whitespace-nowrap overflow-hidden"
+                    >
+                      {col.label}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1910,7 +1961,7 @@ export default function ManualSalesPage() {
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
+                  const cellClass = `px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
 
                   return (
                     <td
@@ -1942,7 +1993,7 @@ export default function ManualSalesPage() {
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
+                  const cellClass = `px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
 
                   return (
                     <td
@@ -1986,7 +2037,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-2 py-1 text-center text-xs ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
@@ -1999,7 +2050,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${rangeClass} select-none overflow-hidden`}
                           onClick={() => openImageModal(sale)}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
@@ -2025,7 +2076,7 @@ export default function ManualSalesPage() {
                     case 'product_name':
                       const isProdSelected = isSelectedCell(sale.id, 'product_name')
                       const productName = sale.product_name || '-'
-                      const productCellClass = `px-3 py-2 text-left text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isProdSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none overflow-hidden`
+                      const productCellClass = `px-2 py-1 text-left text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isProdSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none overflow-hidden`
                       return (
                         <td
                           key={colKey}
@@ -2061,7 +2112,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm border ${t.border} ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-2 py-1 text-center text-xs border ${t.border} ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
@@ -2072,7 +2123,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm border ${t.border} ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-2 py-1 text-center text-xs border ${t.border} ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
@@ -2091,7 +2142,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-2 py-1 text-center text-xs ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
@@ -2102,7 +2153,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-2 py-1 text-center text-xs ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
@@ -2118,7 +2169,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-2 py-1 text-center text-xs ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
