@@ -1903,37 +1903,37 @@ export default function ManualSalesPage() {
         {/* テーブル */}
         <div
           ref={tableContainerRef}
-          className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
+          className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table className="border-collapse w-max">
+          <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: '1400px' }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
                 {visibleColumns.map(col => {
-                  const colWidths: Record<string, string> = {
-                    no: '30px',
-                    inventory_number: '50px',
-                    image_url: '50px',
-                    category: '60px',
-                    brand_name: '60px',
-                    product_name: '80px',
-                    purchase_source: '70px',
-                    sale_destination: '70px',
-                    sale_price: '60px',
-                    commission: '50px',
-                    shipping_cost: '50px',
-                    other_cost: '50px',
-                    purchase_price: '50px',
-                    purchase_total: '60px',
-                    deposit_amount: '60px',
-                    profit: '60px',
-                    profit_rate: '50px',
-                    purchase_date: '80px',
-                    listing_date: '80px',
-                    sale_date: '80px',
-                    memo: '80px',
-                    turnover_days: '60px',
-                    cost_recovered: '60px',
-                    actions: '50px',
+                  const colWidths: Record<string, number> = {
+                    no: 30,
+                    inventory_number: 50,
+                    image_url: 50,
+                    category: 60,
+                    brand_name: 60,
+                    product_name: 80,
+                    purchase_source: 70,
+                    sale_destination: 70,
+                    sale_price: 60,
+                    commission: 50,
+                    shipping_cost: 50,
+                    other_cost: 50,
+                    purchase_price: 50,
+                    purchase_total: 60,
+                    deposit_amount: 60,
+                    profit: 60,
+                    profit_rate: 50,
+                    purchase_date: 80,
+                    listing_date: 80,
+                    sale_date: 80,
+                    memo: 80,
+                    turnover_days: 60,
+                    cost_recovered: 60,
+                    actions: 50,
                   }
                   return (
                     <th
@@ -1941,7 +1941,9 @@ export default function ManualSalesPage() {
                       style={{
                         backgroundColor: '#334155',
                         color: '#ffffff',
-                        maxWidth: colWidths[col.key] || '80px'
+                        width: `${colWidths[col.key] || 80}px`,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
                       }}
                       className="px-1 py-2 text-center text-xs font-medium border border-slate-600 whitespace-nowrap"
                     >
