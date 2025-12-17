@@ -2101,7 +2101,7 @@ export default function ManualSalesPage() {
                     profit_rate: 60,       // 利益率
                     purchase_date: 70,     // 仕入日
                     listing_date: 70,      // 出品日
-                    sale_date: 70,         // 売却日
+                    sale_date: 80,         // 売却日
                     memo: 60,              // メモ
                     turnover_days: 70,     // 回転日数
                     cost_recovered: 70,    // 原価回収
