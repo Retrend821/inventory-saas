@@ -1911,11 +1911,11 @@ export default function ManualSalesPage() {
                 {visibleColumns.map(col => {
                   const colWidths: Record<string, string> = {
                     no: '30px',
-                    inventory_number: '60px',
+                    inventory_number: '50px',
                     image_url: '50px',
                     category: '60px',
-                    brand_name: '80px',
-                    product_name: '120px',
+                    brand_name: '60px',
+                    product_name: '80px',
                     purchase_source: '70px',
                     sale_destination: '70px',
                     sale_price: '60px',
@@ -2045,7 +2045,35 @@ export default function ManualSalesPage() {
                         </td>
                       )
                     case 'inventory_number':
-                      return <React.Fragment key={colKey}>{renderEditableCell('inventory_number', colIndex, sale.inventory_number || '-')}</React.Fragment>
+                      const invNum = sale.inventory_number || '-'
+                      const isInvSelected = isSelectedCell(sale.id, 'inventory_number')
+                      const isInvEditing = editingCell?.id === sale.id && editingCell?.field === 'inventory_number'
+                      const invCellClass = `px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isInvSelected && !isInvEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isInvEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
+                      return (
+                        <td
+                          key={colKey}
+                          className={invCellClass}
+                          onClick={() => handleCellClick(sale, 'inventory_number')}
+                          onDoubleClick={() => handleCellDoubleClick(sale, 'inventory_number')}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                          title={invNum !== '-' ? invNum : undefined}
+                        >
+                          {isInvEditing ? (
+                            <input
+                              ref={(el) => { editCellRef.current = el }}
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={handleKeyDown}
+                              className={`w-full px-1 py-0.5 ${t.input} border border-blue-500 rounded text-xs`}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="block truncate">{invNum}</span>
+                          )}
+                        </td>
+                      )
                     case 'image_url':
                       return (
                         <td
@@ -2072,7 +2100,35 @@ export default function ManualSalesPage() {
                     case 'category':
                       return <React.Fragment key={colKey}>{renderEditableCell('category', colIndex, sale.category || '-')}</React.Fragment>
                     case 'brand_name':
-                      return <React.Fragment key={colKey}>{renderEditableCell('brand_name', colIndex, sale.brand_name || '-')}</React.Fragment>
+                      const brandName = sale.brand_name || '-'
+                      const isBrandSelected = isSelectedCell(sale.id, 'brand_name')
+                      const isBrandEditing = editingCell?.id === sale.id && editingCell?.field === 'brand_name'
+                      const brandCellClass = `px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isBrandSelected && !isBrandEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isBrandEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
+                      return (
+                        <td
+                          key={colKey}
+                          className={brandCellClass}
+                          onClick={() => handleCellClick(sale, 'brand_name')}
+                          onDoubleClick={() => handleCellDoubleClick(sale, 'brand_name')}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                          title={brandName !== '-' ? brandName : undefined}
+                        >
+                          {isBrandEditing ? (
+                            <input
+                              ref={(el) => { editCellRef.current = el }}
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={handleKeyDown}
+                              className={`w-full px-1 py-0.5 ${t.input} border border-blue-500 rounded text-xs`}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="block truncate">{brandName}</span>
+                          )}
+                        </td>
+                      )
                     case 'product_name':
                       const isProdSelected = isSelectedCell(sale.id, 'product_name')
                       const productName = sale.product_name || '-'
