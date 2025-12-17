@@ -42,7 +42,8 @@ type Platform = {
 }
 
 // テーブルのカラム定義
-const columns: { key: keyof ManualSale | 'no' | 'actions'; label: string; editable: boolean; type: 'text' | 'number' | 'date' | 'select' | 'readonly' }[] = [
+const columns: { key: keyof ManualSale | 'no' | 'checkbox'; label: string; editable: boolean; type: 'text' | 'number' | 'date' | 'select' | 'readonly' }[] = [
+  { key: 'checkbox', label: '', editable: false, type: 'readonly' },
   { key: 'no', label: 'No', editable: false, type: 'readonly' },
   { key: 'inventory_number', label: '管理番号', editable: true, type: 'text' },
   { key: 'image_url', label: '画像', editable: false, type: 'readonly' },
@@ -65,7 +66,6 @@ const columns: { key: keyof ManualSale | 'no' | 'actions'; label: string; editab
   { key: 'sale_date', label: '売却日', editable: true, type: 'date' },
   { key: 'turnover_days', label: '回転日数', editable: false, type: 'readonly' },
   { key: 'cost_recovered', label: '原価回収', editable: true, type: 'readonly' },
-  { key: 'actions', label: '操作', editable: false, type: 'readonly' },
 ]
 
 export default function ManualSalesPage() {
@@ -101,6 +101,10 @@ export default function ManualSalesPage() {
   const [transferModal, setTransferModal] = useState<{ sale: ManualSale; bulkPurchases: { id: string; genre: string; purchase_date: string }[] } | null>(null)
   // Undo履歴
   const [undoHistory, setUndoHistory] = useState<{ id: string; field: keyof ManualSale; oldValue: unknown; newValue: unknown }[]>([])
+
+  // 一括選択用
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
 
   // ラクマ手数料設定
   const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
@@ -475,7 +479,7 @@ export default function ManualSalesPage() {
   }
 
   // 編集可能なカラムのみ取得
-  const editableColumns = columns.filter(col => col.editable && col.key !== 'no' && col.key !== 'actions' && col.key !== 'image_url')
+  const editableColumns = columns.filter(col => col.editable && col.key !== 'no' && col.key !== 'checkbox' && col.key !== 'image_url')
 
   // セル編集の保存
   const saveEditingCell = useCallback(async () => {
@@ -880,22 +884,71 @@ export default function ManualSalesPage() {
     setImageUrlInput('')
   }
 
-  // 削除
-  const handleDelete = async (id: string) => {
-    if (!confirm('この売上データを削除しますか？')) return
+  // チェックボックス選択
+  const isItemSelected = useCallback((id: string) => selectedIds.has(id), [selectedIds])
 
-    const { error } = await supabase
-      .from('manual_sales')
-      .delete()
-      .eq('id', id)
+  const handleSelectItem = useCallback((id: string, index: number, shiftKey: boolean) => {
+    setSelectedIds(prevSelectedIds => {
+      const newSet = new Set(prevSelectedIds)
+      if (shiftKey && lastSelectedIndex !== null) {
+        // Shift+クリック: 範囲選択
+        const start = Math.min(lastSelectedIndex, index)
+        const end = Math.max(lastSelectedIndex, index)
+        for (let i = start; i <= end; i++) {
+          newSet.add(filteredSales[i].id)
+        }
+      } else {
+        // 通常クリック: トグル
+        if (newSet.has(id)) {
+          newSet.delete(id)
+        } else {
+          newSet.add(id)
+        }
+      }
+      return newSet
+    })
+    if (!shiftKey) {
+      setLastSelectedIndex(index)
+    }
+  }, [lastSelectedIndex, filteredSales])
 
-    if (error) {
-      console.error('Error deleting sale:', error)
-      alert('削除に失敗しました')
+  // 全選択/全解除
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === filteredSales.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredSales.map(s => s.id)))
+    }
+  }, [selectedIds.size, filteredSales])
+
+  // 一括削除
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      alert('削除するデータを選択してください')
       return
     }
+    if (!confirm(`${selectedIds.size}件のデータを削除しますか？`)) return
 
-    setSales(sales.filter(s => s.id !== id))
+    const ids = Array.from(selectedIds)
+    const batchSize = 100
+    let hasError = false
+
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize)
+      const { error } = await supabase.from('manual_sales').delete().in('id', batch)
+      if (error) {
+        console.error('削除エラー:', error)
+        hasError = true
+        break
+      }
+    }
+
+    if (hasError) {
+      alert('削除に失敗しました')
+    } else {
+      setSales(sales.filter(s => !selectedIds.has(s.id)))
+      setSelectedIds(new Set())
+    }
   }
 
   // 原価回収チェック時にモーダルを表示
@@ -1568,7 +1621,7 @@ export default function ManualSalesPage() {
     const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
 
     // 編集不可フィールド
-    const nonEditableFields = ['id', 'created_at', 'no', 'image_url', 'profit', 'profit_rate', 'turnover_days', 'cost_recovered', 'actions']
+    const nonEditableFields = ['id', 'created_at', 'no', 'checkbox', 'image_url', 'profit', 'profit_rate', 'turnover_days', 'cost_recovered']
 
     // 更新対象を収集
     const updates: { id: string; field: string; value: null }[] = []
@@ -1716,7 +1769,7 @@ export default function ManualSalesPage() {
                   />
                   <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 min-w-[200px] max-h-[400px] overflow-y-auto">
                     <div className="text-xs font-medium text-gray-500 mb-2">表示する列</div>
-                    {columns.filter(col => col.key !== 'no' && col.key !== 'actions').map(col => (
+                    {columns.filter(col => col.key !== 'no' && col.key !== 'checkbox').map(col => (
                       <label key={col.key} className="flex items-center gap-2 py-1 hover:bg-gray-50 px-1 rounded cursor-pointer">
                         <input
                           type="checkbox"
@@ -1758,6 +1811,17 @@ export default function ManualSalesPage() {
               className="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
             >
               CSVインポート
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={selectedIds.size === 0}
+              className={`px-3 py-2 text-sm rounded transition-colors ${
+                selectedIds.size > 0
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              {selectedIds.size > 0 ? `${selectedIds.size}件を削除` : '削除'}
             </button>
             <button
               onClick={() => setIsAdding(true)}
@@ -2017,7 +2081,8 @@ export default function ManualSalesPage() {
               <tr>
                 {visibleColumns.map(col => {
                   const colWidths: Record<string, number> = {
-                    no: 30,
+                    checkbox: 35,          // チェックボックス
+                    no: 40,                // No
                     inventory_number: 70,  // 管理番号
                     image_url: 50,         // 画像
                     category: 70,          // ジャンル
@@ -2040,7 +2105,26 @@ export default function ManualSalesPage() {
                     memo: 60,              // メモ
                     turnover_days: 70,     // 回転日数
                     cost_recovered: 70,    // 原価回収
-                    actions: 50,           // 操作
+                  }
+                  // チェックボックス列は特別な処理
+                  if (col.key === 'checkbox') {
+                    return (
+                      <th
+                        key={col.key}
+                        style={{
+                          backgroundColor: '#334155',
+                          width: `${colWidths[col.key] || 35}px`,
+                        }}
+                        className="px-1 py-2 text-center border border-slate-600"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filteredSales.length > 0 && selectedIds.size === filteredSales.length}
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </th>
+                    )
                   }
                   return (
                     <th
@@ -2142,6 +2226,21 @@ export default function ManualSalesPage() {
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
 
                   switch (colKey) {
+                    case 'checkbox':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-2 py-1 text-center border ${t.border}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isItemSelected(sale.id)}
+                            onClick={(e) => handleSelectItem(sale.id, rowIndex, e.shiftKey)}
+                            onChange={() => {}}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </td>
+                      )
                     case 'no':
                       return (
                         <td
@@ -2344,22 +2443,6 @@ export default function ManualSalesPage() {
                             onChange={(e) => handleCostRecoveredChange(sale, e.target.checked)}
                             className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                           />
-                        </td>
-                      )
-                    case 'actions':
-                      return (
-                        <td
-                          key={colKey}
-                          className={`px-2 py-1 text-center text-xs ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
-                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
-                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
-                        >
-                          <button
-                            onClick={() => handleDelete(sale.id)}
-                            className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
-                          >
-                            削除
-                          </button>
                         </td>
                       )
                     default:
