@@ -24,7 +24,7 @@ body {
   right: 0;
   height: 16px;
   background: #e5e7eb;
-  z-index: 50;
+  z-index: 9999;
   overflow-x: scroll;
   overflow-y: hidden;
 }
