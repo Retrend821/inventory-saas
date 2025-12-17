@@ -1116,11 +1116,19 @@ export default function ManualSalesPage() {
 
       const { error } = await supabase.from('manual_sales').insert(records)
       if (error) {
-        console.error('Import error:', error.message, error.code, error.details, error.hint)
-        console.error('Sample record:', records[0])
+        // エラー詳細をコンソールに文字列として出力（コピーしやすい）
+        const errorInfo = `
+=== CSVインポートエラー ===
+メッセージ: ${error.message}
+コード: ${error.code || 'なし'}
+ヒント: ${error.hint || 'なし'}
+詳細: ${error.details || 'なし'}
+サンプルレコード: ${JSON.stringify(records[0], null, 2)}
+===========================`
+        console.error(errorInfo)
         // 最初のエラーでアラート
         if (failed === 0) {
-          alert(`インポートエラー: ${error.message}\nコード: ${error.code || 'なし'}\nヒント: ${error.hint || 'なし'}\n詳細: ${error.details || 'なし'}\n\nサンプルレコード:\n${JSON.stringify(records[0], null, 2).substring(0, 500)}`)
+          alert(`インポートエラー: ${error.message}\nコード: ${error.code || 'なし'}\nヒント: ${error.hint || 'なし'}\n詳細: ${error.details || 'なし'}`)
         }
         failed += records.length
       } else {
