@@ -1961,11 +1961,12 @@ export default function ManualSalesPage() {
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
+                  const cellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
 
                   return (
                     <td
                       className={cellClass}
+                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
                       onClick={() => handleCellClick(sale, field)}
                       onDoubleClick={() => handleCellDoubleClick(sale, field)}
                       onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
@@ -1978,7 +1979,7 @@ export default function ManualSalesPage() {
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           onKeyDown={handleKeyDown}
-                          className={`w-full px-1 py-0.5 ${t.input} border border-blue-500 rounded text-sm`}
+                          className={`w-full px-1 py-0.5 ${t.input} border border-blue-500 rounded text-xs`}
                           autoFocus
                         />
                       ) : (
@@ -1993,11 +1994,12 @@ export default function ManualSalesPage() {
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
+                  const cellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
 
                   return (
                     <td
                       className={cellClass}
+                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
                       onClick={() => handleCellClick(sale, field)}
                       onDoubleClick={() => handleCellDoubleClick(sale, field)}
                       onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
@@ -2048,11 +2050,12 @@ export default function ManualSalesPage() {
                       const invNum = sale.inventory_number || '-'
                       const isInvSelected = isSelectedCell(sale.id, 'inventory_number')
                       const isInvEditing = editingCell?.id === sale.id && editingCell?.field === 'inventory_number'
-                      const invCellClass = `px-2 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isInvSelected && !isInvEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isInvEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
+                      const invCellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isInvSelected && !isInvEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isInvEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
                       return (
                         <td
                           key={colKey}
                           className={invCellClass}
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
                           onClick={() => handleCellClick(sale, 'inventory_number')}
                           onDoubleClick={() => handleCellDoubleClick(sale, 'inventory_number')}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
@@ -2108,6 +2111,7 @@ export default function ManualSalesPage() {
                         <td
                           key={colKey}
                           className={brandCellClass}
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
                           onClick={() => handleCellClick(sale, 'brand_name')}
                           onDoubleClick={() => handleCellDoubleClick(sale, 'brand_name')}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
@@ -2137,6 +2141,7 @@ export default function ManualSalesPage() {
                         <td
                           key={colKey}
                           className={productCellClass}
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
                           onClick={() => handleCellClick(sale, 'product_name')}
                           onDoubleClick={() => handleCellDoubleClick(sale, 'product_name')}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}

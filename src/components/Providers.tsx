@@ -1,7 +1,6 @@
 'use client'
 
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
-import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ReactNode, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Navigation from '@/components/Navigation'
@@ -55,10 +54,8 @@ function AuthGuard({ children }: { children: ReactNode }) {
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AuthGuard>{children}</AuthGuard>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <AuthGuard>{children}</AuthGuard>
+    </AuthProvider>
   )
 }
