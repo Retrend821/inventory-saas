@@ -1081,12 +1081,23 @@ export default function ManualSalesPage() {
     for (let i = 0; i < csvData.length; i += batchSize) {
       const batch = csvData.slice(i, i + batchSize)
 
+      // データベースに確実に存在するカラムのみ許可
+      const allowedColumns = [
+        'product_name', 'brand_name', 'category', 'purchase_source', 'sale_destination',
+        'sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price',
+        'purchase_total', 'deposit_amount', 'purchase_date', 'listing_date', 'sale_date',
+        'memo', 'inventory_number'
+      ]
+
       const records = batch.map(row => {
         const record: Record<string, string | number | null> = {
           sale_type: 'main',
         }
 
         Object.entries(mapping).forEach(([csvHeader, column]) => {
+          // 許可されたカラムのみ処理（image_urlなどスキップ）
+          if (!allowedColumns.includes(column)) return
+
           const value = row[csvHeader]
           if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(column)) {
             record[column] = parseCSVNumber(value)
