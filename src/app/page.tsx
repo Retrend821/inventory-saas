@@ -521,7 +521,9 @@ export default function Home() {
     const newColumns = [...columns]
     const [removed] = newColumns.splice(draggedCol, 1)
     newColumns.splice(index, 0, removed)
-    setColumns(newColumns)
+    startTransition(() => {
+      setColumns(newColumns)
+    })
     setDraggedCol(index)
   }
 
@@ -3124,12 +3126,13 @@ export default function Home() {
       setRedoStack([])
     }
 
-    // 一括更新
-    for (const update of updates) {
+    // 一括更新（同じ値を複数IDに適用）
+    const ids = updates.map(u => u.id)
+    if (ids.length > 0) {
       const { error } = await supabase
         .from('inventory')
-        .update({ [field]: update.value })
-        .eq('id', update.id)
+        .update({ [field]: sourceValue })
+        .in('id', ids)
 
       if (error) {
         console.error('AutoFill error:', error)
