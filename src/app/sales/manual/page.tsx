@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import Papa from 'papaparse'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -118,6 +119,12 @@ export default function ManualSalesPage() {
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const fixedScrollbarRef = useRef<HTMLDivElement>(null)
   const [scrollWidth, setScrollWidth] = useState(0)
+  const [isMounted, setIsMounted] = useState(false)
+
+  // マウント状態を追跡（Portal用）
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // セル範囲選択用
   const [selectionRange, setSelectionRange] = useState<{
@@ -1563,9 +1570,9 @@ export default function ManualSalesPage() {
   }
 
   return (
-    <div className={`min-h-screen ${t.bg} overflow-x-hidden`}>
+    <div className={`min-h-screen ${t.bg}`} style={{ paddingBottom: '20px' }}>
       <Navigation />
-      <div className="pt-14 px-4 py-6 overflow-x-hidden">
+      <div className="pt-14 px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">手入力売上表</h1>
           <div className="flex items-center gap-3">
@@ -2663,23 +2670,26 @@ export default function ManualSalesPage() {
         </div>
       )}
 
-      {/* 固定横スクロールバー */}
-      <div
-        ref={fixedScrollbarRef}
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '16px',
-          backgroundColor: '#e5e7eb',
-          zIndex: 9999,
-          overflowX: 'scroll',
-          overflowY: 'hidden'
-        }}
-      >
-        <div style={{ width: scrollWidth > 0 ? scrollWidth : '100%', height: 1 }} />
-      </div>
+      {/* 固定横スクロールバー - Portalでbodyに直接レンダリング */}
+      {isMounted && createPortal(
+        <div
+          ref={fixedScrollbarRef}
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '16px',
+            backgroundColor: '#e5e7eb',
+            zIndex: 99999,
+            overflowX: 'scroll',
+            overflowY: 'hidden'
+          }}
+        >
+          <div style={{ width: scrollWidth > 0 ? scrollWidth : '100%', height: 1 }} />
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
