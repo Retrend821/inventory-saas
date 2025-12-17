@@ -1,10 +1,19 @@
 @import "tailwindcss";
 
+/* ライトモード（デフォルト） */
 :root {
-  --background: #1a1a2e; /* ダークネイビーブルー */
-  --foreground: #e0e0e0; /* ソフトなオフホワイト */
-  --primary: #f4b400; /* 落ち着いたゴールド */
-  --secondary: #3a3a5e; /* 少し明るいネイビー */
+  --background: #f8fafc;
+  --foreground: #1e293b;
+  --primary: #3b82f6;
+  --secondary: #e2e8f0;
+}
+
+/* ダークモード */
+:root.dark {
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --primary: #60a5fa;
+  --secondary: #1e293b;
 }
 
 @theme inline {
@@ -16,12 +25,11 @@
   --font-mono: var(--font-noto-sans-jp);
 }
 
-/* ダークモードの指定を削除し、デフォルトをダークテーマに一本化 */
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), var(--font-mono), sans-serif;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 /* テーブルスクロールコンテナ */
