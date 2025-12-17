@@ -1115,7 +1115,9 @@ export default function ManualSalesPage() {
         const shippingCost = (record.shipping_cost as number) || 0
         const otherCost = (record.other_cost as number) || 0
         const profit = salePrice - purchaseTotal - commission - shippingCost - otherCost
-        const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+        let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+        // データベースのNUMERIC(5,1)制限に合わせてクランプ (-9999.9〜9999.9)
+        profitRate = Math.max(-9999.9, Math.min(9999.9, profitRate))
 
         record.profit = profit
         record.profit_rate = profitRate
