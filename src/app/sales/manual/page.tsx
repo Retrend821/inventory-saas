@@ -1589,8 +1589,8 @@ export default function ManualSalesPage() {
   return (
     <div className={`min-h-screen ${t.bg}`} style={{ paddingBottom: '20px' }}>
       <Navigation />
-      <div className="pt-14 px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="pt-14 px-4 py-2">
+        <div className="flex items-center justify-between mb-2">
           <h1 className="text-2xl font-bold text-gray-900">手入力売上表</h1>
           <div className="flex items-center gap-3">
             {/* 列の編集ボタン */}
