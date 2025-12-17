@@ -1,107 +1,14 @@
 @import "tailwindcss";
 
-/* ライトモード（デフォルト） */
+/* カスタム変数（Tailwindのデフォルトカラーは維持） */
 :root {
-  --background: #f8fafc;
-  --foreground: #1e293b;
-  --primary: #3b82f6;
-  --secondary: #e2e8f0;
-}
-
-/* ダークモード */
-html.dark {
-  --background: #0f172a;
-  --foreground: #e2e8f0;
-  --primary: #60a5fa;
-  --secondary: #1e293b;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-secondary: var(--secondary);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-noto-sans-jp);
+  --background: #f8fafc; /* ライトグレー */
+  --foreground: #1e293b; /* ダークスレート */
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), var(--font-mono), sans-serif;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-/* ダークモード時のグローバルオーバーライド */
-html.dark .bg-white {
-  background-color: #1e293b !important;
-}
-html.dark .bg-gray-50 {
-  background-color: #0f172a !important;
-}
-html.dark .bg-gray-100 {
-  background-color: #1e293b !important;
-}
-html.dark .text-gray-900 {
-  color: #e2e8f0 !important;
-}
-html.dark .text-gray-700 {
-  color: #cbd5e1 !important;
-}
-html.dark .text-gray-600 {
-  color: #94a3b8 !important;
-}
-html.dark .text-gray-500 {
-  color: #64748b !important;
-}
-html.dark .text-black {
-  color: #e2e8f0 !important;
-}
-html.dark .border-gray-200 {
-  border-color: #334155 !important;
-}
-html.dark .border-gray-300 {
-  border-color: #475569 !important;
-}
-html.dark .divide-gray-200 > * + * {
-  border-color: #334155 !important;
-}
-html.dark input,
-html.dark select,
-html.dark textarea {
-  background-color: #1e293b !important;
-  color: #e2e8f0 !important;
-  border-color: #475569 !important;
-}
-html.dark input::placeholder {
-  color: #64748b !important;
-}
-
-/* ライトモード時のダーク系クラスをオーバーライド（ナビゲーション以外） */
-html:not(.dark) main .bg-slate-900,
-html:not(.dark) .min-h-screen.bg-slate-900 {
-  background-color: #f8fafc !important;
-}
-html:not(.dark) main .bg-slate-800 {
-  background-color: #ffffff !important;
-}
-html:not(.dark) main .bg-slate-700 {
-  background-color: #f1f5f9 !important;
-}
-html:not(.dark) main .text-white {
-  color: #1e293b !important;
-}
-html:not(.dark) main .text-slate-400 {
-  color: #64748b !important;
-}
-html:not(.dark) main .text-slate-300 {
-  color: #475569 !important;
-}
-html:not(.dark) main .border-slate-600 {
-  border-color: #e2e8f0 !important;
-}
-html:not(.dark) main .border-slate-700 {
-  border-color: #e2e8f0 !important;
 }
 
 /* テーブルスクロールコンテナ */
@@ -138,4 +45,15 @@ html:not(.dark) main .border-slate-700 {
 
 .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
+}
+
+/* number inputの矢印（スピナー）を非表示 */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
 }
