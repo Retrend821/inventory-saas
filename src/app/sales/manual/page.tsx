@@ -1911,7 +1911,7 @@ export default function ManualSalesPage() {
                 {visibleColumns.map(col => {
                   const colWidths: Record<string, number> = {
                     no: 30,
-                    inventory_number: 50,
+                    inventory_number: 70,
                     image_url: 50,
                     category: 60,
                     brand_name: 60,
