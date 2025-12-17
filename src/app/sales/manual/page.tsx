@@ -102,6 +102,9 @@ export default function ManualSalesPage() {
   // Undo履歴
   const [undoHistory, setUndoHistory] = useState<{ id: string; field: keyof ManualSale; oldValue: unknown; newValue: unknown }[]>([])
 
+  // ラクマ手数料設定
+  const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
+
   // CSVインポート用state
   const [csvImportModal, setCsvImportModal] = useState<{
     step: 'header-select' | 'mapping' | 'preview' | 'importing'
@@ -244,6 +247,18 @@ export default function ManualSalesPage() {
         setPlatforms(platformData)
       }
 
+      // ラクマ手数料設定取得
+      const { data: rakumaData } = await supabase
+        .from('rakuma_commission_settings')
+        .select('year_month, commission_rate')
+      if (rakumaData) {
+        const settings: Record<string, number> = {}
+        rakumaData.forEach((row: { year_month: string; commission_rate: number }) => {
+          settings[row.year_month] = row.commission_rate
+        })
+        setRakumaCommissionSettings(settings)
+      }
+
       setLoading(false)
     }
 
@@ -341,6 +356,65 @@ export default function ManualSalesPage() {
     const diffTime = saleDate.getTime() - listingDate.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     return diffDays >= 0 ? diffDays : null
+  }
+
+  // 手数料自動計算（販売先と売価から）
+  const calculateCommission = (destination: string | null, salePrice: number | null, saleDate?: string | null): number | null => {
+    if (!destination || !salePrice) return null
+    const price = salePrice
+
+    switch (destination) {
+      case 'エコオク':
+        // 〜10,000円→550円、〜50,000円→1,100円、50,000円超→2,200円
+        if (price <= 10000) return 550
+        if (price <= 50000) return 1100
+        return 2200
+      case 'モノバンク':
+        // 5%
+        return Math.round(price * 0.05)
+      case 'スターバイヤーズ':
+        // 固定1,100円
+        return 1100
+      case 'アプレ':
+        // 3%
+        return Math.round(price * 0.03)
+      case 'タイムレス':
+        // 10,000円未満→10%、10,000円以上→5%
+        return price < 10000 ? Math.round(price * 0.1) : Math.round(price * 0.05)
+      case 'ヤフーフリマ':
+      case 'ペイペイ':
+        // 5%
+        return Math.round(price * 0.05)
+      case 'ラクマ': {
+        // 売却日がある場合はその月の設定、なければ現在月の設定を使用
+        let yearMonth: string
+        if (saleDate) {
+          const match = saleDate.match(/(\d{4})[-/](\d{1,2})/)
+          if (match) {
+            yearMonth = `${match[1]}-${match[2].padStart(2, '0')}`
+          } else {
+            const now = new Date()
+            yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          }
+        } else {
+          const now = new Date()
+          yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        }
+        const rate = rakumaCommissionSettings[yearMonth] ?? 10 // デフォルト10%
+        return Math.round(price * rate / 100)
+      }
+      case 'メルカリ':
+        // 10%
+        return Math.round(price * 0.1)
+      case 'ヤフオク':
+        // 10%
+        return Math.round(price * 0.1)
+      case 'オークネット':
+        // 5%
+        return Math.round(price * 0.05)
+      default:
+        return null
+    }
   }
 
   // セルクリックで選択 (ダブルクリックで編集開始)
@@ -442,6 +516,20 @@ export default function ManualSalesPage() {
     // ローカル状態を更新
     const updatedSale = { ...sale, [field]: newValue }
 
+    // 販売先または売価が変更された場合、手数料を自動計算
+    let autoCommission: number | null = updatedSale.commission
+    if (field === 'sale_destination' || field === 'sale_price') {
+      const newCommission = calculateCommission(
+        field === 'sale_destination' ? (newValue as string) : updatedSale.sale_destination,
+        field === 'sale_price' ? (newValue as number) : updatedSale.sale_price,
+        updatedSale.sale_date
+      )
+      if (newCommission !== null) {
+        autoCommission = newCommission
+        updatedSale.commission = newCommission
+      }
+    }
+
     // 利益・利益率・回転日数を再計算
     const profit = calculateProfit(updatedSale)
     const profitRate = calculateProfitRate(updatedSale)
@@ -450,18 +538,24 @@ export default function ManualSalesPage() {
     // Undo履歴に追加
     setUndoHistory(prev => [...prev, { id, field, oldValue: currentValue, newValue }])
 
-    setSales(sales.map(s => s.id === id ? { ...s, [field]: newValue, profit, profit_rate: profitRate, turnover_days: turnoverDays } : s))
+    const updateData: Record<string, unknown> = {
+      [field]: newValue,
+      profit,
+      profit_rate: profitRate,
+      turnover_days: turnoverDays,
+    }
+    // 手数料が自動計算された場合は一緒に更新
+    if (field === 'sale_destination' || field === 'sale_price') {
+      updateData.commission = autoCommission
+    }
+
+    setSales(sales.map(s => s.id === id ? { ...s, ...updateData } as ManualSale : s))
     setEditingCell(null)
 
     // DBに保存
     const { error } = await supabase
       .from('manual_sales')
-      .update({
-        [field]: newValue,
-        profit,
-        profit_rate: profitRate,
-        turnover_days: turnoverDays,
-      })
+      .update(updateData)
       .eq('id', id)
 
     if (error) {
@@ -1185,10 +1279,23 @@ export default function ManualSalesPage() {
           }
         })
 
+        // 手数料が空の場合、販売先と売価から自動計算
+        let commission = (record.commission as number) || 0
+        if (!record.commission && record.sale_destination && record.sale_price) {
+          const autoCommission = calculateCommission(
+            record.sale_destination as string,
+            record.sale_price as number,
+            record.sale_date as string | null
+          )
+          if (autoCommission !== null) {
+            commission = autoCommission
+            record.commission = autoCommission
+          }
+        }
+
         // 利益と利益率を計算
         const salePrice = (record.sale_price as number) || 0
         const purchaseTotal = (record.purchase_total as number) || (record.purchase_price as number) || 0
-        const commission = (record.commission as number) || 0
         const shippingCost = (record.shipping_cost as number) || 0
         const otherCost = (record.other_cost as number) || 0
         const profit = salePrice - purchaseTotal - commission - shippingCost - otherCost
