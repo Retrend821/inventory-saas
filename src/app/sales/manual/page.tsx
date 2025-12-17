@@ -128,8 +128,50 @@ export default function ManualSalesPage() {
   } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
+  // 列幅リサイズ用
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+  const [resizing, setResizing] = useState<{ key: string; startX: number; startWidth: number } | null>(null)
+
   // 表示する列をフィルタリング
   const visibleColumns = columns.filter(col => !hiddenColumns.has(col.key))
+
+  // 列幅リサイズのハンドラ
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent, colKey: string, currentWidth: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setResizing({ key: colKey, startX: e.clientX, startWidth: currentWidth })
+  }, [])
+
+  useEffect(() => {
+    if (!resizing) return
+
+    // リサイズ中はカーソルを変更し、テキスト選択を防止
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault()
+      const diff = e.clientX - resizing.startX
+      const newWidth = Math.max(40, resizing.startWidth + diff)
+      setColumnWidths(prev => ({ ...prev, [resizing.key]: newWidth }))
+    }
+
+    const handleMouseUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      setResizing(null)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [resizing])
 
   // 固定横スクロールバーの同期
   useEffect(() => {
@@ -1881,18 +1923,63 @@ export default function ManualSalesPage() {
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table className="w-full border-collapse">
+          <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
-                {visibleColumns.map(col => (
-                  <th
-                    key={col.key}
-                    style={{ backgroundColor: '#334155', color: '#ffffff' }}
-                    className={`px-3 py-2 text-center text-sm font-medium border border-slate-600 whitespace-nowrap ${col.key === 'inventory_number' ? 'w-20' : ''}`}
-                  >
-                    {col.label}
-                  </th>
-                ))}
+                {visibleColumns.map(col => {
+                  const defaultWidths: Record<string, number> = {
+                    no: 40,
+                    actions: 60,
+                    inventory_number: 70,
+                    image_url: 60,
+                    category: 80,
+                    brand_name: 100,
+                    product_name: 150,
+                    purchase_source: 80,
+                    sale_destination: 80,
+                    sale_price: 70,
+                    commission: 70,
+                    shipping_cost: 60,
+                    other_cost: 60,
+                    purchase_price: 70,
+                    purchase_total: 80,
+                    deposit_amount: 70,
+                    profit: 70,
+                    profit_rate: 60,
+                    purchase_date: 90,
+                    listing_date: 90,
+                    sale_date: 90,
+                    memo: 100,
+                    turnover_days: 70,
+                    cost_recovered: 70,
+                  }
+                  const defaultWidth = defaultWidths[col.key] || 100
+                  const width = columnWidths[col.key] || defaultWidth
+                  return (
+                    <th
+                      key={col.key}
+                      style={{
+                        backgroundColor: '#334155',
+                        color: '#ffffff',
+                        width: `${width}px`,
+                        minWidth: `${width}px`,
+                        maxWidth: `${width}px`,
+                        position: 'relative'
+                      }}
+                      className="text-center text-sm font-medium border border-slate-600"
+                    >
+                      <div className="flex items-center justify-center">
+                        <span className="truncate px-1">{col.label}</span>
+                        {col.key !== 'actions' && (
+                          <div
+                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-slate-500 hover:bg-blue-500 opacity-50 hover:opacity-100"
+                            onMouseDown={(e) => handleResizeMouseDown(e, col.key, width)}
+                          />
+                        )}
+                      </div>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1903,7 +1990,7 @@ export default function ManualSalesPage() {
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
+                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
 
                   return (
                     <td
@@ -1924,7 +2011,7 @@ export default function ManualSalesPage() {
                           autoFocus
                         />
                       ) : (
-                        value
+                        <span className="block truncate">{value}</span>
                       )}
                     </td>
                   )
@@ -1935,7 +2022,7 @@ export default function ManualSalesPage() {
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
+                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none overflow-hidden`
 
                   return (
                     <td
@@ -1979,7 +2066,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
@@ -1992,7 +2079,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap cursor-pointer ${t.tableRowHover} ${rangeClass} select-none`}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${rangeClass} select-none overflow-hidden`}
                           onClick={() => openImageModal(sale)}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
@@ -2016,23 +2103,20 @@ export default function ManualSalesPage() {
                     case 'brand_name':
                       return <React.Fragment key={colKey}>{renderEditableCell('brand_name', colIndex, sale.brand_name || '-')}</React.Fragment>
                     case 'product_name':
-                      const isSelected = isSelectedCell(sale.id, 'product_name')
+                      const isProdSelected = isSelectedCell(sale.id, 'product_name')
                       const productName = sale.product_name || '-'
-                      const isLong = productName.length > 12
-                      const truncated = isLong ? productName.slice(0, 12) + '...' : productName
-                      const productCellClass = `px-3 py-2 text-left text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none`
+                      const productCellClass = `px-3 py-2 text-left text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isProdSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none overflow-hidden`
                       return (
                         <td
                           key={colKey}
                           className={productCellClass}
-                          style={{ maxWidth: '180px' }}
                           onClick={() => handleCellClick(sale, 'product_name')}
                           onDoubleClick={() => handleCellDoubleClick(sale, 'product_name')}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                           title={productName !== '-' ? productName : undefined}
                         >
-                          <span className="block truncate">{truncated}</span>
+                          <span className="block truncate">{productName}</span>
                         </td>
                       )
                     case 'purchase_source':
@@ -2057,22 +2141,22 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm border ${t.border} whitespace-nowrap ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
+                          className={`px-3 py-2 text-center text-sm border ${t.border} ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          {sale.profit?.toLocaleString() || '-'}
+                          <span className="block truncate">{sale.profit?.toLocaleString() || '-'}</span>
                         </td>
                       )
                     case 'profit_rate':
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm border ${t.border} whitespace-nowrap ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
+                          className={`px-3 py-2 text-center text-sm border ${t.border} ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          {sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}
+                          <span className="block truncate">{sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}</span>
                         </td>
                       )
                     case 'purchase_date':
@@ -2087,18 +2171,18 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          {sale.turnover_days ?? '-'}
+                          <span className="block truncate">{sale.turnover_days ?? '-'}</span>
                         </td>
                       )
                     case 'cost_recovered':
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
@@ -2114,7 +2198,7 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} ${rangeClass} select-none overflow-hidden`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
