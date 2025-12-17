@@ -114,6 +114,11 @@ export default function ManualSalesPage() {
   } | null>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
 
+  // 固定横スクロールバー用
+  const tableContainerRef = useRef<HTMLDivElement>(null)
+  const fixedScrollbarRef = useRef<HTMLDivElement>(null)
+  const [scrollWidth, setScrollWidth] = useState(0)
+
   // セル範囲選択用
   const [selectionRange, setSelectionRange] = useState<{
     startRow: number
@@ -125,6 +130,42 @@ export default function ManualSalesPage() {
 
   // 表示する列をフィルタリング
   const visibleColumns = columns.filter(col => !hiddenColumns.has(col.key))
+
+  // 固定横スクロールバーの同期
+  useEffect(() => {
+    const tableContainer = tableContainerRef.current
+    const fixedScrollbar = fixedScrollbarRef.current
+    if (!tableContainer || !fixedScrollbar) return
+
+    const updateScrollWidth = () => {
+      setScrollWidth(tableContainer.scrollWidth)
+    }
+    updateScrollWidth()
+
+    const resizeObserver = new ResizeObserver(updateScrollWidth)
+    resizeObserver.observe(tableContainer)
+
+    const handleTableScroll = () => {
+      if (fixedScrollbar) {
+        fixedScrollbar.scrollLeft = tableContainer.scrollLeft
+      }
+    }
+
+    const handleFixedScroll = () => {
+      if (tableContainer) {
+        tableContainer.scrollLeft = fixedScrollbar.scrollLeft
+      }
+    }
+
+    tableContainer.addEventListener('scroll', handleTableScroll)
+    fixedScrollbar.addEventListener('scroll', handleFixedScroll)
+
+    return () => {
+      resizeObserver.disconnect()
+      tableContainer.removeEventListener('scroll', handleTableScroll)
+      fixedScrollbar.removeEventListener('scroll', handleFixedScroll)
+    }
+  }, [sales])
 
   // データ取得
   useEffect(() => {
@@ -1824,12 +1865,19 @@ export default function ManualSalesPage() {
         )}
 
         {/* テーブル */}
-        <div className={`overflow-x-auto ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}>
+        <div
+          ref={tableContainerRef}
+          className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
+        >
           <table className="w-full border-collapse">
-            <thead className="bg-slate-700">
+            <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
                 {visibleColumns.map(col => (
-                  <th key={col.key} className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">
+                  <th
+                    key={col.key}
+                    style={{ backgroundColor: '#334155', color: '#ffffff' }}
+                    className={`px-3 py-2 text-center text-sm font-medium border border-slate-600 whitespace-nowrap ${col.key === 'inventory_number' ? 'w-20' : ''}`}
+                  >
                     {col.label}
                   </th>
                 ))}
@@ -2605,6 +2653,14 @@ export default function ManualSalesPage() {
           </div>
         </div>
       )}
+
+      {/* 固定横スクロールバー */}
+      <div
+        ref={fixedScrollbarRef}
+        className="fixed-horizontal-scrollbar"
+      >
+        <div style={{ width: scrollWidth, height: 1 }} />
+      </div>
     </div>
   )
 }
