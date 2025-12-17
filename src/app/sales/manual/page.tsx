@@ -118,7 +118,7 @@ export default function ManualSalesPage() {
   // 固定横スクロールバー用
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const fixedScrollbarRef = useRef<HTMLDivElement>(null)
-  const [scrollWidth, setScrollWidth] = useState(0)
+  const [scrollWidth, setScrollWidth] = useState(1400)
   const [isMounted, setIsMounted] = useState(false)
 
   // マウント状態を追跡（Portal用）
