@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import Papa from 'papaparse'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -30,6 +30,7 @@ type ManualSale = {
   turnover_days: number | null
   sale_type: 'main' | 'bulk'
   image_url: string | null
+  cost_recovered: boolean | null
   created_at: string
 }
 
@@ -39,16 +40,47 @@ type Platform = {
   type: 'purchase' | 'sale'
 }
 
+// テーブルのカラム定義
+const columns: { key: keyof ManualSale | 'no' | 'actions'; label: string; editable: boolean; type: 'text' | 'number' | 'date' | 'select' | 'readonly' }[] = [
+  { key: 'no', label: 'No', editable: false, type: 'readonly' },
+  { key: 'inventory_number', label: '管理番号', editable: true, type: 'text' },
+  { key: 'image_url', label: '画像', editable: false, type: 'readonly' },
+  { key: 'category', label: 'ジャンル', editable: true, type: 'text' },
+  { key: 'brand_name', label: 'ブランド名', editable: true, type: 'text' },
+  { key: 'product_name', label: '商品名', editable: true, type: 'text' },
+  { key: 'purchase_source', label: '仕入先', editable: true, type: 'select' },
+  { key: 'sale_destination', label: '販売先', editable: true, type: 'select' },
+  { key: 'sale_price', label: '売価', editable: true, type: 'number' },
+  { key: 'commission', label: '手数料', editable: true, type: 'number' },
+  { key: 'shipping_cost', label: '送料', editable: true, type: 'number' },
+  { key: 'other_cost', label: 'その他', editable: true, type: 'number' },
+  { key: 'purchase_price', label: '原価', editable: true, type: 'number' },
+  { key: 'purchase_total', label: '仕入総額', editable: true, type: 'number' },
+  { key: 'deposit_amount', label: '入金額', editable: true, type: 'number' },
+  { key: 'profit', label: '利益', editable: false, type: 'readonly' },
+  { key: 'profit_rate', label: '利益率', editable: false, type: 'readonly' },
+  { key: 'purchase_date', label: '仕入日', editable: true, type: 'date' },
+  { key: 'listing_date', label: '出品日', editable: true, type: 'date' },
+  { key: 'sale_date', label: '売却日', editable: true, type: 'date' },
+  { key: 'turnover_days', label: '回転日数', editable: false, type: 'readonly' },
+  { key: 'cost_recovered', label: '原価回収', editable: true, type: 'readonly' },
+  { key: 'actions', label: '操作', editable: false, type: 'readonly' },
+]
+
 export default function ManualSalesPage() {
   const { user, loading: authLoading } = useAuth()
   const [sales, setSales] = useState<ManualSale[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
   const [isAdding, setIsAdding] = useState(false)
+  // セル選択用の状態
+  const [selectedCell, setSelectedCell] = useState<{ id: string; field: keyof ManualSale } | null>(null)
   // セル編集用の状態
   const [editingCell, setEditingCell] = useState<{ id: string; field: keyof ManualSale } | null>(null)
   const [editValue, setEditValue] = useState<string>('')
   const editCellRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null)
+  // 商品名モーダル編集用の状態
+  const [modalEdit, setModalEdit] = useState<{ id: string; field: keyof ManualSale; value: string } | null>(null)
   // 画像編集モーダル用の状態
   const [imageEditModal, setImageEditModal] = useState<{ id: string; currentUrl: string | null } | null>(null)
   const [imageUrlInput, setImageUrlInput] = useState('')
@@ -61,14 +93,38 @@ export default function ManualSalesPage() {
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'main' | 'bulk'>('all')
+  // 列の表示/非表示
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set())
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
+  // 転記先選択モーダル用の状態
+  const [transferModal, setTransferModal] = useState<{ sale: ManualSale; bulkPurchases: { id: string; genre: string; purchase_date: string }[] } | null>(null)
+  // Undo履歴
+  const [undoHistory, setUndoHistory] = useState<{ id: string; field: keyof ManualSale; oldValue: unknown; newValue: unknown }[]>([])
+
   // CSVインポート用state
   const [csvImportModal, setCsvImportModal] = useState<{
-    step: 'mapping' | 'preview' | 'importing'
+    step: 'header-select' | 'mapping' | 'preview' | 'importing'
     csvHeaders: string[]
     csvData: Record<string, string>[]
     mapping: Record<string, string>
     progress: number
+    rawText: string
+    headerRow: number // 何行目をヘッダーとして使うか（1始まり）
+    previewRows: string[][] // 最初の数行のプレビュー
   } | null>(null)
+  const csvInputRef = useRef<HTMLInputElement>(null)
+
+  // セル範囲選択用
+  const [selectionRange, setSelectionRange] = useState<{
+    startRow: number
+    startCol: number
+    endRow: number
+    endCol: number
+  } | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // 表示する列をフィルタリング
+  const visibleColumns = columns.filter(col => !hiddenColumns.has(col.key))
 
   // データ取得
   useEffect(() => {
@@ -210,24 +266,65 @@ export default function ManualSalesPage() {
     return diffDays >= 0 ? diffDays : null
   }
 
-  // セルクリックで編集開始
+  // セルクリックで選択 (ダブルクリックで編集開始)
   const handleCellClick = (sale: ManualSale, field: keyof ManualSale) => {
-    // 既に同じセルを編集中なら何もしない
-    if (editingCell?.id === sale.id && editingCell?.field === field) return
+    // 編集不可のフィールドはスキップ
+    const readonlyFields: (keyof ManualSale)[] = ['id', 'profit', 'profit_rate', 'turnover_days', 'created_at']
+    if (readonlyFields.includes(field)) return
+
+    // 既に同じセルが選択されていて、編集中でなく、範囲選択がなければ編集開始
+    if (selectedCell?.id === sale.id && selectedCell?.field === field && !editingCell && !selectionRange) {
+      // 商品名はモーダルで編集
+      if (field === 'product_name') {
+        setModalEdit({ id: sale.id, field, value: sale.product_name || '' })
+        return
+      }
+      const value = sale[field]
+      setEditingCell({ id: sale.id, field })
+      setEditValue(value != null ? String(value) : '')
+      return
+    }
 
     // 他のセルを編集中なら先に保存
     if (editingCell) {
       saveEditingCell()
     }
 
-    // 編集不可のフィールドはスキップ
+    // セルを選択
+    // 注意: selectionRangeはhandleCellMouseDownで設定されるのでここではリセットしない
+    setSelectedCell({ id: sale.id, field })
+  }
+
+  // ダブルクリックで編集開始
+  const handleCellDoubleClick = (sale: ManualSale, field: keyof ManualSale) => {
     const readonlyFields: (keyof ManualSale)[] = ['id', 'profit', 'profit_rate', 'turnover_days', 'created_at']
     if (readonlyFields.includes(field)) return
 
+    if (editingCell) {
+      saveEditingCell()
+    }
+
+    // 商品名はモーダルで編集
+    if (field === 'product_name') {
+      setModalEdit({ id: sale.id, field, value: sale.product_name || '' })
+      setSelectionRange(null)
+      return
+    }
+
     const value = sale[field]
+    setSelectedCell({ id: sale.id, field })
+    setSelectionRange(null)
     setEditingCell({ id: sale.id, field })
     setEditValue(value != null ? String(value) : '')
   }
+
+  // 選択中のセルかどうか
+  const isSelectedCell = (id: string, field: keyof ManualSale) => {
+    return selectedCell?.id === id && selectedCell?.field === field
+  }
+
+  // 編集可能なカラムのみ取得
+  const editableColumns = columns.filter(col => col.editable && col.key !== 'no' && col.key !== 'actions' && col.key !== 'image_url')
 
   // セル編集の保存
   const saveEditingCell = useCallback(async () => {
@@ -273,6 +370,9 @@ export default function ManualSalesPage() {
     const profitRate = calculateProfitRate(updatedSale)
     const turnoverDays = calculateTurnoverDays(updatedSale)
 
+    // Undo履歴に追加
+    setUndoHistory(prev => [...prev, { id, field, oldValue: currentValue, newValue }])
+
     setSales(sales.map(s => s.id === id ? { ...s, [field]: newValue, profit, profit_rate: profitRate, turnover_days: turnoverDays } : s))
     setEditingCell(null)
 
@@ -294,6 +394,89 @@ export default function ManualSalesPage() {
     }
   }, [editingCell, editValue, sales])
 
+  // モーダル編集の保存
+  const saveModalEdit = async () => {
+    if (!modalEdit) return
+
+    const { id, field, value } = modalEdit
+    const sale = sales.find(s => s.id === id)
+    if (!sale) {
+      setModalEdit(null)
+      return
+    }
+
+    // 変更がなければ何もしない
+    if (sale[field] === value) {
+      setModalEdit(null)
+      return
+    }
+
+    // Undo履歴に追加
+    setUndoHistory(prev => [...prev, { id, field, oldValue: sale[field], newValue: value }])
+
+    // ローカル状態を更新
+    setSales(sales.map(s => s.id === id ? { ...s, [field]: value } : s))
+    setModalEdit(null)
+
+    // DBに保存
+    const { error } = await supabase
+      .from('manual_sales')
+      .update({ [field]: value })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error updating modal edit:', error)
+      // エラー時は元に戻す
+      setSales(sales.map(s => s.id === id ? sale : s))
+    }
+  }
+
+  // Undo機能
+  const handleUndo = useCallback(async () => {
+    if (undoHistory.length === 0) return
+
+    const lastAction = undoHistory[undoHistory.length - 1]
+    const { id, field, oldValue } = lastAction
+
+    // 履歴から削除
+    setUndoHistory(prev => prev.slice(0, -1))
+
+    // ローカル状態を元に戻す
+    const sale = sales.find(s => s.id === id)
+    if (!sale) return
+
+    const updatedSale = { ...sale, [field]: oldValue }
+    const profit = calculateProfit(updatedSale)
+    const profitRate = calculateProfitRate(updatedSale)
+    const turnoverDays = calculateTurnoverDays(updatedSale)
+
+    setSales(sales.map(s => s.id === id ? { ...s, [field]: oldValue, profit, profit_rate: profitRate, turnover_days: turnoverDays } : s))
+
+    // DBに保存
+    await supabase
+      .from('manual_sales')
+      .update({
+        [field]: oldValue,
+        profit,
+        profit_rate: profitRate,
+        turnover_days: turnoverDays,
+      })
+      .eq('id', id)
+  }, [undoHistory, sales])
+
+  // Cmd+Z / Ctrl+Z でUndo
+  useEffect(() => {
+    const handleUndoKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        handleUndo()
+      }
+    }
+
+    document.addEventListener('keydown', handleUndoKeyDown)
+    return () => document.removeEventListener('keydown', handleUndoKeyDown)
+  }, [handleUndo])
+
   // 外側クリックで保存
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -306,7 +489,7 @@ export default function ManualSalesPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [editingCell, saveEditingCell])
 
-  // キーボード操作
+  // キーボード操作（編集中）
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!editingCell) return
 
@@ -322,229 +505,82 @@ export default function ManualSalesPage() {
     }
   }
 
-  // CSVインポート用の定数とユーティリティ
-  const CSV_IMPORT_COLUMNS = [
-    { key: 'inventory_number', label: '管理番号' },
-    { key: 'product_name', label: '商品名' },
-    { key: 'brand_name', label: 'ブランド' },
-    { key: 'category', label: 'カテゴリ' },
-    { key: 'purchase_price', label: '仕入値' },
-    { key: 'purchase_total', label: '仕入総額' },
-    { key: 'sale_price', label: '販売価格' },
-    { key: 'commission', label: '手数料' },
-    { key: 'shipping_cost', label: '送料' },
-    { key: 'other_cost', label: 'その他コスト' },
-    { key: 'deposit_amount', label: '入金額' },
-    { key: 'purchase_date', label: '仕入日' },
-    { key: 'listing_date', label: '出品日' },
-    { key: 'sale_date', label: '売上日' },
-    { key: 'purchase_source', label: '仕入先' },
-    { key: 'sale_destination', label: '販売先' },
-    { key: 'memo', label: 'メモ' },
-    { key: 'image_url', label: '画像URL' },
-  ]
+  // グローバルキーボード操作（選択状態）
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // モーダルが開いている場合は無視
+      if (isAdding || imageEditModal || modalEdit) return
 
-  const autoMappingCSV = (headers: string[]): Record<string, string> => {
-    const mapping: Record<string, string> = {}
-    const keywordMap: Record<string, string[]> = {
-      inventory_number: ['管理番号', '番号', 'No', 'no', 'ID'],
-      product_name: ['商品名', '　商品名'],
-      brand_name: ['ブランド名', 'ブランド', 'brand'],
-      category: ['カテゴリ', '商品区分', 'category'],
-      purchase_price: ['仕入値', '原価', '仕入れ値'],
-      purchase_total: ['仕入総額', '総額', '手数料・送料・税込'],
-      sale_price: ['販売価格', '売価'],
-      commission: ['販売手数料', '手数料'],
-      shipping_cost: ['送料'],
-      other_cost: ['その他', 'other'],
-      deposit_amount: ['入金額', '入金'],
-      purchase_date: ['仕入日', '購入日'],
-      listing_date: ['出品日'],
-      sale_date: ['販売日', '売上日', '落札日'],
-      purchase_source: ['仕入先', '仕入れ先'],
-      sale_destination: ['販路', '販売先', '最終販路'],
-      memo: ['メモ', '備考', 'memo'],
-      image_url: ['画像URL', '画像', 'image'],
-    }
+      // 編集中の場合は無視
+      if (editingCell) return
 
-    headers.forEach(header => {
-      const lowerHeader = header.toLowerCase()
-      for (const [key, keywords] of Object.entries(keywordMap)) {
-        if (keywords.some(kw => lowerHeader.includes(kw.toLowerCase()))) {
-          if (!Object.values(mapping).includes(key)) {
-            mapping[header] = key
-            break
-          }
-        }
-      }
-    })
-    return mapping
-  }
+      // 選択中のセルがない場合は無視
+      if (!selectedCell) return
 
-  const parseNumber = (value: string): number | null => {
-    if (!value) return null
-    const cleaned = value.replace(/[¥￥,、\s()（）]/g, '').replace(/^-/, '')
-    const num = parseFloat(cleaned)
-    if (isNaN(num)) return null
-    return value.includes('(') || value.includes('（') || value.startsWith('-') ? -Math.abs(num) : num
-  }
+      const { id, field } = selectedCell
+      const sale = filteredSales.find(s => s.id === id)
+      if (!sale) return
 
-  const parseDate = (value: string): string | null => {
-    if (!value) return null
-    const cleaned = value.replace(/\//g, '-').trim()
-    const match = cleaned.match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
-    if (match) {
-      const [, year, month, day] = match
-      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-    }
-    return null
-  }
+      const currentRowIndex = filteredSales.findIndex(s => s.id === id)
+      const currentColIndex = editableColumns.findIndex(col => col.key === field)
 
-  // CSVインポート処理
-  const handleCSVImport = (file: File) => {
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target?.result as string
-      Papa.parse(text, {
-        header: false,
-        skipEmptyLines: true,
-        complete: (results) => {
-          const rows = results.data as string[][]
-          if (rows.length === 0) {
-            alert('データがありません')
-            return
-          }
+      // 矢印キーでセル移動
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        let newRowIndex = currentRowIndex
+        let newColIndex = currentColIndex
 
-          // ヘッダー行を探す
-          let headerRowIndex = 0
-          const headerKeywords = ['商品', '仕入', 'ブランド', '販売', '価格', 'No', '売上']
-          for (let i = 0; i < Math.min(rows.length, 10); i++) {
-            const row = rows[i]
-            if (!row || row.length < 3) continue
-            const rowText = row.join(',')
-            const matchCount = headerKeywords.filter(kw => rowText.includes(kw)).length
-            if (matchCount >= 2) {
-              headerRowIndex = i
-              break
-            }
-          }
-
-          const headerRow = rows[headerRowIndex]
-          const dataRows = rows.slice(headerRowIndex + 1)
-
-          const headers = headerRow.map((h, i) => h?.trim() || `列${i + 1}`).filter(h => h)
-          const data = dataRows
-            .filter(row => row.some(cell => cell && cell.trim()))
-            .map(row => {
-              const obj: Record<string, string> = {}
-              headerRow.forEach((header, i) => {
-                const key = header?.trim() || `列${i + 1}`
-                if (key && row[i] !== undefined) {
-                  obj[key] = row[i]?.trim() || ''
-                }
-              })
-              return obj
-            })
-
-          if (data.length === 0) {
-            alert('データがありません')
-            return
-          }
-
-          const autoMapped = autoMappingCSV(headers)
-          setCsvImportModal({
-            step: 'mapping',
-            csvHeaders: headers,
-            csvData: data,
-            mapping: autoMapped,
-            progress: 0,
-          })
-        }
-      })
-    }
-    reader.readAsText(file, 'UTF-8')
-  }
-
-  // CSVインポート実行
-  const executeCSVImport = async () => {
-    if (!user || !csvImportModal) return
-    const { csvData, mapping } = csvImportModal
-
-    setCsvImportModal({ ...csvImportModal, step: 'importing', progress: 0 })
-
-    let success = 0
-    let failed = 0
-    const batchSize = 50
-
-    for (let i = 0; i < csvData.length; i += batchSize) {
-      const batch = csvData.slice(i, i + batchSize)
-
-      const records = batch.map(row => {
-        const record: Record<string, unknown> = {
-          sale_type: 'main',
+        if (e.key === 'ArrowUp' && currentRowIndex > 0) {
+          newRowIndex = currentRowIndex - 1
+        } else if (e.key === 'ArrowDown' && currentRowIndex < filteredSales.length - 1) {
+          newRowIndex = currentRowIndex + 1
+        } else if (e.key === 'ArrowLeft' && currentColIndex > 0) {
+          newColIndex = currentColIndex - 1
+        } else if (e.key === 'ArrowRight' && currentColIndex < editableColumns.length - 1) {
+          newColIndex = currentColIndex + 1
         }
 
-        Object.entries(mapping).forEach(([csvHeader, dbColumn]) => {
-          const value = row[csvHeader]
-          if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(dbColumn)) {
-            record[dbColumn] = parseNumber(value)
-          } else if (['purchase_date', 'listing_date', 'sale_date'].includes(dbColumn)) {
-            record[dbColumn] = parseDate(value)
-          } else {
-            record[dbColumn] = value || null
-          }
-        })
-
-        // 利益計算
-        const salePrice = record.sale_price as number | null
-        const purchaseTotal = record.purchase_total as number | null
-        const otherCost = record.other_cost as number | null
-        const depositAmount = record.deposit_amount as number | null
-        const saleDate = record.sale_date as string | null
-
-        // 売上日がある場合のみ利益を計算
-        if (saleDate && depositAmount !== null) {
-          record.profit = depositAmount - (purchaseTotal || 0) - (otherCost || 0)
-          if (salePrice && salePrice > 0) {
-            record.profit_rate = Math.round(((record.profit as number) / salePrice) * 100)
-          }
+        if (newRowIndex !== currentRowIndex || newColIndex !== currentColIndex) {
+          const newSaleItem = filteredSales[newRowIndex]
+          const newField = editableColumns[newColIndex].key as keyof ManualSale
+          setSelectedCell({ id: newSaleItem.id, field: newField })
         }
-
-        // 回転日数
-        const purchaseDate = record.purchase_date as string | null
-        if (purchaseDate && saleDate) {
-          const pDate = new Date(purchaseDate)
-          const sDate = new Date(saleDate)
-          record.turnover_days = Math.ceil((sDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24))
-        }
-
-        return record
-      }).filter(record => record.product_name)
-
-      if (records.length === 0) continue
-
-      const { error } = await supabase.from('manual_sales').insert(records)
-      if (error) {
-        console.error('Import error:', error)
-        failed += records.length
-      } else {
-        success += records.length
+        return
       }
 
-      setCsvImportModal(prev => prev ? { ...prev, progress: Math.round(((i + batch.length) / csvData.length) * 100) } : null)
+      // Enterで編集開始
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        const value = sale[field]
+        setEditingCell({ id, field })
+        setEditValue(value != null ? String(value) : '')
+        return
+      }
+
+      // Escapeで選択解除
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setSelectedCell(null)
+        return
+      }
+
+      // 数字や文字を入力したら編集開始
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const readonlyFields: (keyof ManualSale)[] = ['id', 'profit', 'profit_rate', 'turnover_days', 'created_at']
+        if (readonlyFields.includes(field)) return
+
+        // select系のフィールドは文字入力で編集開始しない
+        if (field === 'purchase_source' || field === 'sale_destination') return
+
+        e.preventDefault()
+        setEditingCell({ id, field })
+        setEditValue(e.key)
+      }
     }
 
-    setCsvImportModal(null)
-    const skipped = csvData.length - success - failed
-    alert(`インポート完了: ${success}件成功${failed > 0 ? `、${failed}件失敗` : ''}${skipped > 0 ? `、${skipped}件スキップ` : ''}`)
-
-    // データ再取得
-    const { data } = await supabase
-      .from('manual_sales')
-      .select('*')
-      .order('sale_date', { ascending: false })
-    if (data) setSales(data)
-  }
+    document.addEventListener('keydown', handleGlobalKeyDown)
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [selectedCell, editingCell, filteredSales, editableColumns, isAdding, imageEditModal, modalEdit])
 
   // 新規追加
   const handleAdd = async () => {
@@ -691,6 +727,139 @@ export default function ManualSalesPage() {
     setSales(sales.filter(s => s.id !== id))
   }
 
+  // 原価回収チェック時にモーダルを表示
+  const handleCostRecoveredChange = async (sale: ManualSale, checked: boolean) => {
+    if (!checked) {
+      // チェックを外す場合、bulk_salesから転記データを削除
+      const { error: deleteError } = await supabase
+        .from('bulk_sales')
+        .delete()
+        .like('memo', `%手入力売上から転記 (ID: ${sale.id})%`)
+
+      if (deleteError) {
+        console.error('Error deleting from bulk_sales:', deleteError)
+        alert('まとめ在庫からの削除に失敗しました')
+        return
+      }
+
+      // 元の仕入総額と利益を再計算
+      const originalPurchaseTotal = sale.purchase_price || 0
+      const salePrice = sale.sale_price || 0
+      const commission = sale.commission || 0
+      const shippingCost = sale.shipping_cost || 0
+      const otherCost = sale.other_cost || 0
+      const profit = salePrice - originalPurchaseTotal - commission - shippingCost - otherCost
+      const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+
+      // manual_salesを更新（仕入総額・利益を元に戻す）
+      setSales(sales.map(s => s.id === sale.id ? {
+        ...s,
+        cost_recovered: false,
+        purchase_total: originalPurchaseTotal,
+        profit,
+        profit_rate: profitRate
+      } : s))
+      await supabase.from('manual_sales').update({
+        cost_recovered: false,
+        purchase_total: originalPurchaseTotal,
+        profit,
+        profit_rate: profitRate
+      }).eq('id', sale.id)
+      return
+    }
+
+    // チェックを入れる場合、まとめ仕入れ一覧を取得してモーダルを表示
+    const { data: bulkPurchases, error: fetchError } = await supabase
+      .from('bulk_purchases')
+      .select('id, genre, purchase_date')
+      .order('created_at', { ascending: false })
+
+    if (fetchError) {
+      console.error('Error fetching bulk_purchases:', fetchError)
+      alert('まとめ仕入れの取得に失敗しました')
+      return
+    }
+
+    setTransferModal({ sale, bulkPurchases: bulkPurchases || [] })
+  }
+
+  // 転記実行
+  const executeTransfer = async (targetPurchaseId: string | null) => {
+    if (!transferModal) return
+
+    const sale = transferModal.sale
+
+    // 入金額を取得（仕入総額として設定し、利益を0にする）
+    const depositAmount = sale.deposit_amount || (sale.sale_price || 0) - (sale.commission || 0) - (sale.shipping_cost || 0) - (sale.other_cost || 0)
+
+    // ローカル状態を更新（仕入総額=入金額、利益=0、利益率=0）
+    setSales(sales.map(s => s.id === sale.id ? {
+      ...s,
+      cost_recovered: true,
+      purchase_total: depositAmount,
+      profit: 0,
+      profit_rate: 0
+    } : s))
+
+    // DBに保存（仕入総額=入金額、利益=0、利益率=0）
+    const { error: updateError } = await supabase
+      .from('manual_sales')
+      .update({
+        cost_recovered: true,
+        purchase_total: depositAmount,
+        profit: 0,
+        profit_rate: 0
+      })
+      .eq('id', sale.id)
+
+    if (updateError) {
+      console.error('Error updating cost_recovered:', updateError)
+      setSales(sales.map(s => s.id === sale.id ? { ...s, cost_recovered: false } : s))
+      setTransferModal(null)
+      return
+    }
+
+    // bulk_salesに転記
+    const insertData: Record<string, unknown> = {
+      product_name: sale.product_name,
+      brand_name: sale.brand_name,
+      category: sale.category,
+      image_url: sale.image_url,
+      purchase_price: sale.purchase_price,
+      sale_date: sale.sale_date,
+      sale_destination: sale.sale_destination,
+      quantity: 1,
+      sale_amount: sale.sale_price,
+      commission: sale.commission || 0,
+      shipping_cost: sale.shipping_cost || 0,
+      other_cost: sale.other_cost || 0,
+      deposit_amount: sale.deposit_amount,
+      listing_date: sale.listing_date,
+      memo: `手入力売上から転記 (ID: ${sale.id})`,
+    }
+
+    // 仕入別の場合はbulk_purchase_idを追加
+    if (targetPurchaseId) {
+      insertData.bulk_purchase_id = targetPurchaseId
+    }
+
+    const { error: insertError } = await supabase
+      .from('bulk_sales')
+      .insert(insertData)
+
+    if (insertError) {
+      console.error('Error inserting to bulk_sales:', JSON.stringify(insertError, null, 2))
+      alert('売上明細への転記に失敗しました: ' + (insertError.message || JSON.stringify(insertError)))
+      // チェックを戻す
+      setSales(sales.map(s => s.id === sale.id ? { ...s, cost_recovered: false } : s))
+      await supabase.from('manual_sales').update({ cost_recovered: false }).eq('id', sale.id)
+    } else {
+      alert(targetPurchaseId ? '仕入別の売上明細に転記しました' : '通算の売上明細に転記しました')
+    }
+
+    setTransferModal(null)
+  }
+
   // 集計
   const summary = useMemo(() => {
     const totalSales = filteredSales.reduce((sum, s) => sum + (s.sale_price || 0), 0)
@@ -705,12 +874,604 @@ export default function ManualSalesPage() {
   const purchasePlatforms = platforms.filter(p => p.type === 'purchase')
   const salePlatforms = platforms.filter(p => p.type === 'sale')
 
+  // CSVインポート用の列定義
+  const CSV_IMPORT_COLUMNS = [
+    { key: 'product_name', label: '商品名' },
+    { key: 'brand_name', label: 'ブランド' },
+    { key: 'category', label: 'ジャンル' },
+    { key: 'purchase_source', label: '仕入先' },
+    { key: 'sale_destination', label: '販路' },
+    { key: 'sale_price', label: '売価' },
+    { key: 'commission', label: '手数料' },
+    { key: 'shipping_cost', label: '送料' },
+    { key: 'other_cost', label: 'その他経費' },
+    { key: 'purchase_price', label: '原価' },
+    { key: 'purchase_total', label: '仕入総額' },
+    { key: 'deposit_amount', label: '入金額' },
+    { key: 'purchase_date', label: '仕入日' },
+    { key: 'listing_date', label: '出品日' },
+    { key: 'sale_date', label: '売却日' },
+    { key: 'memo', label: 'メモ' },
+    { key: 'image_url', label: '画像URL' },
+    { key: 'inventory_number', label: '管理番号' },
+  ]
+
+  const CSV_MAPPING_KEYWORDS: Record<string, string[]> = {
+    product_name: ['商品名', '品名', 'アイテム名', 'item_name', 'name', '商品', '品目'],
+    brand_name: ['ブランド', 'brand', 'メーカー', 'maker'],
+    category: ['カテゴリ', 'category', '種類', '分類', 'ジャンル', '商品区分', '区分'],
+    image_url: ['画像', 'image', 'photo', '写真', 'url'],
+    purchase_price: ['原価', '仕入値', '仕入れ値'],
+    purchase_total: ['仕入総額', '総額', 'total', '合計'],
+    sale_price: ['販売価格', '売価', '売値', '出品価格', 'selling_price'],
+    commission: ['手数料', 'commission', 'fee'],
+    shipping_cost: ['送料', 'shipping', '配送料'],
+    other_cost: ['経費', 'その他', 'other', '諸経費'],
+    deposit_amount: ['入金', '入金額', 'deposit'],
+    purchase_date: ['仕入日', '購入日', 'purchase_date', '取引日'],
+    listing_date: ['出品日', 'listing_date'],
+    sale_date: ['売却日', '販売日', 'sale_date', '売上日'],
+    purchase_source: ['仕入先', '仕入れ先', 'source', '出品者'],
+    sale_destination: ['販路', '販売先', '出品先', 'destination'],
+    memo: ['メモ', 'memo', 'note', '備考', 'コメント'],
+    inventory_number: ['管理番号', '番号', 'number', 'id'],
+  }
+
+  const autoMappingCSV = (headers: string[]): Record<string, string> => {
+    const result: Record<string, string> = {}
+    headers.forEach(header => {
+      // 全角スペースも除去
+      const lowerHeader = header.toLowerCase().trim().replace(/[\s　]+/g, '')
+      for (const [column, keywords] of Object.entries(CSV_MAPPING_KEYWORDS)) {
+        const exactMatch = keywords.some(keyword => lowerHeader === keyword.toLowerCase())
+        if (exactMatch && !Object.values(result).includes(column)) {
+          result[header] = column
+          break
+        }
+      }
+    })
+    headers.forEach(header => {
+      if (result[header]) return
+      // 全角スペースも除去
+      const lowerHeader = header.toLowerCase().trim().replace(/[\s　]+/g, '')
+      for (const [column, keywords] of Object.entries(CSV_MAPPING_KEYWORDS)) {
+        if (Object.values(result).includes(column)) continue
+        for (const keyword of keywords) {
+          const cleanKeyword = keyword.toLowerCase().replace(/[\s　]+/g, '')
+          if (lowerHeader.includes(cleanKeyword) || cleanKeyword.includes(lowerHeader)) {
+            result[header] = column
+            break
+          }
+        }
+        if (result[header]) break
+      }
+    })
+    return result
+  }
+
+  const parseCSVDate = (value: string): string | null => {
+    if (!value) return null
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const formats = [
+      /^(\d{4})\/(\d{1,2})\/(\d{1,2})/,
+      /^(\d{4})-(\d{1,2})-(\d{1,2})/,
+      /^(\d{4})年(\d{1,2})月(\d{1,2})日/,
+    ]
+    for (const format of formats) {
+      const match = trimmed.match(format)
+      if (match) {
+        const year = parseInt(match[1])
+        const month = parseInt(match[2])
+        const day = parseInt(match[3])
+        if (year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        }
+      }
+    }
+    return trimmed
+  }
+
+  const parseCSVNumber = (value: string): number | null => {
+    if (!value) return null
+    // 括弧、円マーク、カンマ、パーセントを除去し、絶対値で返す
+    const cleaned = value.replace(/[\(（\)）,￥¥円$%％]/g, '').trim()
+    const num = parseFloat(cleaned)
+    if (isNaN(num)) return null
+    return Math.abs(num)
+  }
+
+  const handleCSVFileSelect = (file: File) => {
+    const showHeaderSelect = (text: string) => {
+      // 最初の10行をプレビュー用に取得
+      Papa.parse(text, {
+        header: false,
+        skipEmptyLines: true,
+        preview: 10,
+        complete: (results) => {
+          const rows = results.data as string[][]
+          if (rows.length === 0) {
+            alert('データがありません')
+            return
+          }
+          setCsvImportModal({
+            step: 'header-select',
+            csvHeaders: [],
+            csvData: [],
+            mapping: {},
+            progress: 0,
+            rawText: text,
+            headerRow: 1,
+            previewRows: rows,
+          })
+        }
+      })
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target?.result as string
+      const hasJapanese = /[あ-んア-ン一-龯]/.test(text)
+      const hasGarbage = /[\ufffd\u0000-\u001f]/.test(text) && !hasJapanese
+      if (hasGarbage || (!hasJapanese && text.includes('�'))) {
+        const sjisReader = new FileReader()
+        sjisReader.onload = (e) => {
+          const sjisText = e.target?.result as string
+          showHeaderSelect(sjisText)
+        }
+        sjisReader.readAsText(file, 'Shift_JIS')
+      } else {
+        showHeaderSelect(text)
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  // ヘッダー行を確定してマッピングステップへ進む
+  const confirmHeaderRow = () => {
+    if (!csvImportModal) return
+    const { rawText, headerRow } = csvImportModal
+
+    // 選択したヘッダー行より前の行をスキップしてパース
+    const lines = rawText.split('\n')
+    const textWithoutSkipped = lines.slice(headerRow - 1).join('\n')
+
+    Papa.parse(textWithoutSkipped, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const data = results.data as Record<string, string>[]
+        if (data.length === 0) {
+          alert('データがありません')
+          return
+        }
+        const headers = Object.keys(data[0] || {})
+        const autoMapped = autoMappingCSV(headers)
+        setCsvImportModal({
+          ...csvImportModal,
+          step: 'mapping',
+          csvHeaders: headers,
+          csvData: data,
+          mapping: autoMapped,
+        })
+      }
+    })
+  }
+
+  const executeCSVImport = async () => {
+    if (!csvImportModal) return
+    const { csvData, mapping } = csvImportModal
+
+    const mappedValues = Object.values(mapping).filter(v => v !== '')
+    const duplicates = mappedValues.filter((v, i, arr) => arr.indexOf(v) !== i)
+    if (duplicates.length > 0) {
+      const duplicateLabels = [...new Set(duplicates)].map(key =>
+        CSV_IMPORT_COLUMNS.find(col => col.key === key)?.label || key
+      )
+      alert(`マッピングが重複しています: ${duplicateLabels.join(', ')}`)
+      return
+    }
+
+    setCsvImportModal({ ...csvImportModal, step: 'importing', progress: 0 })
+
+    let success = 0
+    let failed = 0
+    const batchSize = 50
+
+    for (let i = 0; i < csvData.length; i += batchSize) {
+      const batch = csvData.slice(i, i + batchSize)
+
+      const records = batch.map(row => {
+        const record: Record<string, string | number | null> = {
+          sale_type: 'main',
+        }
+
+        Object.entries(mapping).forEach(([csvHeader, column]) => {
+          const value = row[csvHeader]
+          if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(column)) {
+            record[column] = parseCSVNumber(value)
+          } else if (['purchase_date', 'listing_date', 'sale_date'].includes(column)) {
+            record[column] = parseCSVDate(value)
+          } else {
+            record[column] = value || null
+          }
+        })
+
+        // 利益と利益率を計算
+        const salePrice = (record.sale_price as number) || 0
+        const purchaseTotal = (record.purchase_total as number) || (record.purchase_price as number) || 0
+        const commission = (record.commission as number) || 0
+        const shippingCost = (record.shipping_cost as number) || 0
+        const otherCost = (record.other_cost as number) || 0
+        const profit = salePrice - purchaseTotal - commission - shippingCost - otherCost
+        const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+
+        record.profit = profit
+        record.profit_rate = profitRate
+
+        return record
+      }).filter(record => record.product_name)
+
+      if (records.length === 0) continue
+
+      const { error } = await supabase.from('manual_sales').insert(records)
+      if (error) {
+        console.error('Import error:', error.message, error.code, error.details, error.hint)
+        console.error('Sample record:', records[0])
+        // 最初のエラーでアラート
+        if (failed === 0) {
+          alert(`インポートエラー: ${error.message}\nコード: ${error.code || 'なし'}\nヒント: ${error.hint || 'なし'}\n詳細: ${error.details || 'なし'}\n\nサンプルレコード:\n${JSON.stringify(records[0], null, 2).substring(0, 500)}`)
+        }
+        failed += records.length
+      } else {
+        success += records.length
+      }
+
+      setCsvImportModal(prev => prev ? { ...prev, progress: Math.round(((i + batch.length) / csvData.length) * 100) } : null)
+    }
+
+    setCsvImportModal(null)
+    const skipped = csvData.length - success - failed
+    alert(`インポート完了: ${success}件成功${failed > 0 ? `、${failed}件失敗` : ''}${skipped > 0 ? `、${skipped}件スキップ` : ''}`)
+
+    // データを再取得
+    const { data: newData } = await supabase
+      .from('manual_sales')
+      .select('*')
+      .order('sale_date', { ascending: false })
+    if (newData) {
+      setSales(newData)
+    }
+  }
+
+  // コピペ機能 - visibleColumnsを使用（colIndexは表示列のインデックス）
+  const handleCellMouseDown = (rowIndex: number, colIndex: number, e: React.MouseEvent) => {
+    console.log('handleCellMouseDown:', { rowIndex, colIndex, button: e.button, editingCell })
+    if (e.button !== 0) return // 左クリックのみ
+    if (editingCell) return // 編集中は無視
+
+    setIsDragging(true)
+    setSelectionRange({
+      startRow: rowIndex,
+      startCol: colIndex,
+      endRow: rowIndex,
+      endCol: colIndex,
+    })
+    console.log('selectionRange set:', { startRow: rowIndex, startCol: colIndex, endRow: rowIndex, endCol: colIndex })
+  }
+
+  const handleCellMouseEnter = (rowIndex: number, colIndex: number) => {
+    console.log('handleCellMouseEnter:', { rowIndex, colIndex, isDragging, selectionRange })
+    if (!isDragging || !selectionRange) return
+
+    setSelectionRange(prev => prev ? {
+      ...prev,
+      endRow: rowIndex,
+      endCol: colIndex,
+    } : null)
+    console.log('selectionRange updated to:', { startRow: selectionRange.startRow, startCol: selectionRange.startCol, endRow: rowIndex, endCol: colIndex })
+  }
+
+  // ドラッグ終了
+  useEffect(() => {
+    const handleMouseUp = () => {
+      console.log('handleMouseUp:', { isDragging, selectionRange })
+      if (isDragging) {
+        setIsDragging(false)
+        console.log('isDragging set to false, selectionRange preserved:', selectionRange)
+      }
+    }
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [isDragging, selectionRange])
+
+  // 範囲内のセルかどうかチェック
+  const isCellInRange = (rowIndex: number, colIndex: number): boolean => {
+    if (!selectionRange) return false
+    const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
+    const maxRow = Math.max(selectionRange.startRow, selectionRange.endRow)
+    const minCol = Math.min(selectionRange.startCol, selectionRange.endCol)
+    const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
+    return rowIndex >= minRow && rowIndex <= maxRow && colIndex >= minCol && colIndex <= maxCol
+  }
+
+  // ペースト処理
+  const pasteToSelectedCells = useCallback(async (clipboardText: string) => {
+    if (!selectionRange) return
+
+    const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
+    const maxRow = Math.max(selectionRange.startRow, selectionRange.endRow)
+    const minCol = Math.min(selectionRange.startCol, selectionRange.endCol)
+    const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
+
+    const pasteRows = clipboardText.split('\n').filter(row => row.trim() !== '')
+    const pasteData = pasteRows.map(row => row.split('\t'))
+    const pasteRowCount = pasteData.length
+    const pasteColCount = pasteData[0]?.length || 1
+
+    const updates: { id: string; field: string; value: string | number | null }[] = []
+
+    // UIを先に更新
+    const newSales = [...sales]
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const pasteRowIndex = (r - minRow) % pasteRowCount
+        const pasteColIndex = (c - minCol) % pasteColCount
+        const pasteValue = pasteData[pasteRowIndex]?.[pasteColIndex] || ''
+        const col = visibleColumns[c]
+        const sale = filteredSales[r]
+        if (!sale || !col || !col.editable) continue
+
+        const colKey = col.key
+        const saleIndex = newSales.findIndex(s => s.id === sale.id)
+        if (saleIndex === -1) continue
+
+        const numericFields = ['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount']
+        let parsedValue: string | number | null = pasteValue
+        if (numericFields.includes(colKey)) {
+          parsedValue = parseCSVNumber(pasteValue)
+        } else if (pasteValue === '') {
+          parsedValue = null
+        }
+
+        (newSales[saleIndex] as Record<string, unknown>)[colKey] = parsedValue
+        updates.push({ id: sale.id, field: colKey, value: parsedValue })
+      }
+    }
+    setSales(newSales)
+
+    // バッチでDB更新
+    const batchSize = 50
+    for (let i = 0; i < updates.length; i += batchSize) {
+      const batch = updates.slice(i, i + batchSize)
+      await Promise.all(batch.map(({ id, field, value }) =>
+        supabase.from('manual_sales').update({ [field]: value }).eq('id', id)
+      ))
+    }
+  }, [selectionRange, sales, filteredSales, visibleColumns])
+
+  // ペーストイベントリスナー
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (editingCell) return
+      const activeElement = document.activeElement
+      if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA' || activeElement?.tagName === 'SELECT') {
+        return
+      }
+      if (selectionRange) {
+        e.preventDefault()
+        const clipboardText = e.clipboardData?.getData('text')
+        if (clipboardText) {
+          pasteToSelectedCells(clipboardText)
+        }
+      }
+    }
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [selectionRange, editingCell, pasteToSelectedCells])
+
+  // 選択セルをコピー
+  const copySelectedCells = useCallback(() => {
+    if (!selectionRange) {
+      console.log('copySelectedCells: no selectionRange')
+      return
+    }
+
+    const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
+    const maxRow = Math.max(selectionRange.startRow, selectionRange.endRow)
+    const minCol = Math.min(selectionRange.startCol, selectionRange.endCol)
+    const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
+
+    console.log('copySelectedCells:', { minRow, maxRow, minCol, maxCol })
+
+    const rows: string[] = []
+    for (let r = minRow; r <= maxRow; r++) {
+      const sale = filteredSales[r]
+      if (!sale) continue
+
+      const cols: string[] = []
+      for (let c = minCol; c <= maxCol; c++) {
+        const col = visibleColumns[c]
+        if (!col) continue
+
+        const field = col.key
+        let value = ''
+
+        // 計算列の処理
+        if (field === 'profit') {
+          const profit = calculateProfit(sale)
+          value = String(profit)
+        } else if (field === 'profit_rate') {
+          const profitRate = calculateProfitRate(sale)
+          value = `${profitRate}%`
+        } else if (field === 'turnover_days') {
+          const turnoverDays = calculateTurnoverDays(sale)
+          value = turnoverDays !== null ? String(turnoverDays) : ''
+        } else if (field === 'no') {
+          value = String(r + 1)
+        } else if (field === 'cost_recovered') {
+          const profit = calculateProfit(sale)
+          const purchaseTotal = sale.purchase_total || sale.purchase_price || 0
+          const costRecovered = purchaseTotal > 0 ? profit >= purchaseTotal : false
+          value = costRecovered ? '〇' : '✕'
+        } else if (field in sale) {
+          const cellValue = sale[field as keyof ManualSale]
+          value = cellValue !== null && cellValue !== undefined ? String(cellValue) : ''
+        }
+        cols.push(value)
+        console.log(`copySelectedCells: field=${field}, value=${value}`)
+      }
+      rows.push(cols.join('\t'))
+    }
+
+    const text = rows.join('\n')
+    console.log('copySelectedCells: copying text:', text)
+    navigator.clipboard.writeText(text).then(() => {
+      console.log('copySelectedCells: copy success!')
+    }).catch(err => {
+      console.error('Copy failed:', err)
+    })
+  }, [selectionRange, filteredSales, visibleColumns])
+
+  // Ctrl+C でコピー
+  useEffect(() => {
+    const handleCopyKey = (e: KeyboardEvent) => {
+      console.log('Copy key pressed', { selectionRange, ctrlKey: e.ctrlKey, metaKey: e.metaKey, key: e.key })
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectionRange) {
+        // 編集中は無視
+        if (editingCell) return
+        const activeElement = document.activeElement
+        if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA' || activeElement?.tagName === 'SELECT') {
+          return
+        }
+        e.preventDefault()
+        console.log('Copying selected cells...')
+        copySelectedCells()
+      }
+    }
+    document.addEventListener('keydown', handleCopyKey)
+    return () => document.removeEventListener('keydown', handleCopyKey)
+  }, [selectionRange, editingCell, copySelectedCells])
+
+  // 選択セルの削除
+  const deleteSelectedCells = useCallback(async () => {
+    if (!selectionRange) return
+
+    const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
+    const maxRow = Math.max(selectionRange.startRow, selectionRange.endRow)
+    const minCol = Math.min(selectionRange.startCol, selectionRange.endCol)
+    const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
+
+    // 編集不可フィールド
+    const nonEditableFields = ['id', 'created_at', 'no', 'image_url', 'profit', 'profit_rate', 'turnover_days', 'cost_recovered', 'actions']
+
+    // 更新対象を収集
+    const updates: { id: string; field: string; value: null }[] = []
+    // 履歴用の変更記録
+    const historyChanges: { id: string; field: keyof ManualSale; oldValue: unknown; newValue: unknown }[] = []
+
+    // UIを先に更新
+    const newSales = [...sales]
+    for (let r = minRow; r <= maxRow; r++) {
+      const sale = filteredSales[r]
+      if (!sale) continue
+
+      for (let c = minCol; c <= maxCol; c++) {
+        const col = visibleColumns[c]
+        if (!col || !col.editable) continue
+
+        const field = col.key
+        if (nonEditableFields.includes(field)) continue
+
+        const saleIndex = newSales.findIndex(s => s.id === sale.id)
+        if (saleIndex === -1) continue
+
+        const oldValue = sale[field as keyof ManualSale]
+        if (oldValue !== null) {
+          historyChanges.push({ id: sale.id, field: field as keyof ManualSale, oldValue, newValue: null })
+        }
+
+        (newSales[saleIndex] as Record<string, unknown>)[field] = null
+        updates.push({ id: sale.id, field, value: null })
+      }
+    }
+
+    if (updates.length === 0) return
+
+    // UIを更新
+    setSales(newSales)
+
+    // 履歴に追加
+    if (historyChanges.length > 0) {
+      setUndoHistory(prev => [...prev, ...historyChanges])
+    }
+
+    // バッチでDB更新
+    const batchSize = 50
+    for (let i = 0; i < updates.length; i += batchSize) {
+      const batch = updates.slice(i, i + batchSize)
+      await Promise.all(batch.map(({ id, field }) =>
+        supabase.from('manual_sales').update({ [field]: null }).eq('id', id)
+      ))
+    }
+  }, [selectionRange, sales, filteredSales, visibleColumns])
+
+  // Delete/Backspaceで選択セルを削除
+  useEffect(() => {
+    const handleDeleteKey = (e: KeyboardEvent) => {
+      // 編集中は無視
+      if (editingCell) return
+      // 入力フィールドにフォーカスがある場合は無視
+      const activeElement = document.activeElement
+      if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA' || activeElement?.tagName === 'SELECT') {
+        return
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectionRange) {
+        e.preventDefault()
+        deleteSelectedCells()
+      }
+    }
+    document.addEventListener('keydown', handleDeleteKey)
+    return () => document.removeEventListener('keydown', handleDeleteKey)
+  }, [selectionRange, editingCell, deleteSelectedCells])
+
+  // テーマに応じたクラス
+  const themeClasses = {
+    light: {
+      bg: 'bg-gray-50',
+      headerBg: 'bg-white',
+      cardBg: 'bg-white',
+      text: 'text-gray-900',
+      textMuted: 'text-gray-500',
+      border: 'border-gray-200',
+      tableBg: 'bg-white',
+      tableHeaderBg: 'bg-gray-100',
+      tableRowHover: 'hover:bg-gray-50',
+      input: 'bg-white text-gray-900 border-gray-300',
+    },
+    dark: {
+      bg: 'bg-slate-900',
+      headerBg: 'bg-slate-800',
+      cardBg: 'bg-slate-800',
+      text: 'text-white',
+      textMuted: 'text-slate-400',
+      border: 'border-slate-600',
+      tableBg: 'bg-slate-800',
+      tableHeaderBg: 'bg-slate-700',
+      tableRowHover: 'hover:bg-slate-700',
+      input: 'bg-slate-700 text-white border-slate-600',
+    },
+  }
+
+  const t = themeClasses['light']
+
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-slate-900">
+      <div className={`min-h-screen ${t.bg}`}>
         <Navigation />
         <div className="pt-14 flex items-center justify-center min-h-screen">
-          <div className="text-white">読み込み中...</div>
+          <div className={t.text}>読み込み中...</div>
         </div>
       </div>
     )
@@ -718,35 +1479,81 @@ export default function ManualSalesPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-900">
+      <div className={`min-h-screen ${t.bg}`}>
         <Navigation />
         <div className="pt-14 flex items-center justify-center min-h-screen">
-          <div className="text-white">ログインしてください</div>
+          <div className={t.text}>ログインしてください</div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className={`min-h-screen ${t.bg}`}>
       <Navigation />
       <div className="pt-14 px-4 py-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-white">手入力売上表</h1>
-          <div className="flex items-center gap-2">
-            <label className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 cursor-pointer">
+          <h1 className="text-2xl font-bold text-gray-900">手入力売上表</h1>
+          <div className="flex items-center gap-3">
+            {/* 列の編集ボタン */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColumnSettings(!showColumnSettings)}
+                className="px-3 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+              >
+                列の編集
+              </button>
+              {showColumnSettings && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowColumnSettings(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 min-w-[200px] max-h-[400px] overflow-y-auto">
+                    <div className="text-xs font-medium text-gray-500 mb-2">表示する列</div>
+                    {columns.filter(col => col.key !== 'no' && col.key !== 'actions').map(col => (
+                      <label key={col.key} className="flex items-center gap-2 py-1 hover:bg-gray-50 px-1 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!hiddenColumns.has(col.key)}
+                          onChange={() => {
+                            const newHidden = new Set(hiddenColumns)
+                            if (newHidden.has(col.key)) {
+                              newHidden.delete(col.key)
+                            } else {
+                              newHidden.add(col.key)
+                            }
+                            setHiddenColumns(newHidden)
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{col.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            {/* CSVインポートボタン */}
+            <input
+              type="file"
+              accept=".csv"
+              ref={csvInputRef}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  handleCSVFileSelect(file)
+                }
+                e.target.value = ''
+              }}
+            />
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              className="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+            >
               CSVインポート
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) handleCSVImport(file)
-                  e.target.value = ''
-                }}
-                className="hidden"
-              />
-            </label>
+            </button>
             <button
               onClick={() => setIsAdding(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -761,7 +1568,7 @@ export default function ManualSalesPage() {
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
-            className="px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded"
+            className={`px-3 py-2 ${t.input} border rounded`}
           >
             <option value="">全年</option>
             {availableYears.map(year => (
@@ -771,7 +1578,7 @@ export default function ManualSalesPage() {
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded"
+            className={`px-3 py-2 ${t.input} border rounded`}
           >
             <option value="">全月</option>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
@@ -782,27 +1589,27 @@ export default function ManualSalesPage() {
 
         {/* 集計 */}
         <div className="grid grid-cols-5 gap-4 mb-6">
-          <div className="bg-slate-800 p-4 rounded-lg">
-            <div className="text-slate-400 text-sm">件数</div>
-            <div className="text-white text-xl font-bold">{summary.count}件</div>
+          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-sm`}>件数</div>
+            <div className={`${t.text} text-xl font-bold`}>{summary.count}件</div>
           </div>
-          <div className="bg-slate-800 p-4 rounded-lg">
-            <div className="text-slate-400 text-sm">売上合計</div>
-            <div className="text-white text-xl font-bold">¥{summary.totalSales.toLocaleString()}</div>
+          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-sm`}>売上合計</div>
+            <div className={`${t.text} text-xl font-bold`}>¥{summary.totalSales.toLocaleString()}</div>
           </div>
-          <div className="bg-slate-800 p-4 rounded-lg">
-            <div className="text-slate-400 text-sm">仕入合計</div>
-            <div className="text-white text-xl font-bold">¥{summary.totalPurchase.toLocaleString()}</div>
+          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-sm`}>仕入合計</div>
+            <div className={`${t.text} text-xl font-bold`}>¥{summary.totalPurchase.toLocaleString()}</div>
           </div>
-          <div className="bg-slate-800 p-4 rounded-lg">
-            <div className="text-slate-400 text-sm">利益合計</div>
-            <div className={`text-xl font-bold ${summary.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-sm`}>利益合計</div>
+            <div className={`text-xl font-bold ${summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               ¥{summary.totalProfit.toLocaleString()}
             </div>
           </div>
-          <div className="bg-slate-800 p-4 rounded-lg">
-            <div className="text-slate-400 text-sm">平均利益率</div>
-            <div className={`text-xl font-bold ${summary.avgProfitRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-sm`}>平均利益率</div>
+            <div className={`text-xl font-bold ${summary.avgProfitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {summary.avgProfitRate}%
             </div>
           </div>
@@ -810,141 +1617,141 @@ export default function ManualSalesPage() {
 
         {/* 新規追加フォーム */}
         {isAdding && (
-          <div className="bg-slate-800 p-4 rounded-lg mb-6">
-            <h2 className="text-lg font-bold text-white mb-4">新規売上追加</h2>
+          <div className={`${t.cardBg} p-4 rounded-lg mb-6 shadow-sm border ${t.border}`}>
+            <h2 className={`text-lg font-bold ${t.text} mb-4`}>新規売上追加</h2>
             <div className="grid grid-cols-6 gap-4">
               <div>
-                <label className="text-slate-400 text-sm">管理番号</label>
+                <label className={`${t.textMuted} text-sm`}>管理番号</label>
                 <input
                   type="text"
                   value={newSale.inventory_number || ''}
                   onChange={(e) => setNewSale({ ...newSale, inventory_number: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div className="col-span-2">
-                <label className="text-slate-400 text-sm">商品名 *</label>
+                <label className={`${t.textMuted} text-sm`}>商品名 *</label>
                 <input
                   type="text"
                   value={newSale.product_name || ''}
                   onChange={(e) => setNewSale({ ...newSale, product_name: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">ブランド</label>
+                <label className={`${t.textMuted} text-sm`}>ブランド</label>
                 <input
                   type="text"
                   value={newSale.brand_name || ''}
                   onChange={(e) => setNewSale({ ...newSale, brand_name: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">カテゴリ</label>
+                <label className={`${t.textMuted} text-sm`}>カテゴリ</label>
                 <input
                   type="text"
                   value={newSale.category || ''}
                   onChange={(e) => setNewSale({ ...newSale, category: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">仕入原価</label>
+                <label className={`${t.textMuted} text-sm`}>仕入原価</label>
                 <input
                   type="number"
                   value={newSale.purchase_price || ''}
                   onChange={(e) => setNewSale({ ...newSale, purchase_price: parseInt(e.target.value) || null })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">仕入合計</label>
+                <label className={`${t.textMuted} text-sm`}>仕入合計</label>
                 <input
                   type="number"
                   value={newSale.purchase_total || ''}
                   onChange={(e) => setNewSale({ ...newSale, purchase_total: parseInt(e.target.value) || null })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">売価</label>
+                <label className={`${t.textMuted} text-sm`}>売価</label>
                 <input
                   type="number"
                   value={newSale.sale_price || ''}
                   onChange={(e) => setNewSale({ ...newSale, sale_price: parseInt(e.target.value) || null })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">手数料</label>
+                <label className={`${t.textMuted} text-sm`}>手数料</label>
                 <input
                   type="number"
                   value={newSale.commission || ''}
                   onChange={(e) => setNewSale({ ...newSale, commission: parseInt(e.target.value) || null })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">送料</label>
+                <label className={`${t.textMuted} text-sm`}>送料</label>
                 <input
                   type="number"
                   value={newSale.shipping_cost || ''}
                   onChange={(e) => setNewSale({ ...newSale, shipping_cost: parseInt(e.target.value) || null })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">その他経費</label>
+                <label className={`${t.textMuted} text-sm`}>その他経費</label>
                 <input
                   type="number"
                   value={newSale.other_cost || ''}
                   onChange={(e) => setNewSale({ ...newSale, other_cost: parseInt(e.target.value) || null })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">入金額</label>
+                <label className={`${t.textMuted} text-sm`}>入金額</label>
                 <input
                   type="number"
                   value={newSale.deposit_amount || ''}
                   onChange={(e) => setNewSale({ ...newSale, deposit_amount: parseInt(e.target.value) || null })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">仕入日</label>
+                <label className={`${t.textMuted} text-sm`}>仕入日</label>
                 <input
                   type="date"
                   value={newSale.purchase_date || ''}
                   onChange={(e) => setNewSale({ ...newSale, purchase_date: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">出品日</label>
+                <label className={`${t.textMuted} text-sm`}>出品日</label>
                 <input
                   type="date"
                   value={newSale.listing_date || ''}
                   onChange={(e) => setNewSale({ ...newSale, listing_date: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">販売日</label>
+                <label className={`${t.textMuted} text-sm`}>販売日</label>
                 <input
                   type="date"
                   value={newSale.sale_date || ''}
                   onChange={(e) => setNewSale({ ...newSale, sale_date: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
               <div>
-                <label className="text-slate-400 text-sm">仕入先</label>
+                <label className={`${t.textMuted} text-sm`}>仕入先</label>
                 <select
                   value={newSale.purchase_source || ''}
                   onChange={(e) => setNewSale({ ...newSale, purchase_source: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 >
                   <option value="">選択</option>
                   {purchasePlatforms.map(p => (
@@ -953,11 +1760,11 @@ export default function ManualSalesPage() {
                 </select>
               </div>
               <div>
-                <label className="text-slate-400 text-sm">販路</label>
+                <label className={`${t.textMuted} text-sm`}>販路</label>
                 <select
                   value={newSale.sale_destination || ''}
                   onChange={(e) => setNewSale({ ...newSale, sale_destination: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 >
                   <option value="">選択</option>
                   {salePlatforms.map(p => (
@@ -966,12 +1773,12 @@ export default function ManualSalesPage() {
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="text-slate-400 text-sm">メモ</label>
+                <label className={`${t.textMuted} text-sm`}>メモ</label>
                 <input
                   type="text"
                   value={newSale.memo || ''}
                   onChange={(e) => setNewSale({ ...newSale, memo: e.target.value })}
-                  className="w-full px-2 py-1 bg-slate-700 text-white border border-slate-600 rounded"
+                  className={`w-full px-2 py-1 ${t.input} border rounded`}
                 />
               </div>
             </div>
@@ -987,7 +1794,7 @@ export default function ManualSalesPage() {
                   setIsAdding(false)
                   setNewSale({ sale_type: 'main' })
                 }}
-                className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-500"
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
               >
                 キャンセル
               </button>
@@ -996,406 +1803,265 @@ export default function ManualSalesPage() {
         )}
 
         {/* テーブル */}
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}>
           <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-slate-700">
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">No</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">管理番号</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">画像</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">ジャンル</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">ブランド名</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">商品名</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">仕入先</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">販売先</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">売価</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">手数料</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">送料</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">その他</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">原価</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">仕入総額</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">入金額</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">利益</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">利益率</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">仕入日</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">出品日</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">売却日</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">回転日数</th>
-                <th className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">操作</th>
+            <thead className="bg-slate-700">
+              <tr>
+                {visibleColumns.map(col => (
+                  <th key={col.key} className="px-3 py-2 text-center text-sm font-medium text-white border border-slate-600 whitespace-nowrap">
+                    {col.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {filteredSales.map((sale, index) => (
-                <tr key={sale.id} className="hover:bg-slate-800">
-                  {/* No */}
-                  <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                    {index + 1}
-                  </td>
-                  {/* 管理番号 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'inventory_number')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'inventory_number' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.inventory_number || '-'
-                    )}
-                  </td>
-                  {/* 画像 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => openImageModal(sale)}
-                  >
-                    {sale.image_url ? (
-                      <img
-                        src={sale.image_url}
-                        alt=""
-                        className="w-10 h-10 object-cover mx-auto rounded"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none'
-                        }}
-                      />
-                    ) : (
-                      <span className="text-slate-500">+</span>
-                    )}
-                  </td>
-                  {/* ジャンル */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'category')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'category' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.category || '-'
-                    )}
-                  </td>
-                  {/* ブランド名 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'brand_name')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'brand_name' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.brand_name || '-'
-                    )}
-                  </td>
-                  {/* 商品名 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'product_name')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'product_name' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.product_name || '-'
-                    )}
-                  </td>
-                  {/* 仕入先 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'purchase_source')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_source' ? (
-                      <select
-                        ref={(el) => { editCellRef.current = el }}
-                        value={editValue}
-                        onChange={(e) => {
-                          setEditValue(e.target.value)
-                          setTimeout(() => saveEditingCell(), 0)
-                        }}
-                        onKeyDown={handleKeyDown}
-                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      >
-                        <option value="">選択</option>
-                        {purchasePlatforms.map(p => (
-                          <option key={p.id} value={p.name}>{p.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      sale.purchase_source || '-'
-                    )}
-                  </td>
-                  {/* 販売先 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'sale_destination')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'sale_destination' ? (
-                      <select
-                        ref={(el) => { editCellRef.current = el }}
-                        value={editValue}
-                        onChange={(e) => {
-                          setEditValue(e.target.value)
-                          setTimeout(() => saveEditingCell(), 0)
-                        }}
-                        onKeyDown={handleKeyDown}
-                        className="w-full px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      >
-                        <option value="">選択</option>
-                        {salePlatforms.map(p => (
-                          <option key={p.id} value={p.name}>{p.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      sale.sale_destination || '-'
-                    )}
-                  </td>
-                  {/* 売価 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'sale_price')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'sale_price' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.sale_price?.toLocaleString() || '-'
-                    )}
-                  </td>
-                  {/* 手数料 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'commission')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'commission' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.commission?.toLocaleString() || '-'
-                    )}
-                  </td>
-                  {/* 送料 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'shipping_cost')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'shipping_cost' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.shipping_cost?.toLocaleString() || '-'
-                    )}
-                  </td>
-                  {/* その他 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'other_cost')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'other_cost' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.other_cost?.toLocaleString() || '-'
-                    )}
-                  </td>
-                  {/* 原価 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'purchase_price')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_price' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.purchase_price?.toLocaleString() || '-'
-                    )}
-                  </td>
-                  {/* 仕入総額 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'purchase_total')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_total' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.purchase_total?.toLocaleString() || '-'
-                    )}
-                  </td>
-                  {/* 入金額 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'deposit_amount')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'deposit_amount' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-20 px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.deposit_amount?.toLocaleString() || '-'
-                    )}
-                  </td>
-                  {/* 利益（自動計算） */}
-                  <td className={`px-3 py-2 text-center text-sm border border-slate-600 whitespace-nowrap ${(sale.profit || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {sale.profit?.toLocaleString() || '-'}
-                  </td>
-                  {/* 利益率（自動計算） */}
-                  <td className={`px-3 py-2 text-center text-sm border border-slate-600 whitespace-nowrap ${(sale.profit_rate || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}
-                  </td>
-                  {/* 仕入日 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'purchase_date')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'purchase_date' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="date"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.purchase_date || '-'
-                    )}
-                  </td>
-                  {/* 出品日 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'listing_date')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'listing_date' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="date"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.listing_date || '-'
-                    )}
-                  </td>
-                  {/* 売却日 */}
-                  <td
-                    className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap cursor-pointer hover:bg-slate-700"
-                    onClick={() => handleCellClick(sale, 'sale_date')}
-                  >
-                    {editingCell?.id === sale.id && editingCell?.field === 'sale_date' ? (
-                      <input
-                        ref={(el) => { editCellRef.current = el }}
-                        type="date"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="px-1 py-0.5 bg-slate-700 text-white border border-blue-500 rounded text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      sale.sale_date || '-'
-                    )}
-                  </td>
-                  {/* 回転日数（自動計算） */}
-                  <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                    {sale.turnover_days ?? '-'}
-                  </td>
-                  {/* 操作 */}
-                  <td className="px-3 py-2 text-center text-sm text-white border border-slate-600 whitespace-nowrap">
-                    <button
-                      onClick={() => handleDelete(sale.id)}
-                      className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+              {filteredSales.map((sale, rowIndex) => {
+                // セルのレンダリング用ヘルパー関数
+                const renderEditableCell = (field: keyof ManualSale, colIndex: number, value: React.ReactNode, inputType: 'text' | 'number' | 'date' = 'text') => {
+                  const isEditing = editingCell?.id === sale.id && editingCell?.field === field
+                  const isSelected = isSelectedCell(sale.id, field)
+                  const inRange = isCellInRange(rowIndex, colIndex)
+                  const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
+                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
+
+                  return (
+                    <td
+                      className={cellClass}
+                      onClick={() => handleCellClick(sale, field)}
+                      onDoubleClick={() => handleCellDoubleClick(sale, field)}
+                      onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                      onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                     >
-                      削除
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {isEditing ? (
+                        <input
+                          ref={(el) => { editCellRef.current = el }}
+                          type={inputType}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          className={`w-full px-1 py-0.5 ${t.input} border border-blue-500 rounded text-sm`}
+                          autoFocus
+                        />
+                      ) : (
+                        value
+                      )}
+                    </td>
+                  )
+                }
+
+                const renderSelectCell = (field: keyof ManualSale, colIndex: number, value: string | null, options: Platform[]) => {
+                  const isEditing = editingCell?.id === sale.id && editingCell?.field === field
+                  const isSelected = isSelectedCell(sale.id, field)
+                  const inRange = isCellInRange(rowIndex, colIndex)
+                  const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
+                  const cellClass = `px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
+
+                  return (
+                    <td
+                      className={cellClass}
+                      onClick={() => handleCellClick(sale, field)}
+                      onDoubleClick={() => handleCellDoubleClick(sale, field)}
+                      onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                      onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                    >
+                      {isEditing ? (
+                        <select
+                          ref={(el) => { editCellRef.current = el }}
+                          value={editValue}
+                          onChange={(e) => {
+                            setEditValue(e.target.value)
+                            setTimeout(() => saveEditingCell(), 0)
+                          }}
+                          onKeyDown={handleKeyDown}
+                          className={`w-full px-1 py-0.5 ${t.input} border border-blue-500 rounded text-sm`}
+                          autoFocus
+                        >
+                          <option value="">選択</option>
+                          {options.map(p => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        value || '-'
+                      )}
+                    </td>
+                  )
+                }
+
+                // 各列をレンダリングする関数
+                const renderColumnCell = (colKey: string, colIndex: number) => {
+                  const inRange = isCellInRange(rowIndex, colIndex)
+                  const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
+
+                  switch (colKey) {
+                    case 'no':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                        >
+                          {rowIndex + 1}
+                        </td>
+                      )
+                    case 'inventory_number':
+                      return <React.Fragment key={colKey}>{renderEditableCell('inventory_number', colIndex, sale.inventory_number || '-')}</React.Fragment>
+                    case 'image_url':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap cursor-pointer ${t.tableRowHover} ${rangeClass} select-none`}
+                          onClick={() => openImageModal(sale)}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                        >
+                          {sale.image_url ? (
+                            <img
+                              src={sale.image_url}
+                              alt=""
+                              className="w-10 h-10 object-cover mx-auto rounded"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <span className={t.textMuted}>+</span>
+                          )}
+                        </td>
+                      )
+                    case 'category':
+                      return <React.Fragment key={colKey}>{renderEditableCell('category', colIndex, sale.category || '-')}</React.Fragment>
+                    case 'brand_name':
+                      return <React.Fragment key={colKey}>{renderEditableCell('brand_name', colIndex, sale.brand_name || '-')}</React.Fragment>
+                    case 'product_name':
+                      const isSelected = isSelectedCell(sale.id, 'product_name')
+                      const productName = sale.product_name || '-'
+                      const isLong = productName.length > 12
+                      const truncated = isLong ? productName.slice(0, 12) + '...' : productName
+                      const productCellClass = `px-3 py-2 text-left text-sm ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none`
+                      return (
+                        <td
+                          key={colKey}
+                          className={productCellClass}
+                          style={{ maxWidth: '180px' }}
+                          onClick={() => handleCellClick(sale, 'product_name')}
+                          onDoubleClick={() => handleCellDoubleClick(sale, 'product_name')}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                          title={productName !== '-' ? productName : undefined}
+                        >
+                          <span className="block truncate">{truncated}</span>
+                        </td>
+                      )
+                    case 'purchase_source':
+                      return <React.Fragment key={colKey}>{renderSelectCell('purchase_source', colIndex, sale.purchase_source, purchasePlatforms)}</React.Fragment>
+                    case 'sale_destination':
+                      return <React.Fragment key={colKey}>{renderSelectCell('sale_destination', colIndex, sale.sale_destination, salePlatforms)}</React.Fragment>
+                    case 'sale_price':
+                      return <React.Fragment key={colKey}>{renderEditableCell('sale_price', colIndex, sale.sale_price?.toLocaleString() || '-', 'number')}</React.Fragment>
+                    case 'commission':
+                      return <React.Fragment key={colKey}>{renderEditableCell('commission', colIndex, sale.commission?.toLocaleString() || '-', 'number')}</React.Fragment>
+                    case 'shipping_cost':
+                      return <React.Fragment key={colKey}>{renderEditableCell('shipping_cost', colIndex, sale.shipping_cost?.toLocaleString() || '-', 'number')}</React.Fragment>
+                    case 'other_cost':
+                      return <React.Fragment key={colKey}>{renderEditableCell('other_cost', colIndex, sale.other_cost?.toLocaleString() || '-', 'number')}</React.Fragment>
+                    case 'purchase_price':
+                      return <React.Fragment key={colKey}>{renderEditableCell('purchase_price', colIndex, sale.purchase_price?.toLocaleString() || '-', 'number')}</React.Fragment>
+                    case 'purchase_total':
+                      return <React.Fragment key={colKey}>{renderEditableCell('purchase_total', colIndex, sale.purchase_total?.toLocaleString() || '-', 'number')}</React.Fragment>
+                    case 'deposit_amount':
+                      return <React.Fragment key={colKey}>{renderEditableCell('deposit_amount', colIndex, sale.deposit_amount?.toLocaleString() || '-', 'number')}</React.Fragment>
+                    case 'profit':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-3 py-2 text-center text-sm border ${t.border} whitespace-nowrap ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                        >
+                          {sale.profit?.toLocaleString() || '-'}
+                        </td>
+                      )
+                    case 'profit_rate':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-3 py-2 text-center text-sm border ${t.border} whitespace-nowrap ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                        >
+                          {sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}
+                        </td>
+                      )
+                    case 'purchase_date':
+                      return <React.Fragment key={colKey}>{renderEditableCell('purchase_date', colIndex, sale.purchase_date || '-', 'date')}</React.Fragment>
+                    case 'listing_date':
+                      return <React.Fragment key={colKey}>{renderEditableCell('listing_date', colIndex, sale.listing_date || '-', 'date')}</React.Fragment>
+                    case 'sale_date':
+                      return <React.Fragment key={colKey}>{renderEditableCell('sale_date', colIndex, sale.sale_date || '-', 'date')}</React.Fragment>
+                    case 'memo':
+                      return <React.Fragment key={colKey}>{renderEditableCell('memo', colIndex, sale.memo || '-')}</React.Fragment>
+                    case 'turnover_days':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                        >
+                          {sale.turnover_days ?? '-'}
+                        </td>
+                      )
+                    case 'cost_recovered':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={sale.cost_recovered || false}
+                            onChange={(e) => handleCostRecoveredChange(sale, e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                      )
+                    case 'actions':
+                      return (
+                        <td
+                          key={colKey}
+                          className={`px-3 py-2 text-center text-sm ${t.text} border ${t.border} whitespace-nowrap ${rangeClass} select-none`}
+                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                        >
+                          <button
+                            onClick={() => handleDelete(sale.id)}
+                            className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                          >
+                            削除
+                          </button>
+                        </td>
+                      )
+                    default:
+                      return null
+                  }
+                }
+
+                return (
+                  <tr key={sale.id} className={t.tableRowHover}>
+                    {visibleColumns.map((col, colIndex) => renderColumnCell(col.key, colIndex))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
 
         {filteredSales.length === 0 && (
-          <div className="text-center text-slate-400 py-8">
+          <div className={`text-center ${t.textMuted} py-8`}>
             データがありません
           </div>
         )}
@@ -1564,60 +2230,247 @@ export default function ManualSalesPage() {
         </div>
       )}
 
-      {/* CSVインポートモーダル */}
-      {csvImportModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {csvImportModal.step === 'mapping' && 'CSVインポート - 列のマッピング'}
-                {csvImportModal.step === 'preview' && 'CSVインポート - プレビュー'}
-                {csvImportModal.step === 'importing' && 'インポート中...'}
-              </h3>
+      {/* 商品名編集バー（画面上部に固定表示） */}
+      {modalEdit && (
+        <div className="fixed top-14 left-0 right-0 z-[110] bg-white shadow-lg border-b">
+          <div className="px-4 py-3 flex items-center gap-4">
+            <span className="text-sm font-medium text-gray-600 whitespace-nowrap">商品名:</span>
+            <input
+              type="text"
+              value={modalEdit.value}
+              onChange={(e) => setModalEdit({ ...modalEdit, value: e.target.value })}
+              className="flex-1 px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  saveModalEdit()
+                } else if (e.key === 'Escape') {
+                  setModalEdit(null)
+                }
+              }}
+            />
+            <button
+              onClick={() => setModalEdit(null)}
+              className="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium whitespace-nowrap"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={saveModalEdit}
+              className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium whitespace-nowrap"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 転記先選択モーダル */}
+      {transferModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          onClick={() => setTransferModal(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">転記先を選択</h3>
+              <button
+                onClick={() => setTransferModal(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              {csvImportModal.step === 'mapping' && (
+            <p className="text-sm text-gray-600 mb-4">
+              「{transferModal.sale.product_name}」をどこに転記しますか？
+            </p>
+
+            <div className="space-y-3">
+              {/* 通算（売上明細のみ） */}
+              <button
+                onClick={() => executeTransfer(null)}
+                className="w-full px-4 py-3 text-left border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <div className="font-medium text-gray-900">通算（売上明細のみ）</div>
+                <div className="text-sm text-gray-500">まとめ仕入れに紐づけずに売上明細に追加</div>
+              </button>
+
+              {/* 仕入別 */}
+              {transferModal.bulkPurchases.length > 0 && (
+                <div className="border-t pt-3">
+                  <div className="text-sm font-medium text-gray-700 mb-2">仕入別（まとめ仕入れに紐づけ）</div>
+                  <div className="max-h-60 overflow-y-auto space-y-2">
+                    {transferModal.bulkPurchases.map((bp) => (
+                      <button
+                        key={bp.id}
+                        onClick={() => executeTransfer(bp.id)}
+                        className="w-full px-4 py-2 text-left border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                      >
+                        <div className="font-medium text-gray-900">{bp.genre}</div>
+                        <div className="text-sm text-gray-500">{bp.purchase_date}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {transferModal.bulkPurchases.length === 0 && (
+                <div className="text-sm text-gray-500 italic">
+                  まとめ仕入れがありません
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t">
+              <button
+                onClick={() => setTransferModal(null)}
+                className="w-full px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSVインポートモーダル */}
+      {csvImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">
+                {csvImportModal.step === 'header-select' && 'ヘッダー行の選択'}
+                {csvImportModal.step === 'mapping' && 'カラムマッピング'}
+                {csvImportModal.step === 'preview' && 'インポートプレビュー'}
+                {csvImportModal.step === 'importing' && 'インポート中...'}
+              </h2>
+              {csvImportModal.step !== 'importing' && (
+                <button
+                  onClick={() => setCsvImportModal(null)}
+                  className="text-gray-500 hover:text-gray-700 text-xl"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {csvImportModal.step === 'header-select' && (
                 <>
                   <p className="text-sm text-gray-600 mb-4">
-                    CSVの各列をどの項目にインポートするか選択してください（{csvImportModal.csvData.length}件）
+                    ヘッダー（列名）がある行をクリックしてください。<br />
+                    選択した行より上の行はスキップされます。
                   </p>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto border rounded">
                     <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-100">
-                          <th className="px-3 py-2 text-left font-semibold text-gray-900">CSV列名</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-900">サンプル値</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-900">インポート先</th>
-                        </tr>
-                      </thead>
                       <tbody>
-                        {csvImportModal.csvHeaders.map((header, index) => (
-                          <tr key={`header-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="px-3 py-2 text-gray-900 font-medium">{header}</td>
-                            <td className="px-3 py-2 text-gray-600 max-w-[200px] truncate">
-                              {csvImportModal.csvData[0]?.[header] || '-'}
+                        {csvImportModal.previewRows.map((row, rowIndex) => (
+                          <tr
+                            key={rowIndex}
+                            onClick={() => setCsvImportModal({ ...csvImportModal, headerRow: rowIndex + 1 })}
+                            className={`cursor-pointer transition-colors ${
+                              csvImportModal.headerRow === rowIndex + 1
+                                ? 'bg-blue-100 ring-2 ring-blue-500 ring-inset'
+                                : rowIndex + 1 < csvImportModal.headerRow
+                                ? 'bg-gray-100 text-gray-400'
+                                : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <td className="px-2 py-2 text-gray-400 text-xs w-8 text-right border-r">
+                              {rowIndex + 1}
                             </td>
-                            <td className="px-3 py-2">
-                              <select
-                                value={csvImportModal.mapping[header] || ''}
-                                onChange={(e) => setCsvImportModal({
-                                  ...csvImportModal,
-                                  mapping: { ...csvImportModal.mapping, [header]: e.target.value }
-                                })}
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
-                              >
-                                <option value="">-- 無視 --</option>
-                                {CSV_IMPORT_COLUMNS.map(col => (
-                                  <option key={col.key} value={col.key}>{col.label}</option>
-                                ))}
-                              </select>
-                            </td>
+                            {row.map((cell, cellIndex) => (
+                              <td key={cellIndex} className="px-3 py-2 text-gray-900 whitespace-nowrap max-w-[200px] truncate">
+                                {cell || <span className="text-gray-300">（空）</span>}
+                              </td>
+                            ))}
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                  <p className="mt-3 text-sm text-blue-600">
+                    選択中: {csvImportModal.headerRow}行目をヘッダーとして使用
+                    {csvImportModal.headerRow > 1 && (
+                      <span className="text-gray-500">（1〜{csvImportModal.headerRow - 1}行目はスキップ）</span>
+                    )}
+                  </p>
+                </>
+              )}
+
+              {csvImportModal.step === 'mapping' && (
+                <>
+                  {(() => {
+                    const productNameCol = Object.entries(csvImportModal.mapping).find(([, v]) => v === 'product_name')?.[0]
+                    const validCount = csvImportModal.csvData.filter(row =>
+                      productNameCol && row[productNameCol]?.trim()
+                    ).length
+                    const totalCount = csvImportModal.csvData.length
+                    return (
+                      <p className="text-sm text-gray-600 mb-4">
+                        CSVの各列を、どの項目に入れるか選んでください
+                        <br />
+                        <span className="font-medium">
+                          インポート対象: {validCount}件 / 全{totalCount}行
+                          {validCount < totalCount && <span className="text-orange-600">（{totalCount - validCount}行は商品名がないためスキップ）</span>}
+                        </span>
+                      </p>
+                    )
+                  })()}
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="px-3 py-2 text-left font-semibold text-gray-900">CSVの列</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-900">データ例</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-900">手入力売上の項目</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvImportModal.csvHeaders.map((header, index) => (
+                        <tr key={`header-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-3 py-2 text-gray-900 font-medium">{header}</td>
+                          <td className="px-3 py-2 text-gray-600 max-w-[200px] truncate">
+                            {csvImportModal.csvData[0]?.[header] || '-'}
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={csvImportModal.mapping[header] || ''}
+                              onChange={(e) => {
+                                const newMapping = { ...csvImportModal.mapping }
+                                if (e.target.value === '') {
+                                  delete newMapping[header]
+                                } else {
+                                  Object.keys(newMapping).forEach(key => {
+                                    if (newMapping[key] === e.target.value && key !== header) {
+                                      delete newMapping[key]
+                                    }
+                                  })
+                                  newMapping[header] = e.target.value
+                                }
+                                setCsvImportModal({ ...csvImportModal, mapping: newMapping })
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded bg-white text-gray-900"
+                            >
+                              <option value="">（インポートしない）</option>
+                              {CSV_IMPORT_COLUMNS.map(col => (
+                                <option key={col.key} value={col.key}>
+                                  {col.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </>
               )}
 
@@ -1653,11 +2506,18 @@ export default function ManualSalesPage() {
                       </tbody>
                     </table>
                   </div>
+                  <div className="mt-4 p-3 bg-yellow-50 rounded text-yellow-800 text-sm">
+                    <p className="font-medium mb-1">インポート前の確認:</p>
+                    <ul className="list-disc list-inside">
+                      <li>全{csvImportModal.csvData.length}件のデータがインポートされます</li>
+                      <li>既存データとの重複チェックは行われません</li>
+                    </ul>
+                  </div>
                 </>
               )}
 
               {csvImportModal.step === 'importing' && (
-                <div className="text-center py-8">
+                <div className="py-8 text-center">
                   <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
                     <div
                       className="bg-blue-600 h-4 rounded-full transition-all duration-300"
@@ -1670,32 +2530,50 @@ export default function ManualSalesPage() {
             </div>
 
             {csvImportModal.step !== 'importing' && (
-              <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
-                <button
-                  onClick={() => setCsvImportModal(null)}
-                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-                >
-                  キャンセル
-                </button>
+              <div className="p-4 border-t flex justify-between">
+                {csvImportModal.step === 'header-select' && (
+                  <>
+                    <button
+                      onClick={() => setCsvImportModal(null)}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={confirmHeaderRow}
+                      className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      次へ →
+                    </button>
+                  </>
+                )}
                 {csvImportModal.step === 'mapping' && (
-                  <button
-                    onClick={() => setCsvImportModal({ ...csvImportModal, step: 'preview' })}
-                    className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-                  >
-                    次へ
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setCsvImportModal({ ...csvImportModal, step: 'header-select' })}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                    >
+                      ← ヘッダー選択に戻る
+                    </button>
+                    <button
+                      onClick={() => setCsvImportModal({ ...csvImportModal, step: 'preview' })}
+                      className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      プレビュー →
+                    </button>
+                  </>
                 )}
                 {csvImportModal.step === 'preview' && (
                   <>
                     <button
                       onClick={() => setCsvImportModal({ ...csvImportModal, step: 'mapping' })}
-                      className="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                      className="px-4 py-2 text-gray-600 hover:text-gray-900"
                     >
-                      戻る
+                      ← マッピングに戻る
                     </button>
                     <button
                       onClick={executeCSVImport}
-                      className="px-4 py-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg"
+                      className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                     >
                       インポート実行
                     </button>
