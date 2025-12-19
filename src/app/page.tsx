@@ -376,7 +376,19 @@ export default function Home() {
   const [csvPurchaseDate, setCsvPurchaseDate] = useState<string>('')
   const [starBuyersImageCSV, setStarBuyersImageCSV] = useState<File | null>(null)
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  // URLパラメータから検索キーワードの初期値を取得
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '')
+  // 検索キーワード変更時にURLパラメータを更新
+  const updateSearchQuery = useCallback((value: string) => {
+    setSearchQuery(value)
+    const url = new URL(window.location.href)
+    if (value) {
+      url.searchParams.set('q', value)
+    } else {
+      url.searchParams.delete('q')
+    }
+    window.history.replaceState({}, '', url.toString())
+  }, [])
   // URLパラメータから初期フィルターを設定（ダッシュボードからのリンク対応）
   const initialQuickFilter = (): 'all' | 'unsold' | 'unlisted' | 'stale30' | 'stale90' => {
     const quickFilterParam = searchParams.get('quickFilter')
@@ -3179,7 +3191,7 @@ export default function Home() {
     return colors
   }, [masterPlatforms])
 
-  const saleDestinationColors = platformColors
+  const saleDestinationColors = { ...platformColors, '返品': 'bg-red-100 text-red-800' }
 
   // 有効な販路のみ表示（sort_order順）
   const platformOptions = useMemo(() => {
@@ -3189,7 +3201,7 @@ export default function Home() {
   }, [masterPlatforms])
 
   const visiblePlatformOptions = platformOptions.filter(p => !hiddenPlatforms.has(p))
-  const saleDestinationOptions = visiblePlatformOptions
+  const saleDestinationOptions = [...visiblePlatformOptions, '返品']
 
   // チップ列の幅を最長の名前に基づいて計算（仕入先・販売先で共通）
   const chipColumnWidth = useMemo(() => {
@@ -3497,12 +3509,12 @@ export default function Home() {
                   type="text"
                   placeholder="管理番号・商品名・ブランドで検索"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => updateSearchQuery(e.target.value)}
                   className="w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                 />
                 {searchQuery && (
                   <button
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => updateSearchQuery('')}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     ✕
@@ -4555,7 +4567,10 @@ export default function Home() {
                                 // 同じセルが選択されている場合は編集モードに入る
                                 if (selectedCell?.id === item.id && selectedCell?.field === 'purchase_source' && !selectionRange) {
                                   const rect = e.currentTarget.getBoundingClientRect()
-                                  setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                  const dropdownHeight = 300
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                  setDropdownPosition({ top, left: rect.left })
                                   startEditCell(item, 'purchase_source')
                                 } else {
                                   // 別のセルをクリックした場合は選択状態にする
@@ -4569,7 +4584,10 @@ export default function Home() {
                               }}
                               onDoubleClick={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect()
-                                setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                const dropdownHeight = 300
+                                const spaceBelow = window.innerHeight - rect.bottom
+                                const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                setDropdownPosition({ top, left: rect.left })
                                 setSelectedCell({ id: item.id, field: 'purchase_source' })
                                 setSelectionRange(null)
                                 startEditCell(item, 'purchase_source')
@@ -4600,7 +4618,10 @@ export default function Home() {
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
-                                      setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                      const dropdownHeight = 300
+                                      const spaceBelow = window.innerHeight - rect.bottom
+                                      const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                      setDropdownPosition({ top, left: rect.left })
                                       setSelectedCell({ id: item.id, field: 'purchase_source' })
                                       setSelectionRange(null)
                                       startEditCell(item, 'purchase_source')
@@ -4618,7 +4639,10 @@ export default function Home() {
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
-                                    setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                    const dropdownHeight = 300
+                                    const spaceBelow = window.innerHeight - rect.bottom
+                                    const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                    setDropdownPosition({ top, left: rect.left })
                                     setSelectedCell({ id: item.id, field: 'purchase_source' })
                                     setSelectionRange(null)
                                     startEditCell(item, 'purchase_source')
@@ -4736,7 +4760,10 @@ export default function Home() {
                                 // 同じセルが選択されている場合は編集モードに入る
                                 if (selectedCell?.id === item.id && selectedCell?.field === 'sale_destination' && !selectionRange) {
                                   const rect = e.currentTarget.getBoundingClientRect()
-                                  setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                  const dropdownHeight = 300
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                  setDropdownPosition({ top, left: rect.left })
                                   startEditCell(item, 'sale_destination')
                                 } else {
                                   // 別のセルをクリックした場合は選択状態にする
@@ -4750,7 +4777,10 @@ export default function Home() {
                               }}
                               onDoubleClick={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect()
-                                setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                const dropdownHeight = 300
+                                const spaceBelow = window.innerHeight - rect.bottom
+                                const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                setDropdownPosition({ top, left: rect.left })
                                 setSelectedCell({ id: item.id, field: 'sale_destination' })
                                 setSelectionRange(null)
                                 startEditCell(item, 'sale_destination')
@@ -4781,7 +4811,10 @@ export default function Home() {
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
-                                        setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                        const dropdownHeight = 300
+                                        const spaceBelow = window.innerHeight - rect.bottom
+                                        const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                        setDropdownPosition({ top, left: rect.left })
                                         setSelectedCell({ id: item.id, field: 'sale_destination' })
                                         setSelectionRange(null)
                                         startEditCell(item, 'sale_destination')
@@ -4799,7 +4832,10 @@ export default function Home() {
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
-                                      setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                                      const dropdownHeight = 300
+                                      const spaceBelow = window.innerHeight - rect.bottom
+                                      const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                      setDropdownPosition({ top, left: rect.left })
                                       setSelectedCell({ id: item.id, field: 'sale_destination' })
                                       setSelectionRange(null)
                                       startEditCell(item, 'sale_destination')
@@ -4830,8 +4866,18 @@ export default function Home() {
                                           if (e.key === 'Enter') {
                                             const value = (e.target as HTMLInputElement).value.trim()
                                             if (value) {
-                                              const { error } = await supabase.from('inventory').update({ sale_destination: value }).eq('id', item.id)
-                                              if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value } : inv))
+                                              // 「返品」の場合は出品日・売却日も「返品」に設定
+                                              if (value === '返品') {
+                                                const { error } = await supabase.from('inventory').update({
+                                                  sale_destination: value,
+                                                  listing_date: '返品',
+                                                  sale_date: '返品'
+                                                }).eq('id', item.id)
+                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value, listing_date: '返品', sale_date: '返品' } : inv))
+                                              } else {
+                                                const { error } = await supabase.from('inventory').update({ sale_destination: value }).eq('id', item.id)
+                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value } : inv))
+                                              }
                                             }
                                             setEditingCell(null)
                                             setEditValue('')
@@ -4864,8 +4910,18 @@ export default function Home() {
                                           onClick={async (e) => {
                                             e.stopPropagation()
                                             if (item.sale_destination !== option) {
-                                              const { error } = await supabase.from('inventory').update({ sale_destination: option }).eq('id', item.id)
-                                              if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option } : inv))
+                                              // 「返品」の場合は出品日・売却日も「返品」に設定
+                                              if (option === '返品') {
+                                                const { error } = await supabase.from('inventory').update({
+                                                  sale_destination: option,
+                                                  listing_date: '返品',
+                                                  sale_date: '返品'
+                                                }).eq('id', item.id)
+                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option, listing_date: '返品', sale_date: '返品' } : inv))
+                                              } else {
+                                                const { error } = await supabase.from('inventory').update({ sale_destination: option }).eq('id', item.id)
+                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option } : inv))
+                                              }
                                             }
                                             setEditingCell(null)
                                             setEditValue('')

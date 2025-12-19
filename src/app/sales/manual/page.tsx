@@ -38,7 +38,13 @@ type ManualSale = {
 type Platform = {
   id: string
   name: string
-  type: 'purchase' | 'sale'
+  color_class: string
+}
+
+type Supplier = {
+  id: string
+  name: string
+  color_class: string
 }
 
 // テーブルのカラム定義
@@ -72,14 +78,16 @@ export default function ManualSalesPage() {
   const { user, loading: authLoading } = useAuth()
   const [sales, setSales] = useState<ManualSale[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
-  const [isAdding, setIsAdding] = useState(false)
   // セル選択用の状態
   const [selectedCell, setSelectedCell] = useState<{ id: string; field: keyof ManualSale } | null>(null)
   // セル編集用の状態
   const [editingCell, setEditingCell] = useState<{ id: string; field: keyof ManualSale } | null>(null)
   const [editValue, setEditValue] = useState<string>('')
   const editCellRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null)
+  // ドロップダウン位置
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null)
   // 商品名モーダル編集用の状態
   const [modalEdit, setModalEdit] = useState<{ id: string; field: keyof ManualSale; value: string } | null>(null)
   // 画像編集モーダル用の状態
@@ -88,9 +96,6 @@ export default function ManualSalesPage() {
   const [isDraggingImage, setIsDraggingImage] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
-  const [newSale, setNewSale] = useState<Partial<ManualSale>>({
-    sale_type: 'main'
-  })
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'main' | 'bulk'>('all')
@@ -225,8 +230,8 @@ export default function ManualSalesPage() {
         const { data, error } = await supabase
           .from('manual_sales')
           .select('*')
-          .range(from, from + pageSize - 1)
           .order('sale_date', { ascending: false })
+          .range(from, from + pageSize - 1)
 
         if (error) {
           console.error('Error fetching manual sales:', error)
@@ -243,12 +248,24 @@ export default function ManualSalesPage() {
       }
       setSales(allSales)
 
-      // プラットフォーム取得
+      // プラットフォーム（販路）取得
       const { data: platformData } = await supabase
         .from('platforms')
-        .select('*')
+        .select('id, name, color_class')
+        .eq('is_active', true)
+        .order('sort_order')
       if (platformData) {
         setPlatforms(platformData)
+      }
+
+      // 仕入先取得
+      const { data: supplierData } = await supabase
+        .from('suppliers')
+        .select('id, name, color_class')
+        .eq('is_active', true)
+        .order('sort_order')
+      if (supplierData) {
+        setSuppliers(supplierData)
       }
 
       // ラクマ手数料設定取得
@@ -348,7 +365,10 @@ export default function ManualSalesPage() {
     const salePrice = sale.sale_price || 0
     if (salePrice === 0) return 0
     const profit = calculateProfit(sale)
-    return Math.round((profit / salePrice) * 100 * 10) / 10
+    let profitRate = Math.round((profit / salePrice) * 100 * 10) / 10
+    // NaN/Infinityチェックとクランプ（NUMERIC(5,1)制限: -9999.9〜9999.9）
+    if (!Number.isFinite(profitRate)) return 0
+    return Math.max(-9999.9, Math.min(9999.9, profitRate))
   }
 
   // 回転日数計算
@@ -684,7 +704,7 @@ export default function ManualSalesPage() {
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // モーダルが開いている場合は無視
-      if (isAdding || imageEditModal || modalEdit) return
+      if (imageEditModal || modalEdit) return
 
       // 編集中の場合は無視
       if (editingCell) return
@@ -755,42 +775,28 @@ export default function ManualSalesPage() {
 
     document.addEventListener('keydown', handleGlobalKeyDown)
     return () => document.removeEventListener('keydown', handleGlobalKeyDown)
-  }, [selectedCell, editingCell, filteredSales, editableColumns, isAdding, imageEditModal, modalEdit])
+  }, [selectedCell, editingCell, filteredSales, editableColumns, imageEditModal, modalEdit])
 
-  // 新規追加
-  const handleAdd = async () => {
-    if (!newSale.product_name) {
-      alert('商品名は必須です')
-      return
-    }
-
-    const profit = calculateProfit(newSale)
-    const profitRate = calculateProfitRate(newSale)
-    const turnoverDays = calculateTurnoverDays(newSale)
-
+  // 新規追加（空の行をDBに追加）
+  const handleAddNewRow = async () => {
     const { data, error } = await supabase
       .from('manual_sales')
       .insert([{
-        ...newSale,
-        profit,
-        profit_rate: profitRate,
-        turnover_days: turnoverDays,
-        purchase_date: normalizeDate(newSale.purchase_date || null),
-        listing_date: normalizeDate(newSale.listing_date || null),
-        sale_date: normalizeDate(newSale.sale_date || null),
+        product_name: '（新規）',
+        sale_type: 'main',
+        profit: 0,
+        profit_rate: 0,
       }])
       .select()
 
     if (error) {
-      console.error('Error adding sale:', error)
+      console.error('Error adding new row:', error)
       alert('追加に失敗しました: ' + error.message)
       return
     }
 
-    if (data) {
-      setSales([data[0], ...sales])
-      setNewSale({ sale_type: 'main' })
-      setIsAdding(false)
+    if (data && data.length > 0) {
+      setSales(prev => [data[0], ...prev])
     }
   }
 
@@ -973,20 +979,24 @@ export default function ManualSalesPage() {
       const shippingCost = sale.shipping_cost || 0
       const otherCost = sale.other_cost || 0
       const profit = salePrice - originalPurchaseTotal - commission - shippingCost - otherCost
-      const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+      let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+      // NaN/Infinityチェックとクランプ（NUMERIC(5,1)制限: -9999.9〜9999.9）
+      if (!Number.isFinite(profitRate)) profitRate = 0
+      profitRate = Math.max(-9999.9, Math.min(9999.9, profitRate))
+      const safeProfit = Number.isFinite(profit) ? profit : 0
 
       // manual_salesを更新（仕入総額・利益を元に戻す）
       setSales(sales.map(s => s.id === sale.id ? {
         ...s,
         cost_recovered: false,
         purchase_total: originalPurchaseTotal,
-        profit,
+        profit: safeProfit,
         profit_rate: profitRate
       } : s))
       await supabase.from('manual_sales').update({
         cost_recovered: false,
         purchase_total: originalPurchaseTotal,
-        profit,
+        profit: safeProfit,
         profit_rate: profitRate
       }).eq('id', sale.id)
       return
@@ -1095,8 +1105,19 @@ export default function ManualSalesPage() {
     return { totalSales, totalPurchase, totalProfit, avgProfitRate, count: filteredSales.length }
   }, [filteredSales])
 
-  const purchasePlatforms = platforms.filter(p => p.type === 'purchase')
-  const salePlatforms = platforms.filter(p => p.type === 'sale')
+  // 仕入先はsuppliersテーブルから、販路はplatformsテーブルから
+  const purchasePlatforms = suppliers
+  const salePlatforms = platforms
+
+  // チップ列の幅を最長の名前に基づいて計算
+  const chipColumnWidth = useMemo(() => {
+    const allNames = [...platforms.map(p => p.name), ...suppliers.map(s => s.name)]
+    if (allNames.length === 0) return 100 // デフォルト
+    const maxLength = Math.max(...allNames.map(name => name.length))
+    // 日本語1文字あたり約14px + パディング(24px) + 矢印(16px)
+    const calculatedWidth = maxLength * 14 + 40
+    return Math.max(80, Math.min(160, calculatedWidth)) // 80px〜160pxの範囲
+  }, [platforms, suppliers])
 
   // CSVインポート用の列定義
   const CSV_IMPORT_COLUMNS = [
@@ -1301,8 +1322,10 @@ export default function ManualSalesPage() {
     let success = 0
     let failed = 0
     const batchSize = 50
+    const totalRows = csvData.length
+    console.log(`CSVインポート開始: 全${totalRows}件`)
 
-    for (let i = 0; i < csvData.length; i += batchSize) {
+    for (let i = 0; i < totalRows; i += batchSize) {
       const batch = csvData.slice(i, i + batchSize)
 
       // データベースに確実に存在するカラムのみ許可
@@ -1353,10 +1376,16 @@ export default function ManualSalesPage() {
         const otherCost = (record.other_cost as number) || 0
         const profit = salePrice - purchaseTotal - commission - shippingCost - otherCost
         let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+        // NaN, Infinity, -Infinity をチェックして0にする
+        if (!Number.isFinite(profitRate)) {
+          profitRate = 0
+        }
         // データベースのNUMERIC(5,1)制限に合わせてクランプ (-9999.9〜9999.9)
         profitRate = Math.max(-9999.9, Math.min(9999.9, profitRate))
 
-        record.profit = profit
+        // profitもNaN/Infinityチェック
+        const safeProfit = Number.isFinite(profit) ? profit : 0
+        record.profit = safeProfit
         record.profit_rate = profitRate
 
         return record
@@ -1389,17 +1418,31 @@ export default function ManualSalesPage() {
     }
 
     setCsvImportModal(null)
-    const skipped = csvData.length - success - failed
-    alert(`インポート完了: ${success}件成功${failed > 0 ? `、${failed}件失敗` : ''}${skipped > 0 ? `、${skipped}件スキップ` : ''}`)
+    const skipped = totalRows - success - failed
+    console.log(`CSVインポート完了: 成功${success}件、失敗${failed}件、スキップ${skipped}件（全${totalRows}件中）`)
+    alert(`インポート完了: ${success}件成功${failed > 0 ? `、${failed}件失敗` : ''}${skipped > 0 ? `、${skipped}件スキップ` : ''}（全${totalRows}件中）`)
 
-    // データを再取得
-    const { data: newData } = await supabase
-      .from('manual_sales')
-      .select('*')
-      .order('sale_date', { ascending: false })
-    if (newData) {
-      setSales(newData)
+    // データを再取得（ページネーションで全件取得）
+    let allNewSales: ManualSale[] = []
+    let fromIdx = 0
+    const pgSize = 1000
+    let moreData = true
+    while (moreData) {
+      const { data: pageData } = await supabase
+        .from('manual_sales')
+        .select('*')
+        .order('sale_date', { ascending: false })
+        .range(fromIdx, fromIdx + pgSize - 1)
+      if (pageData && pageData.length > 0) {
+        allNewSales = [...allNewSales, ...pageData]
+        fromIdx += pgSize
+        moreData = pageData.length === pgSize
+      } else {
+        moreData = false
+      }
     }
+    console.log(`データ再取得完了: ${allNewSales.length}件`)
+    setSales(allNewSales)
   }
 
   // コピペ機能 - visibleColumnsを使用（colIndexは表示列のインデックス）
@@ -1824,7 +1867,7 @@ export default function ManualSalesPage() {
               {selectedIds.size > 0 ? `${selectedIds.size}件を削除` : '削除'}
             </button>
             <button
-              onClick={() => setIsAdding(true)}
+              onClick={handleAddNewRow}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               新規追加
@@ -1884,199 +1927,13 @@ export default function ManualSalesPage() {
           </div>
         </div>
 
-        {/* 新規追加フォーム */}
-        {isAdding && (
-          <div className={`${t.cardBg} p-4 rounded-lg mb-6 shadow-sm border ${t.border}`}>
-            <h2 className={`text-lg font-bold ${t.text} mb-4`}>新規売上追加</h2>
-            <div className="grid grid-cols-6 gap-4">
-              <div>
-                <label className={`${t.textMuted} text-sm`}>管理番号</label>
-                <input
-                  type="text"
-                  value={newSale.inventory_number || ''}
-                  onChange={(e) => setNewSale({ ...newSale, inventory_number: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div className="col-span-2">
-                <label className={`${t.textMuted} text-sm`}>商品名 *</label>
-                <input
-                  type="text"
-                  value={newSale.product_name || ''}
-                  onChange={(e) => setNewSale({ ...newSale, product_name: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>ブランド</label>
-                <input
-                  type="text"
-                  value={newSale.brand_name || ''}
-                  onChange={(e) => setNewSale({ ...newSale, brand_name: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>カテゴリ</label>
-                <input
-                  type="text"
-                  value={newSale.category || ''}
-                  onChange={(e) => setNewSale({ ...newSale, category: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>仕入原価</label>
-                <input
-                  type="number"
-                  value={newSale.purchase_price || ''}
-                  onChange={(e) => setNewSale({ ...newSale, purchase_price: parseInt(e.target.value) || null })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>仕入合計</label>
-                <input
-                  type="number"
-                  value={newSale.purchase_total || ''}
-                  onChange={(e) => setNewSale({ ...newSale, purchase_total: parseInt(e.target.value) || null })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>売価</label>
-                <input
-                  type="number"
-                  value={newSale.sale_price || ''}
-                  onChange={(e) => setNewSale({ ...newSale, sale_price: parseInt(e.target.value) || null })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>手数料</label>
-                <input
-                  type="number"
-                  value={newSale.commission || ''}
-                  onChange={(e) => setNewSale({ ...newSale, commission: parseInt(e.target.value) || null })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>送料</label>
-                <input
-                  type="number"
-                  value={newSale.shipping_cost || ''}
-                  onChange={(e) => setNewSale({ ...newSale, shipping_cost: parseInt(e.target.value) || null })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>その他経費</label>
-                <input
-                  type="number"
-                  value={newSale.other_cost || ''}
-                  onChange={(e) => setNewSale({ ...newSale, other_cost: parseInt(e.target.value) || null })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>入金額</label>
-                <input
-                  type="number"
-                  value={newSale.deposit_amount || ''}
-                  onChange={(e) => setNewSale({ ...newSale, deposit_amount: parseInt(e.target.value) || null })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>仕入日</label>
-                <input
-                  type="date"
-                  value={newSale.purchase_date || ''}
-                  onChange={(e) => setNewSale({ ...newSale, purchase_date: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>出品日</label>
-                <input
-                  type="date"
-                  value={newSale.listing_date || ''}
-                  onChange={(e) => setNewSale({ ...newSale, listing_date: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>販売日</label>
-                <input
-                  type="date"
-                  value={newSale.sale_date || ''}
-                  onChange={(e) => setNewSale({ ...newSale, sale_date: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>仕入先</label>
-                <select
-                  value={newSale.purchase_source || ''}
-                  onChange={(e) => setNewSale({ ...newSale, purchase_source: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                >
-                  <option value="">選択</option>
-                  {purchasePlatforms.map(p => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={`${t.textMuted} text-sm`}>販路</label>
-                <select
-                  value={newSale.sale_destination || ''}
-                  onChange={(e) => setNewSale({ ...newSale, sale_destination: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                >
-                  <option value="">選択</option>
-                  {salePlatforms.map(p => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className={`${t.textMuted} text-sm`}>メモ</label>
-                <input
-                  type="text"
-                  value={newSale.memo || ''}
-                  onChange={(e) => setNewSale({ ...newSale, memo: e.target.value })}
-                  className={`w-full px-2 py-1 ${t.input} border rounded`}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={handleAdd}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              >
-                追加
-              </button>
-              <button
-                onClick={() => {
-                  setIsAdding(false)
-                  setNewSale({ sale_type: 'main' })
-                }}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-              >
-                キャンセル
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* テーブル */}
         <div
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: '1560px' }}>
+          <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: `${1465 + chipColumnWidth * 2}px` }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
                 {visibleColumns.map(col => {
@@ -2088,8 +1945,8 @@ export default function ManualSalesPage() {
                     category: 70,          // ジャンル
                     brand_name: 85,        // ブランド名
                     product_name: 240,     // 商品名
-                    purchase_source: 60,   // 仕入先
-                    sale_destination: 60,  // 販売先
+                    purchase_source: chipColumnWidth,   // 仕入先（動的）
+                    sale_destination: chipColumnWidth,  // 販売先（動的）
                     sale_price: 50,        // 売価
                     commission: 60,        // 手数料
                     shipping_cost: 50,     // 送料
@@ -2097,8 +1954,8 @@ export default function ManualSalesPage() {
                     purchase_price: 50,    // 原価
                     purchase_total: 70,    // 仕入総額
                     deposit_amount: 60,    // 入金額
-                    profit: 50,            // 利益
-                    profit_rate: 60,       // 利益率
+                    profit: 70,            // 利益
+                    profit_rate: 65,       // 利益率
                     purchase_date: 70,     // 仕入日
                     listing_date: 70,      // 出品日
                     sale_date: 80,         // 売却日
@@ -2180,41 +2037,124 @@ export default function ManualSalesPage() {
                   )
                 }
 
-                const renderSelectCell = (field: keyof ManualSale, colIndex: number, value: string | null, options: Platform[]) => {
-                  const isEditing = editingCell?.id === sale.id && editingCell?.field === field
+                const renderSelectCell = (field: keyof ManualSale, colIndex: number, value: string | null, options: (Platform | Supplier)[]) => {
+                  const isDropdownOpen = editingCell?.id === sale.id && editingCell?.field === field && dropdownPosition
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
+                  const cellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isDropdownOpen ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none relative`
+
+                  // 色を取得
+                  const colorClass = value ? options.find(p => p.name === value)?.color_class : null
+
+                  const openDropdown = (e: React.MouseEvent) => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    setDropdownPosition({ top: rect.bottom + 4, left: rect.left })
+                    setEditingCell({ id: sale.id, field })
+                    setEditValue(value || '')
+                  }
+
+                  const closeDropdown = () => {
+                    setEditingCell(null)
+                    setEditValue('')
+                    setDropdownPosition(null)
+                  }
+
+                  const selectOption = async (newValue: string | null) => {
+                    // 直接DBに保存
+                    const { error } = await supabase
+                      .from('manual_sales')
+                      .update({ [field]: newValue })
+                      .eq('id', sale.id)
+                    if (!error) {
+                      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, [field]: newValue } : s))
+                    }
+                    closeDropdown()
+                  }
 
                   return (
                     <td
                       className={cellClass}
-                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }}
-                      onClick={() => handleCellClick(sale, field)}
-                      onDoubleClick={() => handleCellDoubleClick(sale, field)}
+                      onClick={(e) => {
+                        // 同じセルが選択されている場合はドロップダウンを開く
+                        if (selectedCell?.id === sale.id && selectedCell?.field === field && !selectionRange) {
+                          openDropdown(e)
+                        } else {
+                          // 別のセルをクリックした場合は選択状態にする
+                          setSelectedCell({ id: sale.id, field })
+                          setSelectionRange(null)
+                          if (editingCell) {
+                            closeDropdown()
+                          }
+                        }
+                      }}
+                      onDoubleClick={(e) => {
+                        setSelectedCell({ id: sale.id, field })
+                        setSelectionRange(null)
+                        openDropdown(e)
+                      }}
                       onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                       onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                     >
-                      {isEditing ? (
-                        <select
-                          ref={(el) => { editCellRef.current = el }}
-                          value={editValue}
-                          onChange={(e) => {
-                            setEditValue(e.target.value)
-                            setTimeout(() => saveEditingCell(), 0)
-                          }}
-                          onKeyDown={handleKeyDown}
-                          className={`w-full px-1 py-0.5 ${t.input} border border-blue-500 rounded text-sm`}
-                          autoFocus
-                        >
-                          <option value="">選択</option>
-                          {options.map(p => (
-                            <option key={p.id} value={p.name}>{p.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        value || '-'
+                      <div className="flex justify-center w-full">
+                        {value ? (
+                          <span
+                            className={`inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full ${colorClass || 'bg-gray-100 text-gray-800'}`}
+                          >
+                            <span className="truncate">{value}</span>
+                            <span
+                              className="ml-1 cursor-pointer hover:opacity-70 flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openDropdown(e)
+                              }}
+                            >
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                                <path d="M2 3.5L5 7L8 3.5H2Z" />
+                              </svg>
+                            </span>
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center text-sm text-gray-400 cursor-pointer hover:text-gray-600"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openDropdown(e)
+                            }}
+                          >
+                            -
+                            <svg className="ml-0.5" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                              <path d="M2 3.5L5 7L8 3.5H2Z" />
+                            </svg>
+                          </span>
+                        )}
+                      </div>
+                      {isDropdownOpen && createPortal(
+                        <>
+                          <div className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); closeDropdown() }} />
+                          <div
+                            className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto"
+                            style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              className="inline-flex px-2 py-1 text-xs font-bold rounded-full whitespace-nowrap bg-gray-100 text-gray-800 hover:bg-gray-200"
+                              onClick={() => selectOption(null)}
+                            >
+                              -
+                            </button>
+                            {options.map((option) => (
+                              <div
+                                key={option.id}
+                                className={`flex items-center w-full px-2 py-1 text-xs font-bold rounded-full whitespace-nowrap ${option.color_class || 'bg-gray-100 text-gray-800'} hover:opacity-80 cursor-pointer`}
+                                onClick={() => selectOption(option.name)}
+                              >
+                                {option.name}
+                              </div>
+                            ))}
+                          </div>
+                        </>,
+                        document.body
                       )}
                     </td>
                   )
@@ -2392,22 +2332,22 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-2 py-1 text-center text-xs border ${t.border} ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-1 py-1 text-center text-xs border ${t.border} ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          <span className="block truncate">{sale.profit?.toLocaleString() || '-'}</span>
+                          {sale.profit?.toLocaleString() || '-'}
                         </td>
                       )
                     case 'profit_rate':
                       return (
                         <td
                           key={colKey}
-                          className={`px-2 py-1 text-center text-xs border ${t.border} ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none overflow-hidden`}
+                          className={`px-1 py-1 text-center text-xs border ${t.border} ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          <span className="block truncate">{sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}</span>
+                          {sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}
                         </td>
                       )
                     case 'purchase_date':
