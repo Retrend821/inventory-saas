@@ -4909,14 +4909,17 @@ export default function Home() {
                                           className={`flex items-center justify-between w-full px-2 py-1 text-xs font-bold rounded-full whitespace-nowrap ${optColor} hover:opacity-80 cursor-pointer`}
                                           onClick={async (e) => {
                                             e.stopPropagation()
+                                            console.log('販売先選択:', option, '現在値:', item.sale_destination)
                                             if (item.sale_destination !== option) {
                                               // 「返品」の場合は出品日・売却日も「返品」に設定
                                               if (option === '返品') {
+                                                console.log('返品処理開始')
                                                 const { error } = await supabase.from('inventory').update({
                                                   sale_destination: option,
                                                   listing_date: '返品',
                                                   sale_date: '返品'
                                                 }).eq('id', item.id)
+                                                console.log('返品更新結果:', error ? error.message : '成功')
                                                 if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option, listing_date: '返品', sale_date: '返品' } : inv))
                                               } else {
                                                 const { error } = await supabase.from('inventory').update({ sale_destination: option }).eq('id', item.id)
