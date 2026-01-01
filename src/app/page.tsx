@@ -718,13 +718,15 @@ export default function Home() {
   useEffect(() => {
     if (inventory.length === 0 || isMigratingRef.current) return
 
-    // 外部URLの画像を持つアイテムを抽出
+    // 外部URLの画像を持つアイテムを抽出（2ndstreet/trefacはサーバー側で取得不可なのでスキップ）
     const itemsToMigrate = inventory.filter(item => {
       const imageUrl = item.saved_image_url || item.image_url
       if (!imageUrl) return false
       if (imageUrl.includes('supabase.co/storage')) return false
       if (imageUrl.startsWith('data:')) return false
       if (imageUrl.includes('googleusercontent.com')) return false
+      if (imageUrl.includes('2ndstreet.jp')) return false
+      if (imageUrl.includes('trefac.jp')) return false
       return true
     })
 
