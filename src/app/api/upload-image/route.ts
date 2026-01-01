@@ -52,22 +52,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ url: publicUrlData.publicUrl })
     }
 
+    // 2ndstreet/trefacの場合は外部プロキシサービス（weserv.nl）を使用
+    let fetchUrl = imageUrl
+    if (imageUrl.includes('2ndstreet.jp') || imageUrl.includes('trefac.jp')) {
+      fetchUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl)}`
+    }
+
     // 外部URLから画像を取得
     let referer = 'https://auctions.yahoo.co.jp/'
     if (imageUrl.includes('ecoauc.com')) {
       referer = 'https://ecoauc.com/'
     } else if (imageUrl.includes('nanboya.com') || imageUrl.includes('starbuyers')) {
       referer = 'https://www.starbuyers-global-auction.com/'
-    } else if (imageUrl.includes('2ndstreet.jp')) {
-      referer = 'https://www.2ndstreet.jp/'
-    } else if (imageUrl.includes('trefac.jp')) {
-      referer = 'https://www.trefac.jp/'
     } else if (imageUrl.includes('mekiki.ai')) {
       referer = 'https://monobank.jp/'
     }
 
-    const response = await fetch(imageUrl, {
-      headers: {
+    const response = await fetch(fetchUrl, {
+      headers: fetchUrl.includes('weserv.nl') ? {} : {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': referer,
         'Origin': referer.replace(/\/$/, ''),
@@ -160,22 +162,24 @@ export async function PUT(request: NextRequest) {
           continue
         }
 
+        // 2ndstreet/trefacの場合は外部プロキシサービス（weserv.nl）を使用
+        let fetchUrl = item.imageUrl
+        if (item.imageUrl.includes('2ndstreet.jp') || item.imageUrl.includes('trefac.jp')) {
+          fetchUrl = `https://images.weserv.nl/?url=${encodeURIComponent(item.imageUrl)}`
+        }
+
         // 外部URLから画像を取得
         let referer = 'https://auctions.yahoo.co.jp/'
         if (item.imageUrl.includes('ecoauc.com')) {
           referer = 'https://ecoauc.com/'
         } else if (item.imageUrl.includes('nanboya.com') || item.imageUrl.includes('starbuyers')) {
           referer = 'https://www.starbuyers-global-auction.com/'
-        } else if (item.imageUrl.includes('2ndstreet.jp')) {
-          referer = 'https://www.2ndstreet.jp/'
-        } else if (item.imageUrl.includes('trefac.jp')) {
-          referer = 'https://www.trefac.jp/'
         } else if (item.imageUrl.includes('mekiki.ai')) {
           referer = 'https://monobank.jp/'
         }
 
-        const response = await fetch(item.imageUrl, {
-          headers: {
+        const response = await fetch(fetchUrl, {
+          headers: fetchUrl.includes('weserv.nl') ? {} : {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Referer': referer,
             'Origin': referer.replace(/\/$/, ''),

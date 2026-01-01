@@ -10,16 +10,38 @@ export async function GET(request: NextRequest) {
   console.log('Image proxy request for:', url)
 
   try {
-    // 画像URLに応じたRefererを設定
+    // 2ndstreet/trefacの場合は外部プロキシサービス（weserv.nl）を使用
+    if (url.includes('2ndstreet.jp') || url.includes('trefac.jp')) {
+      const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&default=${encodeURIComponent('https://via.placeholder.com/100?text=No+Image')}`
+      const response = await fetch(weservUrl)
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || 'image/jpeg'
+        const imageBuffer = await response.arrayBuffer()
+
+        return new NextResponse(imageBuffer, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400',
+          },
+        })
+      }
+      // weservも失敗したら透明GIFを返す
+      const transparentGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
+      return new NextResponse(transparentGif, {
+        headers: {
+          'Content-Type': 'image/gif',
+          'Cache-Control': 'public, max-age=3600',
+        },
+      })
+    }
+
+    // その他の画像URLに応じたRefererを設定
     let referer = 'https://auctions.yahoo.co.jp/'
     if (url.includes('ecoauc.com')) {
       referer = 'https://ecoauc.com/'
     } else if (url.includes('nanboya.com') || url.includes('starbuyers')) {
       referer = 'https://www.starbuyers-global-auction.com/'
-    } else if (url.includes('2ndstreet.jp')) {
-      referer = 'https://www.2ndstreet.jp/'
-    } else if (url.includes('trefac.jp')) {
-      referer = 'https://www.trefac.jp/'
     } else if (url.includes('mekiki.ai')) {
       referer = 'https://monobank.jp/'
     } else if (url.includes('auctions.c.yimg.jp')) {
