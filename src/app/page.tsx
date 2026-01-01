@@ -1974,7 +1974,7 @@ export default function Home() {
 
           setUploadProgress({ stage: 'データベースに登録中', current: newItems.length, total: newItems.length })
 
-          // ステップ3: 画像を保存（単品のみ）
+          // ステップ3: 画像を保存（単品のみ）- サーバー経由でSupabaseにアップロード
           if (insertedData) {
             const itemsWithImages = insertedData.filter(item => item.image_url)
             const totalImages = itemsWithImages.length
@@ -1985,7 +1985,8 @@ export default function Home() {
               for (let i = 0; i < itemsWithImages.length; i++) {
                 const item = itemsWithImages[i]
                 try {
-                  await fetch('/api/save-image', {
+                  // Supabaseにアップロード（サーバー経由）
+                  const response = await fetch('/api/upload-image', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1993,6 +1994,17 @@ export default function Home() {
                       inventoryId: item.id,
                     }),
                   })
+
+                  if (response.ok) {
+                    const result = await response.json()
+                    if (result.url) {
+                      // saved_image_urlを更新
+                      await supabase
+                        .from('inventory')
+                        .update({ saved_image_url: result.url })
+                        .eq('id', item.id)
+                    }
+                  }
                 } catch (e) {
                   console.error('Image save error:', e)
                 }
