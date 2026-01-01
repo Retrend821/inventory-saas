@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Papa from 'papaparse'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Navigation from '@/components/Navigation'
@@ -53,7 +54,7 @@ const columns: { key: keyof ManualSale | 'no' | 'checkbox'; label: string; edita
   { key: 'no', label: 'No', editable: false, type: 'readonly' },
   { key: 'inventory_number', label: '管理番号', editable: true, type: 'text' },
   { key: 'image_url', label: '画像', editable: false, type: 'readonly' },
-  { key: 'category', label: 'ジャンル', editable: true, type: 'text' },
+  { key: 'category', label: 'ジャンル', editable: true, type: 'select' },
   { key: 'brand_name', label: 'ブランド名', editable: true, type: 'text' },
   { key: 'product_name', label: '商品名', editable: true, type: 'text' },
   { key: 'purchase_source', label: '仕入先', editable: true, type: 'select' },
@@ -73,6 +74,17 @@ const columns: { key: keyof ManualSale | 'no' | 'checkbox'; label: string; edita
   { key: 'turnover_days', label: '回転日数', editable: false, type: 'readonly' },
   { key: 'cost_recovered', label: '原価回収', editable: true, type: 'readonly' },
 ]
+
+// ジャンル（カテゴリ）の色設定
+const categoryColors: Record<string, string> = {
+  'ネクタイ': 'bg-blue-100 text-blue-800',
+  'スカーフ': 'bg-purple-100 text-purple-800',
+  'ベルト': 'bg-orange-100 text-orange-800',
+  'バッグ': 'bg-pink-100 text-pink-800',
+  '財布': 'bg-green-100 text-green-800',
+  'アクセサリー': 'bg-yellow-100 text-yellow-800',
+  'その他': 'bg-gray-100 text-gray-800',
+}
 
 export default function ManualSalesPage() {
   const { user, loading: authLoading } = useAuth()
@@ -99,8 +111,20 @@ export default function ManualSalesPage() {
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'main' | 'bulk'>('all')
-  // 列の表示/非表示
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set())
+  // 列の表示/非表示（localStorageから復元）
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('manual-sales-hidden-columns')
+      if (saved) {
+        try {
+          return new Set(JSON.parse(saved))
+        } catch {
+          return new Set()
+        }
+      }
+    }
+    return new Set()
+  })
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   // 転記先選択モーダル用の状態
   const [transferModal, setTransferModal] = useState<{ sale: ManualSale; bulkPurchases: { id: string; genre: string; purchase_date: string }[] } | null>(null)
@@ -114,6 +138,14 @@ export default function ManualSalesPage() {
   // ラクマ手数料設定
   const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
 
+  // ヘッダー絞り込みフィルター用state
+  const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set())
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [selectedPurchaseSources, setSelectedPurchaseSources] = useState<Set<string>>(new Set())
+  const [selectedSaleDestinations, setSelectedSaleDestinations] = useState<Set<string>>(new Set())
+  const [openFilter, setOpenFilter] = useState<string | null>(null)
+  const [filterDropdownPosition, setFilterDropdownPosition] = useState<{ top: number; right: number } | null>(null)
+
   // CSVインポート用state
   const [csvImportModal, setCsvImportModal] = useState<{
     step: 'header-select' | 'mapping' | 'preview' | 'importing'
@@ -124,6 +156,7 @@ export default function ManualSalesPage() {
     rawText: string
     headerRow: number // 何行目をヘッダーとして使うか（1始まり）
     previewRows: string[][] // 最初の数行のプレビュー
+    isAucnet?: boolean // オークネットCSV形式かどうか
   } | null>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
 
@@ -137,6 +170,11 @@ export default function ManualSalesPage() {
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  // 列の表示/非表示設定をlocalStorageに保存
+  useEffect(() => {
+    localStorage.setItem('manual-sales-hidden-columns', JSON.stringify(Array.from(hiddenColumns)))
+  }, [hiddenColumns])
 
   // セル範囲選択用
   const [selectionRange, setSelectionRange] = useState<{
@@ -346,9 +384,83 @@ export default function ManualSalesPage() {
       if (saleTypeFilter !== 'all' && sale.sale_type !== saleTypeFilter) {
         return false
       }
+      // ブランドフィルター
+      if (selectedBrands.size > 0) {
+        if (!sale.brand_name || !selectedBrands.has(sale.brand_name)) return false
+      }
+      // カテゴリフィルター
+      if (selectedCategories.size > 0) {
+        if (!sale.category || !selectedCategories.has(sale.category)) return false
+      }
+      // 仕入先フィルター
+      if (selectedPurchaseSources.size > 0) {
+        if (!sale.purchase_source || !selectedPurchaseSources.has(sale.purchase_source)) return false
+      }
+      // 販売先フィルター
+      if (selectedSaleDestinations.size > 0) {
+        if (!sale.sale_destination || !selectedSaleDestinations.has(sale.sale_destination)) return false
+      }
       return true
     })
-  }, [sales, selectedYear, selectedMonth, saleTypeFilter])
+  }, [sales, selectedYear, selectedMonth, saleTypeFilter, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations])
+
+  // 仮想スクロール用のvirtualizer
+  const rowVirtualizer = useVirtualizer({
+    count: filteredSales.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 41, // 行の高さ（px）
+    overscan: 10, // 画面外に余分にレンダリングする行数
+  })
+
+  // カテゴリオプション（既存データから動的に生成）
+  const categoryOptions = useMemo(() => {
+    const uniqueCategories = new Set<string>()
+    sales.forEach(sale => {
+      if (sale.category) {
+        uniqueCategories.add(sale.category)
+      }
+    })
+    return Array.from(uniqueCategories)
+      .sort((a, b) => a.localeCompare(b, 'ja'))
+      .map((name, idx) => ({
+        id: String(idx + 1),
+        name,
+        color_class: categoryColors[name] || 'bg-gray-100 text-gray-800'
+      }))
+  }, [sales])
+
+  // フィルター用の選択肢を動的に生成
+  const availableBrands = useMemo(() => {
+    const brands = new Set<string>()
+    sales.forEach(sale => {
+      if (sale.brand_name) brands.add(sale.brand_name)
+    })
+    return Array.from(brands).sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [sales])
+
+  const availableCategories = useMemo(() => {
+    const categories = new Set<string>()
+    sales.forEach(sale => {
+      if (sale.category) categories.add(sale.category)
+    })
+    return Array.from(categories).sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [sales])
+
+  const availablePurchaseSources = useMemo(() => {
+    const sources = new Set<string>()
+    sales.forEach(sale => {
+      if (sale.purchase_source) sources.add(sale.purchase_source)
+    })
+    return Array.from(sources).sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [sales])
+
+  const availableSaleDestinations = useMemo(() => {
+    const destinations = new Set<string>()
+    sales.forEach(sale => {
+      if (sale.sale_destination) destinations.add(sale.sale_destination)
+    })
+    return Array.from(destinations).sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [sales])
 
   // 利益計算
   const calculateProfit = (sale: Partial<ManualSale>): number => {
@@ -672,17 +784,23 @@ export default function ManualSalesPage() {
     return () => document.removeEventListener('keydown', handleUndoKeyDown)
   }, [handleUndo])
 
-  // 外側クリックで保存
+  // 外側クリックで保存 & フィルタードロップダウンを閉じる
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (editingCell && editCellRef.current && !editCellRef.current.contains(e.target as Node)) {
         saveEditingCell()
       }
+      // フィルタードロップダウンを閉じる
+      const target = e.target as HTMLElement
+      if (openFilter && !target.closest('.filter-dropdown') && !target.closest('button')) {
+        setOpenFilter(null)
+        setFilterDropdownPosition(null)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [editingCell, saveEditingCell])
+  }, [editingCell, saveEditingCell, openFilter])
 
   // キーボード操作（編集中）
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -756,6 +874,15 @@ export default function ManualSalesPage() {
       if (e.key === 'Escape') {
         e.preventDefault()
         setSelectedCell(null)
+        return
+      }
+
+      // Ctrl+C / Cmd+C でコピー
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        const value = sale[field]
+        if (value != null) {
+          navigator.clipboard.writeText(String(value))
+        }
         return
       }
 
@@ -1060,7 +1187,7 @@ export default function ManualSalesPage() {
       category: sale.category,
       image_url: sale.image_url,
       purchase_price: sale.purchase_price,
-      sale_date: sale.sale_date,
+      sale_date: sale.sale_date || new Date().toISOString().split('T')[0],
       sale_destination: sale.sale_destination,
       quantity: 1,
       sale_amount: sale.sale_price,
@@ -1109,15 +1236,58 @@ export default function ManualSalesPage() {
   const purchasePlatforms = suppliers
   const salePlatforms = platforms
 
-  // チップ列の幅を最長の名前に基づいて計算
-  const chipColumnWidth = useMemo(() => {
-    const allNames = [...platforms.map(p => p.name), ...suppliers.map(s => s.name)]
-    if (allNames.length === 0) return 100 // デフォルト
-    const maxLength = Math.max(...allNames.map(name => name.length))
-    // 日本語1文字あたり約14px + パディング(24px) + 矢印(16px)
-    const calculatedWidth = maxLength * 14 + 40
-    return Math.max(80, Math.min(160, calculatedWidth)) // 80px〜160pxの範囲
-  }, [platforms, suppliers])
+  // 仕入先列の幅を最長の名前に基づいて計算
+  const purchaseSourceWidth = useMemo(() => {
+    if (suppliers.length === 0) return 90
+    const maxLength = Math.max(...suppliers.map(s => s.name.length))
+    // 日本語1文字あたり約14px + パディング(20px) + 矢印(16px)
+    const calculatedWidth = maxLength * 14 + 36
+    return Math.max(80, Math.min(180, calculatedWidth))
+  }, [suppliers])
+
+  // 販売先列の幅を最長の名前に基づいて計算
+  const saleDestinationWidth = useMemo(() => {
+    if (platforms.length === 0) return 90
+    const maxLength = Math.max(...platforms.map(p => p.name.length))
+    // 日本語1文字あたり約14px + パディング(20px) + 矢印(16px)
+    const calculatedWidth = maxLength * 14 + 36
+    return Math.max(80, Math.min(180, calculatedWidth))
+  }, [platforms])
+
+  // 列幅の定義
+  const colWidths = useMemo(() => ({
+    checkbox: 35,
+    no: 40,
+    inventory_number: 70,
+    image_url: 50,
+    category: 95,
+    brand_name: 85,
+    product_name: 240,
+    purchase_source: purchaseSourceWidth,
+    sale_destination: saleDestinationWidth,
+    sale_price: 50,
+    commission: 60,
+    shipping_cost: 50,
+    other_cost: 60,
+    purchase_price: 50,
+    purchase_total: 70,
+    deposit_amount: 60,
+    profit: 70,
+    profit_rate: 65,
+    purchase_date: 70,
+    listing_date: 70,
+    sale_date: 80,
+    memo: 60,
+    turnover_days: 70,
+    cost_recovered: 70,
+  }), [purchaseSourceWidth, saleDestinationWidth])
+
+  // 可視列の合計幅を計算
+  const tableWidth = useMemo(() => {
+    return visibleColumns.reduce((sum, col) => {
+      return sum + (colWidths[col.key as keyof typeof colWidths] || 80)
+    }, 0)
+  }, [visibleColumns, colWidths])
 
   // CSVインポート用の列定義
   const CSV_IMPORT_COLUMNS = [
@@ -1143,13 +1313,13 @@ export default function ManualSalesPage() {
 
   const CSV_MAPPING_KEYWORDS: Record<string, string[]> = {
     product_name: ['商品名', '品名', 'アイテム名', 'item_name', 'name', '商品', '品目'],
-    brand_name: ['ブランド', 'brand', 'メーカー', 'maker'],
+    brand_name: ['ブランド', 'brand', 'メーカー', 'maker', 'ブランド名'],
     category: ['カテゴリ', 'category', '種類', '分類', 'ジャンル', '商品区分', '区分'],
     image_url: ['画像', 'image', 'photo', '写真', 'url'],
-    purchase_price: ['原価', '仕入値', '仕入れ値'],
-    purchase_total: ['仕入総額', '総額', 'total', '合計'],
+    purchase_price: ['原価', '仕入値', '仕入れ値', '請求商品代'],
+    purchase_total: ['仕入総額', '総額', 'total', '支払/請求税込合計'],
     sale_price: ['販売価格', '売価', '売値', '出品価格', 'selling_price'],
-    commission: ['手数料', 'commission', 'fee'],
+    commission: ['手数料', 'commission', 'fee', '請求手数料'],
     shipping_cost: ['送料', 'shipping', '配送料'],
     other_cost: ['経費', 'その他', 'other', '諸経費'],
     deposit_amount: ['入金', '入金額', 'deposit'],
@@ -1159,7 +1329,159 @@ export default function ManualSalesPage() {
     purchase_source: ['仕入先', '仕入れ先', 'source', '出品者'],
     sale_destination: ['販路', '販売先', '出品先', 'destination'],
     memo: ['メモ', 'memo', 'note', '備考', 'コメント'],
-    inventory_number: ['管理番号', '番号', 'number', 'id'],
+    inventory_number: ['管理番号', '番号', 'number', 'id', '受付番号'],
+  }
+
+  // オークネットCSV形式かどうかを判定
+  const isAucnetCSV = (headers: string[]): boolean => {
+    const aucnetHeaders = ['受付番号', 'せり順', 'ジャンル', 'ブランド名', '商品名', '請求商品代', '支払/請求税込合計']
+    // ヘッダーから引用符と空白を除去して比較
+    const cleanHeaders = headers.map(h => h.replace(/^["']|["']$/g, '').trim())
+    const matchCount = aucnetHeaders.filter(h => cleanHeaders.includes(h)).length
+    console.log('isAucnetCSV check:', { headers: cleanHeaders.slice(0, 7), matchCount })
+    return matchCount >= 4
+  }
+
+  // オークネットCSV用の自動マッピング
+  const autoMappingAucnetCSV = (headers: string[]): Record<string, string> => {
+    const result: Record<string, string> = {}
+    headers.forEach(header => {
+      switch (header) {
+        case '受付番号': result[header] = 'inventory_number'; break
+        case 'ジャンル': result[header] = 'category'; break
+        case 'ブランド名': result[header] = 'brand_name'; break
+        case '商品名': result[header] = 'product_name'; break
+        case '請求商品代': result[header] = 'purchase_price'; break
+        case '支払/請求税込合計': result[header] = 'purchase_total'; break
+        case '請求手数料税込': result[header] = 'commission'; break
+        case '備考': result[header] = 'memo'; break
+      }
+    })
+    return result
+  }
+
+  // オークネット画像CSVをパース: 受付番号 → URL のマップを作成
+  // URLパターン: https://image.brand-auc.com/.../J847_844-31577_01L.jpg → 受付番号: 844-31577
+  const parseAucnetImageCSV = (file: File): Promise<Map<string, string>> => {
+    return new Promise((resolve) => {
+      const imageMap = new Map<string, string>()
+      Papa.parse(file, {
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => {
+          for (const row of results.data as string[][]) {
+            // 最初の列からURLを取得（引用符を除去）
+            const url = (row[0] || '').replace(/^"/, '').replace(/"$/, '').trim()
+            if (url && url.startsWith('http')) {
+              // URLから受付番号を抽出: J847_844-31577_01L.jpg → 844-31577
+              const match = url.match(/J\d+_(\d+-\d+)_/)
+              if (match) {
+                const receiptNum = match[1]
+                imageMap.set(receiptNum, url)
+              }
+            }
+          }
+          console.log(`オークネット画像CSV: ${imageMap.size}件の画像URLを取得`)
+          resolve(imageMap)
+        },
+        error: () => resolve(imageMap)
+      })
+    })
+  }
+
+  // オークネットCSVを直接インポート
+  const executeAucnetImport = async (csvData: Record<string, string>[], imageMap: Map<string, string> | null) => {
+    // 列名からデータを取得（引用符付き/なし両対応）
+    const getCol = (row: Record<string, string>, colName: string): string => {
+      return row[colName] || row[`"${colName}"`] || ''
+    }
+
+    // 無効な行をフィルタリング
+    const filteredData = csvData.filter(row => {
+      const receiptNum = getCol(row, '受付番号').trim()
+      if (!receiptNum) return false
+      const purchasePrice = parseFloat((getCol(row, '請求商品代') || '0').replace(/,/g, ''))
+      if (purchasePrice <= 0) return false
+      return true
+    })
+
+    if (filteredData.length === 0) {
+      alert('インポート対象のデータがありません')
+      return
+    }
+
+    let success = 0
+    let failed = 0
+    const batchSize = 50
+
+    for (let i = 0; i < filteredData.length; i += batchSize) {
+      const batch = filteredData.slice(i, i + batchSize)
+
+      const records = batch.map(row => {
+        const receiptNum = getCol(row, '受付番号').trim()
+
+        // ブランド名をクリーンアップ
+        let brandName = getCol(row, 'ブランド名')
+        brandName = brandName.replace(/\s+/g, ' ').trim()
+        brandName = brandName.replace(/[（\(][^）\)]*[）\)]$/, '').trim()
+        brandName = brandName.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) =>
+          String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
+        )
+
+        const purchasePrice = parseCSVNumber(getCol(row, '請求商品代')) || 0
+        const purchaseTotal = parseCSVNumber(getCol(row, '支払/請求税込合計')) || 0
+
+        // 画像URLを取得
+        const imageUrl = imageMap?.get(receiptNum) || null
+
+        return {
+          sale_type: 'main',
+          inventory_number: receiptNum || null,
+          category: getCol(row, 'ジャンル').trim() || null,
+          brand_name: brandName || null,
+          product_name: getCol(row, '商品名').trim() || null,
+          purchase_price: purchasePrice,
+          purchase_total: purchaseTotal,
+          purchase_source: 'オークネット',
+          image_url: imageUrl,
+          profit: 0 - purchaseTotal,
+          profit_rate: 0,
+        }
+      }).filter(r => r.product_name || r.brand_name)
+
+      if (records.length === 0) continue
+
+      const { error } = await supabase.from('manual_sales').insert(records)
+      if (error) {
+        console.error('インポートエラー:', error)
+        failed += batch.length
+      } else {
+        success += records.length
+      }
+    }
+
+    alert(`オークネットCSVインポート完了\n成功: ${success}件\n失敗: ${failed}件`)
+
+    // データを再取得
+    let allNewSales: ManualSale[] = []
+    let fromIdx = 0
+    const pgSize = 1000
+    let moreData = true
+    while (moreData) {
+      const { data: pageData } = await supabase
+        .from('manual_sales')
+        .select('*')
+        .order('sale_date', { ascending: false })
+        .range(fromIdx, fromIdx + pgSize - 1)
+      if (pageData && pageData.length > 0) {
+        allNewSales = [...allNewSales, ...pageData]
+        fromIdx += pgSize
+        moreData = pageData.length === pgSize
+      } else {
+        moreData = false
+      }
+    }
+    setSales(allNewSales)
   }
 
   const autoMappingCSV = (headers: string[]): Record<string, string> => {
@@ -1226,15 +1548,92 @@ export default function ManualSalesPage() {
     return Math.abs(num)
   }
 
-  const handleCSVFileSelect = (file: File) => {
-    const showHeaderSelect = (text: string) => {
-      // 最初の10行をプレビュー用に取得
+  // 複数ファイル対応: オークネットの場合は計算書CSVと画像CSVを同時選択可能
+  const handleCSVFilesSelect = async (files: FileList) => {
+    const fileArray = Array.from(files)
+
+    // ファイルを読み込んでテキストとして返す（エンコード自動判定）
+    const readFileAsText = (file: File): Promise<string> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          const text = event.target?.result as string
+          const hasJapanese = /[あ-んア-ン一-龯]/.test(text)
+          const hasGarbage = /[\ufffd\u0000-\u001f]/.test(text) && !hasJapanese
+          if (hasGarbage || (!hasJapanese && text.includes('�'))) {
+            const sjisReader = new FileReader()
+            sjisReader.onload = (e) => resolve(e.target?.result as string)
+            sjisReader.readAsText(file, 'Shift_JIS')
+          } else {
+            resolve(text)
+          }
+        }
+        reader.readAsText(file, 'UTF-8')
+      })
+    }
+
+    // ファイルがオークネット計算書CSVかチェック
+    const checkAucnetCSV = async (file: File): Promise<{ isAucnet: boolean; data: Record<string, string>[] }> => {
+      const text = await readFileAsText(file)
+      console.log('checkAucnetCSV:', file.name, 'first 200 chars:', text.substring(0, 200))
+      return new Promise((resolve) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const data = results.data as Record<string, string>[]
+            console.log('checkAucnetCSV parsed:', file.name, 'rows:', data.length)
+            if (data.length === 0) {
+              resolve({ isAucnet: false, data: [] })
+              return
+            }
+            const headers = Object.keys(data[0] || {})
+            console.log('checkAucnetCSV headers:', headers.slice(0, 5))
+            const result = isAucnetCSV(headers)
+            console.log('checkAucnetCSV isAucnet:', result)
+            resolve({ isAucnet: result, data })
+          }
+        })
+      })
+    }
+
+    // ファイルがオークネット画像CSVかチェック（URLのみ含むファイル）
+    const checkImageCSV = async (file: File): Promise<boolean> => {
+      const text = await readFileAsText(file)
+      const lines = text.trim().split('\n').slice(0, 5)
+      const isImage = lines.some(line => line.includes('image.brand-auc.com'))
+      console.log('checkImageCSV:', { fileName: file.name, firstLine: lines[0]?.substring(0, 80), isImage })
+      return isImage
+    }
+
+    // 1ファイルの場合
+    if (fileArray.length === 1) {
+      const file = fileArray[0]
+
+      // まず画像CSVかどうかをチェック（1行目からURLの場合）
+      const isImage = await checkImageCSV(file)
+      if (isImage) {
+        alert('オークネット画像CSVだけでは取り込めません。計算書CSVも一緒に選択してください。')
+        return
+      }
+
+      // オークネット計算書CSVかチェック
+      const { isAucnet, data } = await checkAucnetCSV(file)
+      if (isAucnet) {
+        // オークネット計算書のみ → 画像なしで直接インポート
+        console.log('オークネットCSV形式を検出、直接インポート')
+        executeAucnetImport(data, null)
+        return
+      }
+
+      // 通常のCSVはヘッダー選択フローへ
+      const text = await readFileAsText(file)
       Papa.parse(text, {
         header: false,
         skipEmptyLines: true,
         preview: 10,
-        complete: (results) => {
-          const rows = results.data as string[][]
+        complete: (previewResults) => {
+          const rows = previewResults.data as string[][]
           if (rows.length === 0) {
             alert('データがありません')
             return
@@ -1251,25 +1650,36 @@ export default function ManualSalesPage() {
           })
         }
       })
+      return
     }
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target?.result as string
-      const hasJapanese = /[あ-んア-ン一-龯]/.test(text)
-      const hasGarbage = /[\ufffd\u0000-\u001f]/.test(text) && !hasJapanese
-      if (hasGarbage || (!hasJapanese && text.includes('�'))) {
-        const sjisReader = new FileReader()
-        sjisReader.onload = (e) => {
-          const sjisText = e.target?.result as string
-          showHeaderSelect(sjisText)
-        }
-        sjisReader.readAsText(file, 'Shift_JIS')
-      } else {
-        showHeaderSelect(text)
+    // 2ファイル以上の場合: オークネット計算書CSVと画像CSVを探す
+    let aucnetData: Record<string, string>[] | null = null
+    let imageFile: File | null = null
+
+    for (const file of fileArray) {
+      const { isAucnet, data } = await checkAucnetCSV(file)
+      if (isAucnet) {
+        aucnetData = data
+        continue
+      }
+      const isImage = await checkImageCSV(file)
+      if (isImage) {
+        imageFile = file
       }
     }
-    reader.readAsText(file, 'UTF-8')
+
+    if (aucnetData) {
+      // オークネットCSVが見つかった
+      let imageMap: Map<string, string> | null = null
+      if (imageFile) {
+        imageMap = await parseAucnetImageCSV(imageFile)
+      }
+      console.log(`オークネットCSV形式を検出、${imageMap ? '画像CSV付きで' : ''}直接インポート`)
+      executeAucnetImport(aucnetData, imageMap)
+    } else {
+      alert('認識できるCSVファイルがありませんでした')
+    }
   }
 
   // ヘッダー行を確定してマッピングステップへ進む
@@ -1291,13 +1701,22 @@ export default function ManualSalesPage() {
           return
         }
         const headers = Object.keys(data[0] || {})
-        const autoMapped = autoMappingCSV(headers)
+
+        // オークネットCSV形式を検出
+        const isAucnet = isAucnetCSV(headers)
+        const autoMapped = isAucnet ? autoMappingAucnetCSV(headers) : autoMappingCSV(headers)
+
+        if (isAucnet) {
+          console.log('オークネットCSV形式を検出しました')
+        }
+
         setCsvImportModal({
           ...csvImportModal,
           step: 'mapping',
           csvHeaders: headers,
           csvData: data,
           mapping: autoMapped,
+          isAucnet,
         })
       }
     })
@@ -1305,7 +1724,7 @@ export default function ManualSalesPage() {
 
   const executeCSVImport = async () => {
     if (!csvImportModal) return
-    const { csvData, mapping } = csvImportModal
+    const { csvData, mapping, isAucnet } = csvImportModal
 
     const mappedValues = Object.values(mapping).filter(v => v !== '')
     const duplicates = mappedValues.filter((v, i, arr) => arr.indexOf(v) !== i)
@@ -1319,14 +1738,35 @@ export default function ManualSalesPage() {
 
     setCsvImportModal({ ...csvImportModal, step: 'importing', progress: 0 })
 
+    // オークネットCSVの場合、無効な行をフィルタリング
+    let filteredData = csvData
+    if (isAucnet) {
+      filteredData = csvData.filter(row => {
+        // 受付番号がない行（写真代、配送費など）をスキップ
+        const receiptNum = row['受付番号']?.trim()
+        if (!receiptNum) {
+          console.log('スキップ（受付番号なし）:', row['ブランド名'] || row['商品名'])
+          return false
+        }
+        // 請求商品代がマイナスまたは0の行（返品）をスキップ
+        const purchasePrice = parseFloat((row['請求商品代'] || '0').replace(/,/g, ''))
+        if (purchasePrice <= 0) {
+          console.log('スキップ（返品/マイナス）:', receiptNum, row['商品名'])
+          return false
+        }
+        return true
+      })
+      console.log(`オークネットCSV: ${csvData.length}件中 ${filteredData.length}件をインポート対象`)
+    }
+
     let success = 0
     let failed = 0
     const batchSize = 50
-    const totalRows = csvData.length
+    const totalRows = filteredData.length
     console.log(`CSVインポート開始: 全${totalRows}件`)
 
     for (let i = 0; i < totalRows; i += batchSize) {
-      const batch = csvData.slice(i, i + batchSize)
+      const batch = filteredData.slice(i, i + batchSize)
 
       // データベースに確実に存在するカラムのみ許可
       const allowedColumns = [
@@ -1341,11 +1781,29 @@ export default function ManualSalesPage() {
           sale_type: 'main',
         }
 
+        // オークネットCSVの場合、仕入先を自動設定
+        if (isAucnet) {
+          record.purchase_source = 'オークネット'
+        }
+
         Object.entries(mapping).forEach(([csvHeader, column]) => {
           // 許可されたカラムのみ処理（image_urlなどスキップ）
           if (!allowedColumns.includes(column)) return
 
-          const value = row[csvHeader]
+          let value = row[csvHeader]
+
+          // オークネットCSVの場合、ブランド名をクリーンアップ
+          if (isAucnet && column === 'brand_name' && value) {
+            // 全角スペースを正規化
+            value = value.replace(/\s+/g, ' ').trim()
+            // 末尾の（バッグ）などを削除
+            value = value.replace(/[（\(][^）\)]*[）\)]$/, '').trim()
+            // 全角英数字を半角に変換
+            value = value.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) =>
+              String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
+            )
+          }
+
           if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(column)) {
             record[column] = parseCSVNumber(value)
           } else if (['purchase_date', 'listing_date', 'sale_date'].includes(column)) {
@@ -1790,7 +2248,7 @@ export default function ManualSalesPage() {
   }
 
   return (
-    <div className={`min-h-screen ${t.bg}`} style={{ paddingBottom: '20px' }}>
+    <div className={`min-h-screen ${t.bg}`} style={{ paddingBottom: modalEdit ? '128px' : '20px' }}>
       <Navigation />
       <div className="pt-14 px-4 py-2">
         <div className="flex items-center justify-between mb-2">
@@ -1835,16 +2293,17 @@ export default function ManualSalesPage() {
                 </>
               )}
             </div>
-            {/* CSVインポートボタン */}
+            {/* CSVインポートボタン（複数ファイル選択可能） */}
             <input
               type="file"
               accept=".csv"
+              multiple
               ref={csvInputRef}
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  handleCSVFileSelect(file)
+                const files = e.target.files
+                if (files && files.length > 0) {
+                  handleCSVFilesSelect(files)
                 }
                 e.target.value = ''
               }}
@@ -1933,36 +2392,10 @@ export default function ManualSalesPage() {
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
         >
-          <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: `${1465 + chipColumnWidth * 2}px` }}>
+          <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: `${tableWidth}px` }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
               <tr>
                 {visibleColumns.map(col => {
-                  const colWidths: Record<string, number> = {
-                    checkbox: 35,          // チェックボックス
-                    no: 40,                // No
-                    inventory_number: 70,  // 管理番号
-                    image_url: 50,         // 画像
-                    category: 70,          // ジャンル
-                    brand_name: 85,        // ブランド名
-                    product_name: 240,     // 商品名
-                    purchase_source: chipColumnWidth,   // 仕入先（動的）
-                    sale_destination: chipColumnWidth,  // 販売先（動的）
-                    sale_price: 50,        // 売価
-                    commission: 60,        // 手数料
-                    shipping_cost: 50,     // 送料
-                    other_cost: 60,        // その他
-                    purchase_price: 50,    // 原価
-                    purchase_total: 70,    // 仕入総額
-                    deposit_amount: 60,    // 入金額
-                    profit: 70,            // 利益
-                    profit_rate: 65,       // 利益率
-                    purchase_date: 70,     // 仕入日
-                    listing_date: 70,      // 出品日
-                    sale_date: 80,         // 売却日
-                    memo: 60,              // メモ
-                    turnover_days: 70,     // 回転日数
-                    cost_recovered: 70,    // 原価回収
-                  }
                   // チェックボックス列は特別な処理
                   if (col.key === 'checkbox') {
                     return (
@@ -1970,7 +2403,7 @@ export default function ManualSalesPage() {
                         key={col.key}
                         style={{
                           backgroundColor: '#334155',
-                          width: `${colWidths[col.key] || 35}px`,
+                          width: `${colWidths[col.key as keyof typeof colWidths] || 35}px`,
                         }}
                         className="px-1 py-2 text-center border border-slate-600"
                       >
@@ -1983,33 +2416,175 @@ export default function ManualSalesPage() {
                       </th>
                     )
                   }
+                  // フィルター可能な列を判定
+                  const isBrandColumn = col.key === 'brand_name'
+                  const isCategoryColumn = col.key === 'category'
+                  const isPurchaseSourceColumn = col.key === 'purchase_source'
+                  const isSaleDestinationColumn = col.key === 'sale_destination'
+                  const hasFilter = isBrandColumn || isCategoryColumn || isPurchaseSourceColumn || isSaleDestinationColumn
+
                   return (
                     <th
                       key={col.key}
                       style={{
                         backgroundColor: '#334155',
                         color: '#ffffff',
-                        width: `${colWidths[col.key] || 80}px`,
+                        width: `${colWidths[col.key as keyof typeof colWidths] || 80}px`,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}
                       className="px-1 py-2 text-center text-xs font-medium border border-slate-600 whitespace-nowrap"
                     >
-                      {col.label}
+                      <span className="flex items-center justify-center gap-0.5">
+                        {col.label}
+                        {isBrandColumn && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (openFilter === 'brand') {
+                                setOpenFilter(null)
+                                setFilterDropdownPosition(null)
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setFilterDropdownPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                                setOpenFilter('brand')
+                              }
+                            }}
+                            className={`ml-1 text-[10px] ${selectedBrands.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            ▼
+                          </button>
+                        )}
+                        {isCategoryColumn && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (openFilter === 'category') {
+                                setOpenFilter(null)
+                                setFilterDropdownPosition(null)
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setFilterDropdownPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                                setOpenFilter('category')
+                              }
+                            }}
+                            className={`ml-1 text-[10px] ${selectedCategories.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            ▼
+                          </button>
+                        )}
+                        {isPurchaseSourceColumn && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (openFilter === 'purchase_source') {
+                                setOpenFilter(null)
+                                setFilterDropdownPosition(null)
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setFilterDropdownPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                                setOpenFilter('purchase_source')
+                              }
+                            }}
+                            className={`ml-1 text-[10px] ${selectedPurchaseSources.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            ▼
+                          </button>
+                        )}
+                        {isSaleDestinationColumn && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (openFilter === 'sale_destination') {
+                                setOpenFilter(null)
+                                setFilterDropdownPosition(null)
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setFilterDropdownPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                                setOpenFilter('sale_destination')
+                              }
+                            }}
+                            className={`ml-1 text-[10px] ${selectedSaleDestinations.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            ▼
+                          </button>
+                        )}
+                      </span>
                     </th>
                   )
                 })}
               </tr>
             </thead>
             <tbody>
-              {filteredSales.map((sale, rowIndex) => {
+              {/* 上部のスペーサー */}
+              {rowVirtualizer.getVirtualItems().length > 0 && rowVirtualizer.getVirtualItems()[0].start > 0 && (
+                <tr style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }}>
+                  <td colSpan={visibleColumns.length}></td>
+                </tr>
+              )}
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const rowIndex = virtualRow.index
+                const sale = filteredSales[rowIndex]
+                if (!sale) return null
                 // セルのレンダリング用ヘルパー関数
                 const renderEditableCell = (field: keyof ManualSale, colIndex: number, value: React.ReactNode, inputType: 'text' | 'number' | 'date' = 'text') => {
                   const isEditing = editingCell?.id === sale.id && editingCell?.field === field
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
+                  const cellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isEditing ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${isEditing && inputType !== 'date' ? 'ring-2 ring-blue-500 ring-inset' : ''} ${rangeClass} select-none`
+
+                  // 日付フィールドの場合は非表示のinputでカレンダーだけ開く
+                  if (inputType === 'date') {
+                    return (
+                      <td
+                        className={cellClass}
+                        style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0, position: 'relative' }}
+                        onClick={() => handleCellClick(sale, field)}
+                        onDoubleClick={() => handleCellDoubleClick(sale, field)}
+                        onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
+                        onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
+                      >
+                        <span className="block truncate">{value}</span>
+                        {isEditing && (
+                          <input
+                            ref={(el) => {
+                              editCellRef.current = el
+                              if (el) {
+                                setTimeout(() => {
+                                  try {
+                                    (el as HTMLInputElement).showPicker?.()
+                                  } catch {}
+                                }, 50)
+                              }
+                            }}
+                            type="date"
+                            value={editValue}
+                            onChange={async (e) => {
+                              const newValue = e.target.value
+                              if (newValue) {
+                                const { error } = await supabase
+                                  .from('manual_sales')
+                                  .update({ [field]: newValue })
+                                  .eq('id', sale.id)
+                                if (!error) {
+                                  setSales(prev => prev.map(s => s.id === sale.id ? { ...s, [field]: newValue } : s))
+                                }
+                              }
+                              setEditingCell(null)
+                              setEditValue('')
+                            }}
+                            onBlur={() => {
+                              setEditingCell(null)
+                              setEditValue('')
+                            }}
+                            className="absolute opacity-0 w-0 h-0"
+                            style={{ top: 0, left: 0 }}
+                          />
+                        )}
+                      </td>
+                    )
+                  }
 
                   return (
                     <td
@@ -2037,12 +2612,14 @@ export default function ManualSalesPage() {
                   )
                 }
 
-                const renderSelectCell = (field: keyof ManualSale, colIndex: number, value: string | null, options: (Platform | Supplier)[]) => {
+                const renderSelectCell = (field: keyof ManualSale, colIndex: number, value: string | null, options: (Platform | Supplier)[], align: 'left' | 'center' | 'right' = 'center') => {
                   const isDropdownOpen = editingCell?.id === sale.id && editingCell?.field === field && dropdownPosition
                   const isSelected = isSelectedCell(sale.id, field)
                   const inRange = isCellInRange(rowIndex, colIndex)
                   const rangeClass = inRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''
-                  const cellClass = `px-1 py-1 text-center text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isDropdownOpen ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none relative`
+                  const alignClass = align === 'right' ? 'text-right' : align === 'left' ? 'text-left' : 'text-center'
+                  const flexAlignClass = align === 'right' ? 'justify-end' : align === 'left' ? 'justify-start' : 'justify-center'
+                  const cellClass = `px-1 py-1 ${alignClass} text-xs ${t.text} border ${t.border} cursor-pointer ${t.tableRowHover} ${isSelected && !isDropdownOpen ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${rangeClass} select-none relative`
 
                   // 色を取得
                   const colorClass = value ? options.find(p => p.name === value)?.color_class : null
@@ -2075,14 +2652,15 @@ export default function ManualSalesPage() {
                   return (
                     <td
                       className={cellClass}
+                      style={{ overflow: 'hidden' }}
                       onClick={(e) => {
                         // 同じセルが選択されている場合はドロップダウンを開く
-                        if (selectedCell?.id === sale.id && selectedCell?.field === field && !selectionRange) {
+                        if (selectedCell?.id === sale.id && selectedCell?.field === field) {
                           openDropdown(e)
                         } else {
                           // 別のセルをクリックした場合は選択状態にする
                           setSelectedCell({ id: sale.id, field })
-                          setSelectionRange(null)
+                          // selectionRangeはhandleCellMouseDownで設定されるのでクリアしない
                           if (editingCell) {
                             closeDropdown()
                           }
@@ -2090,18 +2668,17 @@ export default function ManualSalesPage() {
                       }}
                       onDoubleClick={(e) => {
                         setSelectedCell({ id: sale.id, field })
-                        setSelectionRange(null)
                         openDropdown(e)
                       }}
                       onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                       onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                     >
-                      <div className="flex justify-center w-full">
+                      <div className={`flex ${flexAlignClass} w-full overflow-hidden`}>
                         {value ? (
                           <span
-                            className={`inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full ${colorClass || 'bg-gray-100 text-gray-800'}`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full overflow-hidden ${colorClass || 'bg-gray-100 text-gray-800'}`}
                           >
-                            <span className="truncate">{value}</span>
+                            <span className="truncate min-w-0">{value}</span>
                             <span
                               className="ml-1 cursor-pointer hover:opacity-70 flex-shrink-0"
                               onClick={(e) => {
@@ -2137,6 +2714,26 @@ export default function ManualSalesPage() {
                             style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
                             onClick={(e) => e.stopPropagation()}
                           >
+                            <input
+                              type="text"
+                              placeholder="入力またはペースト..."
+                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded mb-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const inputValue = (e.target as HTMLInputElement).value.trim()
+                                  if (inputValue) {
+                                    selectOption(inputValue)
+                                  }
+                                } else if (e.key === 'Escape') {
+                                  closeDropdown()
+                                }
+                              }}
+                              onPaste={(e) => {
+                                e.stopPropagation()
+                                // ペースト後にEnterで確定できるようにする
+                              }}
+                            />
                             <button
                               className="inline-flex px-2 py-1 text-xs font-bold rounded-full whitespace-nowrap bg-gray-100 text-gray-800 hover:bg-gray-200"
                               onClick={() => selectOption(null)}
@@ -2251,7 +2848,7 @@ export default function ManualSalesPage() {
                         </td>
                       )
                     case 'category':
-                      return <React.Fragment key={colKey}>{renderEditableCell('category', colIndex, sale.category || '-')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderSelectCell('category', colIndex, sale.category, categoryOptions, 'left')}</React.Fragment>
                     case 'brand_name':
                       const brandName = sale.brand_name || '-'
                       const isBrandSelected = isSelectedCell(sale.id, 'brand_name')
@@ -2313,7 +2910,7 @@ export default function ManualSalesPage() {
                     case 'purchase_source':
                       return <React.Fragment key={colKey}>{renderSelectCell('purchase_source', colIndex, sale.purchase_source, purchasePlatforms)}</React.Fragment>
                     case 'sale_destination':
-                      return <React.Fragment key={colKey}>{renderSelectCell('sale_destination', colIndex, sale.sale_destination, salePlatforms)}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderSelectCell('sale_destination', colIndex, sale.sale_destination, salePlatforms, 'left')}</React.Fragment>
                     case 'sale_price':
                       return <React.Fragment key={colKey}>{renderEditableCell('sale_price', colIndex, sale.sale_price?.toLocaleString() || '-', 'number')}</React.Fragment>
                     case 'commission':
@@ -2391,11 +2988,19 @@ export default function ManualSalesPage() {
                 }
 
                 return (
-                  <tr key={sale.id} className={t.tableRowHover}>
+                  <tr key={sale.id} data-index={virtualRow.index} className={t.tableRowHover}>
                     {visibleColumns.map((col, colIndex) => renderColumnCell(col.key, colIndex))}
                   </tr>
                 )
               })}
+              {/* 下部のスペーサー */}
+              {rowVirtualizer.getVirtualItems().length > 0 && (
+                <tr style={{
+                  height: `${rowVirtualizer.getTotalSize() - (rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1]?.end || 0)}px`
+                }}>
+                  <td colSpan={visibleColumns.length}></td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -2570,9 +3175,9 @@ export default function ManualSalesPage() {
         </div>
       )}
 
-      {/* セル編集バー（画面上部に固定表示） */}
+      {/* セル編集バー（画面下部に固定表示） */}
       {modalEdit && (
-        <div className="fixed top-14 left-0 right-0 z-[110] bg-white shadow-lg border-b">
+        <div className="fixed bottom-4 left-4 right-4 z-[110] bg-white shadow-lg border rounded-lg">
           <div className="px-4 py-3 flex items-center gap-4">
             <span className="text-sm font-medium text-gray-600 whitespace-nowrap">
               {modalEdit.field === 'product_name' ? '商品名' : modalEdit.field === 'brand_name' ? 'ブランド名' : modalEdit.field === 'inventory_number' ? '管理番号' : modalEdit.field}:
@@ -2925,6 +3530,192 @@ export default function ManualSalesPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* ヘッダーフィルタードロップダウン - Portalでbodyに直接レンダリング */}
+      {isMounted && openFilter && filterDropdownPosition && createPortal(
+        <div
+          className="filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-56 max-h-80 overflow-y-auto"
+          style={{
+            top: filterDropdownPosition.top,
+            right: filterDropdownPosition.right,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* ブランドフィルター */}
+          {openFilter === 'brand' && (
+            <>
+              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
+                <span className="text-xs text-gray-500">{availableBrands.length}件</span>
+                {selectedBrands.size > 0 && (
+                  <button
+                    onClick={() => setSelectedBrands(new Set())}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    クリア
+                  </button>
+                )}
+              </div>
+              <div className="p-1">
+                {availableBrands.map(brand => (
+                  <label
+                    key={brand}
+                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedBrands.has(brand)}
+                      onChange={(e) => {
+                        const newSelected = new Set(selectedBrands)
+                        if (e.target.checked) {
+                          newSelected.add(brand)
+                        } else {
+                          newSelected.delete(brand)
+                        }
+                        setSelectedBrands(newSelected)
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{brand}</span>
+                  </label>
+                ))}
+                {availableBrands.length === 0 && (
+                  <p className="text-sm text-gray-500 px-2 py-2">ブランドがありません</p>
+                )}
+              </div>
+            </>
+          )}
+          {/* カテゴリフィルター */}
+          {openFilter === 'category' && (
+            <>
+              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
+                <span className="text-xs text-gray-500">{availableCategories.length}件</span>
+                {selectedCategories.size > 0 && (
+                  <button
+                    onClick={() => setSelectedCategories(new Set())}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    クリア
+                  </button>
+                )}
+              </div>
+              <div className="p-1">
+                {availableCategories.map(category => (
+                  <label
+                    key={category}
+                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.has(category)}
+                      onChange={(e) => {
+                        const newSelected = new Set(selectedCategories)
+                        if (e.target.checked) {
+                          newSelected.add(category)
+                        } else {
+                          newSelected.delete(category)
+                        }
+                        setSelectedCategories(newSelected)
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{category}</span>
+                  </label>
+                ))}
+                {availableCategories.length === 0 && (
+                  <p className="text-sm text-gray-500 px-2 py-2">カテゴリがありません</p>
+                )}
+              </div>
+            </>
+          )}
+          {/* 仕入先フィルター */}
+          {openFilter === 'purchase_source' && (
+            <>
+              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
+                <span className="text-xs text-gray-500">{availablePurchaseSources.length}件</span>
+                {selectedPurchaseSources.size > 0 && (
+                  <button
+                    onClick={() => setSelectedPurchaseSources(new Set())}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    クリア
+                  </button>
+                )}
+              </div>
+              <div className="p-1">
+                {availablePurchaseSources.map(source => (
+                  <label
+                    key={source}
+                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedPurchaseSources.has(source)}
+                      onChange={(e) => {
+                        const newSelected = new Set(selectedPurchaseSources)
+                        if (e.target.checked) {
+                          newSelected.add(source)
+                        } else {
+                          newSelected.delete(source)
+                        }
+                        setSelectedPurchaseSources(newSelected)
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{source}</span>
+                  </label>
+                ))}
+                {availablePurchaseSources.length === 0 && (
+                  <p className="text-sm text-gray-500 px-2 py-2">仕入先がありません</p>
+                )}
+              </div>
+            </>
+          )}
+          {/* 販売先フィルター */}
+          {openFilter === 'sale_destination' && (
+            <>
+              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
+                <span className="text-xs text-gray-500">{availableSaleDestinations.length}件</span>
+                {selectedSaleDestinations.size > 0 && (
+                  <button
+                    onClick={() => setSelectedSaleDestinations(new Set())}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    クリア
+                  </button>
+                )}
+              </div>
+              <div className="p-1">
+                {availableSaleDestinations.map(destination => (
+                  <label
+                    key={destination}
+                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSaleDestinations.has(destination)}
+                      onChange={(e) => {
+                        const newSelected = new Set(selectedSaleDestinations)
+                        if (e.target.checked) {
+                          newSelected.add(destination)
+                        } else {
+                          newSelected.delete(destination)
+                        }
+                        setSelectedSaleDestinations(newSelected)
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{destination}</span>
+                  </label>
+                ))}
+                {availableSaleDestinations.length === 0 && (
+                  <p className="text-sm text-gray-500 px-2 py-2">販売先がありません</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>,
+        document.body
       )}
 
       {/* 固定横スクロールバー - Portalでbodyに直接レンダリング */}

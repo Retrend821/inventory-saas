@@ -35,21 +35,27 @@ interface Supplier {
   sort_order: number
 }
 
-// 背景色オプション
+// 背景色オプション（基本色を先に配置）
 const bgColorOptions = [
+  // 基本色
+  { label: '青', value: 'bg-blue-500', color: '#3b82f6' },
+  { label: '赤', value: 'bg-red-500', color: '#ef4444' },
+  { label: '緑', value: 'bg-green-500', color: '#22c55e' },
+  { label: '黄', value: 'bg-yellow-400', color: '#facc15' },
+  { label: 'オレンジ', value: 'bg-orange-500', color: '#f97316' },
+  { label: '紫', value: 'bg-purple-500', color: '#a855f7' },
+  { label: 'ピンク', value: 'bg-pink-500', color: '#ec4899' },
+  { label: '紺', value: 'bg-blue-900', color: '#1e3a8a' },
+  // 淡い色
+  { label: '青(淡)', value: 'bg-blue-100', color: '#dbeafe' },
+  { label: '赤(淡)', value: 'bg-red-100', color: '#fee2e2' },
+  { label: '緑(淡)', value: 'bg-green-100', color: '#dcfce7' },
+  { label: '黄(淡)', value: 'bg-yellow-100', color: '#fef9c3' },
+  // モノトーン
   { label: '白', value: 'bg-white', color: '#ffffff' },
   { label: 'グレー(淡)', value: 'bg-gray-100', color: '#f3f4f6' },
   { label: 'グレー', value: 'bg-gray-500', color: '#6b7280' },
-  { label: '赤', value: 'bg-red-500', color: '#ef4444' },
-  { label: 'ピンク', value: 'bg-pink-500', color: '#ec4899' },
-  { label: 'オレンジ', value: 'bg-orange-500', color: '#f97316' },
-  { label: '黄', value: 'bg-yellow-400', color: '#facc15' },
-  { label: '緑', value: 'bg-green-500', color: '#22c55e' },
-  { label: '緑(淡)', value: 'bg-green-100', color: '#dcfce7' },
-  { label: '青', value: 'bg-blue-500', color: '#3b82f6' },
-  { label: '青(淡)', value: 'bg-blue-100', color: '#dbeafe' },
-  { label: '紺', value: 'bg-blue-900', color: '#1e3a8a' },
-  { label: '紫', value: 'bg-purple-500', color: '#a855f7' },
+  { label: '黒', value: 'bg-gray-900', color: '#111827' },
 ]
 
 const textColorOptions = [
@@ -68,8 +74,8 @@ export default function LedgerSettingsPage() {
   const [supplierSelectedIds, setSupplierSelectedIds] = useState<Set<string>>(new Set())
   const [showHiddenSuppliers, setShowHiddenSuppliers] = useState(false)
   const [newSupplierName, setNewSupplierName] = useState('')
-  const [newSupplierBgColor, setNewSupplierBgColor] = useState('bg-gray-100')
-  const [newSupplierTextColor, setNewSupplierTextColor] = useState('text-gray-800')
+  const [newSupplierBgColor, setNewSupplierBgColor] = useState('bg-blue-500')
+  const [newSupplierTextColor, setNewSupplierTextColor] = useState('text-white')
   const [showAddSupplierForm, setShowAddSupplierForm] = useState(false)
 
   // 販路用state
@@ -77,8 +83,8 @@ export default function LedgerSettingsPage() {
   const [platformSelectedIds, setPlatformSelectedIds] = useState<Set<string>>(new Set())
   const [showHiddenPlatforms, setShowHiddenPlatforms] = useState(false)
   const [newPlatformName, setNewPlatformName] = useState('')
-  const [newPlatformBgColor, setNewPlatformBgColor] = useState('bg-gray-100')
-  const [newPlatformTextColor, setNewPlatformTextColor] = useState('text-gray-800')
+  const [newPlatformBgColor, setNewPlatformBgColor] = useState('bg-blue-500')
+  const [newPlatformTextColor, setNewPlatformTextColor] = useState('text-white')
   const [showAddPlatformForm, setShowAddPlatformForm] = useState(false)
 
   useEffect(() => {
@@ -116,8 +122,8 @@ export default function LedgerSettingsPage() {
       alert('追加に失敗しました: ' + error.message)
     } else {
       setNewSupplierName('')
-      setNewSupplierBgColor('bg-gray-100')
-      setNewSupplierTextColor('text-gray-800')
+      setNewSupplierBgColor('bg-blue-500')
+      setNewSupplierTextColor('text-white')
       setShowAddSupplierForm(false)
       fetchData()
     }
@@ -213,8 +219,8 @@ export default function LedgerSettingsPage() {
       alert('追加に失敗しました: ' + error.message)
     } else {
       setNewPlatformName('')
-      setNewPlatformBgColor('bg-gray-100')
-      setNewPlatformTextColor('text-gray-800')
+      setNewPlatformBgColor('bg-blue-500')
+      setNewPlatformTextColor('text-white')
       setShowAddPlatformForm(false)
       fetchData()
     }
@@ -362,8 +368,8 @@ export default function LedgerSettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-black mb-1">背景色</label>
-                  <div className="flex gap-1">
-                    {bgColorOptions.slice(0, 8).map((opt) => (
+                  <div className="grid grid-cols-8 gap-1 w-fit">
+                    {bgColorOptions.map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
@@ -544,8 +550,8 @@ export default function LedgerSettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-black mb-1">背景色</label>
-                  <div className="flex gap-1">
-                    {bgColorOptions.slice(0, 8).map((opt) => (
+                  <div className="grid grid-cols-8 gap-1 w-fit">
+                    {bgColorOptions.map((opt) => (
                       <button
                         key={opt.value}
                         type="button"

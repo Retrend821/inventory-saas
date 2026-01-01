@@ -13,11 +13,26 @@ type InventoryItem = {
   listing_date: string | null
   sale_date: string | null
   purchase_total: number | null
+  sale_price: number | null
   deposit_amount: number | null
   other_cost: number | null
   status: string
   sale_type: string | null
   image_url: string | null
+}
+
+type ManualSale = {
+  id: string
+  product_name: string | null
+  brand_name: string | null
+  sale_date: string | null
+  sale_price: number | null
+  commission: number | null
+  shipping_cost: number | null
+  other_cost: number | null
+  purchase_total: number | null
+  profit: number | null
+  sale_type: string | null
 }
 
 type UserTodo = {
@@ -30,6 +45,7 @@ type UserTodo = {
 export default function DashboardPage() {
   const { user } = useAuth()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [manualSales, setManualSales] = useState<ManualSale[]>([])
   const [loading, setLoading] = useState(true)
 
   // ユーザーToDo
@@ -39,8 +55,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // 全件取得のためにページネーション
-      let allData: InventoryItem[] = []
+      // 在庫データを取得
+      let allInventory: InventoryItem[] = []
       let from = 0
       const pageSize = 1000
       let hasMore = true
@@ -57,7 +73,7 @@ export default function DashboardPage() {
         }
 
         if (data && data.length > 0) {
-          allData = [...allData, ...data]
+          allInventory = [...allInventory, ...data]
           from += pageSize
           hasMore = data.length === pageSize
         } else {
@@ -65,7 +81,33 @@ export default function DashboardPage() {
         }
       }
 
-      setInventory(allData)
+      // 手入力売上データを取得
+      let allManualSales: ManualSale[] = []
+      from = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('manual_sales')
+          .select('*')
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching manual_sales:', error.message || error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allManualSales = [...allManualSales, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      setInventory(allInventory)
+      setManualSales(allManualSales)
       setLoading(false)
     }
 
@@ -139,36 +181,54 @@ export default function DashboardPage() {
       return date >= currentMonth.startDate && date <= currentMonth.endDate
     }
 
-    // 今月の仕入れ
+    // 今月の仕入れ（在庫テーブルのみ）
     const purchases = inventory.filter(item => isThisMonth(item.purchase_date))
     const purchaseCount = purchases.length
     const purchaseTotal = purchases.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
-    // 今月の販売
-    const sales = inventory.filter(item => isThisMonth(item.sale_date) && item.status === '売却済み')
-    const salesCount = sales.length
-    const salesTotal = sales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0)
-    const salesCost = sales.reduce((sum, item) => sum + (item.purchase_total || 0) + (item.other_cost || 0), 0)
-    const profit = salesTotal - salesCost
+    // 今月の販売（在庫テーブル）
+    const inventorySales = inventory.filter(item => isThisMonth(item.sale_date) && item.status === '売却済み')
+    const inventorySalesCount = inventorySales.length
+    const inventorySalesTotal = inventorySales.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total || 0) + (item.other_cost || 0), 0)
+    const inventoryProfit = inventorySales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0) - inventorySalesCost
+
+    // 今月の販売（手入力売上）
+    const manualSalesThisMonth = manualSales.filter(item => isThisMonth(item.sale_date))
+    const manualSalesCount = manualSalesThisMonth.length
+    const manualSalesTotal = manualSalesThisMonth.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const manualSalesProfit = manualSalesThisMonth.reduce((sum, item) => sum + (item.profit || 0), 0)
+
+    // 合計
+    const salesCount = inventorySalesCount + manualSalesCount
+    const salesTotal = inventorySalesTotal + manualSalesTotal
+    const salesCost = inventorySalesCost + manualSalesThisMonth.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+    const profit = inventoryProfit + manualSalesProfit
     const profitRate = salesTotal > 0 ? (profit / salesTotal) * 100 : 0
     const roi = salesCost > 0 ? (profit / salesCost) * 100 : 0
 
-    // 小売・業販の内訳
-    const retailSales = sales.filter(item => item.sale_type === '小売')
-    const wholesaleSales = sales.filter(item => item.sale_type === '業販')
+    // 小売・業販の内訳（在庫テーブル）
+    const retailSalesInv = inventorySales.filter(item => item.sale_type === '小売')
+    const wholesaleSalesInv = inventorySales.filter(item => item.sale_type === '業販')
 
-    const retailTotal = retailSales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0)
-    const wholesaleTotal = wholesaleSales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0)
+    // 小売・業販の内訳（手入力売上）
+    const retailSalesManual = manualSalesThisMonth.filter(item => item.sale_type === '小売')
+    const wholesaleSalesManual = manualSalesThisMonth.filter(item => item.sale_type === '業販')
 
-    const retailProfit = retailSales.reduce((sum, item) => {
+    const retailTotal = retailSalesInv.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+      + retailSalesManual.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const wholesaleTotal = wholesaleSalesInv.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+      + wholesaleSalesManual.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+
+    const retailProfit = retailSalesInv.reduce((sum, item) => {
       const cost = (item.purchase_total || 0) + (item.other_cost || 0)
       return sum + (item.deposit_amount || 0) - cost
-    }, 0)
+    }, 0) + retailSalesManual.reduce((sum, item) => sum + (item.profit || 0), 0)
 
-    const wholesaleProfit = wholesaleSales.reduce((sum, item) => {
+    const wholesaleProfit = wholesaleSalesInv.reduce((sum, item) => {
       const cost = (item.purchase_total || 0) + (item.other_cost || 0)
       return sum + (item.deposit_amount || 0) - cost
-    }, 0)
+    }, 0) + wholesaleSalesManual.reduce((sum, item) => sum + (item.profit || 0), 0)
 
     return {
       purchaseCount,
@@ -178,14 +238,14 @@ export default function DashboardPage() {
       profit,
       profitRate,
       roi,
-      retailCount: retailSales.length,
+      retailCount: retailSalesInv.length + retailSalesManual.length,
       retailTotal,
       retailProfit,
-      wholesaleCount: wholesaleSales.length,
+      wholesaleCount: wholesaleSalesInv.length + wholesaleSalesManual.length,
       wholesaleTotal,
       wholesaleProfit
     }
-  }, [inventory, currentMonth])
+  }, [inventory, manualSales, currentMonth])
 
   // 在庫状況
   const stockStats = useMemo(() => {
@@ -326,10 +386,38 @@ export default function DashboardPage() {
     return isNaN(parsed.getTime()) ? null : parsed
   }
 
-  // 最近売れた商品（直近10件）
+  // 最近売れた商品（直近10件）- 在庫テーブル + 手入力売上を統合
   const recentSales = useMemo(() => {
-    return inventory
+    // 在庫テーブルの売却済みを統一形式に変換
+    const inventorySalesItems = inventory
       .filter(item => item.status === '売却済み' && item.sale_date && parseDate(item.sale_date))
+      .map(item => ({
+        id: item.id,
+        product_name: item.product_name,
+        brand_name: item.brand_name,
+        sale_date: item.sale_date,
+        sale_type: item.sale_type,
+        sale_amount: item.sale_price || 0,
+        profit: (item.deposit_amount || 0) - (item.purchase_total || 0) - (item.other_cost || 0),
+        source: 'inventory' as const
+      }))
+
+    // 手入力売上を統一形式に変換
+    const manualSalesItems = manualSales
+      .filter(item => item.sale_date && parseDate(item.sale_date))
+      .map(item => ({
+        id: item.id,
+        product_name: item.product_name,
+        brand_name: item.brand_name,
+        sale_date: item.sale_date,
+        sale_type: item.sale_type,
+        sale_amount: item.sale_price || 0,
+        profit: item.profit || 0,
+        source: 'manual' as const
+      }))
+
+    // 統合してソート
+    return [...inventorySalesItems, ...manualSalesItems]
       .sort((a, b) => {
         const dateA = parseDate(a.sale_date)
         const dateB = parseDate(b.sale_date)
@@ -337,7 +425,7 @@ export default function DashboardPage() {
         return dateB.getTime() - dateA.getTime()
       })
       .slice(0, 10)
-  }, [inventory])
+  }, [inventory, manualSales])
 
   // 最近仕入れた商品（直近10件）
   const recentPurchases = useMemo(() => {
@@ -617,25 +705,25 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {recentSales.map(item => {
-                  const profit = (item.deposit_amount || 0) - (item.purchase_total || 0) - (item.other_cost || 0)
-                  return (
-                    <div key={item.id} className="flex items-center justify-between py-2 border-b text-sm">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 truncate">{item.product_name || '名称未設定'}</div>
-                        <div className="text-gray-500 text-xs">
-                          {item.sale_date} / {item.sale_type || '-'}
-                        </div>
+                {recentSales.map(item => (
+                  <div key={`${item.source}-${item.id}`} className="flex items-center justify-between py-2 border-b text-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 truncate">
+                        {item.product_name || '名称未設定'}
+                        {item.source === 'manual' && <span className="ml-1 text-xs text-purple-500">(手入力)</span>}
                       </div>
-                      <div className="text-right ml-4">
-                        <div className="text-gray-900">¥{(item.deposit_amount || 0).toLocaleString()}</div>
-                        <div className={`text-xs ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          利益: ¥{profit.toLocaleString()}
-                        </div>
+                      <div className="text-gray-500 text-xs">
+                        {item.sale_date} / {item.sale_type || '-'}
                       </div>
                     </div>
-                  )
-                })}
+                    <div className="text-right ml-4">
+                      <div className="text-gray-900">¥{item.sale_amount.toLocaleString()}</div>
+                      <div className={`text-xs ${item.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        利益: ¥{item.profit.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

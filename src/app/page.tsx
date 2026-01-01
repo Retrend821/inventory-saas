@@ -186,6 +186,7 @@ const brandDictionary: Record<string, string[]> = {
   "クレージュ": ["courreges", "courrèges", "クレージュ", "クレージェ"],
   "ジャンポールゴルチエ": ["jean paul gaultier", "jean-paul gaultier", "jpg", "ジャンポールゴルチエ", "ジャンポール・ゴルチエ", "ジャンポール ゴルチエ", "ジャンポールゴルチェ"],
   "ニナリッチ": ["ninaricci", "nina ricci", "nina-ricci", "ニナリッチ"],
+  "ステラマッカートニー": ["stella mccartney", "stellamccartney", "ステラマッカートニー", "ステラ マッカートニー"],
 }
 
 // 商品名がまとめ仕入れかどうかを判定する関数
@@ -375,6 +376,7 @@ export default function Home() {
   const [pendingCSV, setPendingCSV] = useState<{ file: File; needsDate: boolean; type?: string } | null>(null)
   const [csvPurchaseDate, setCsvPurchaseDate] = useState<string>('')
   const [starBuyersImageCSV, setStarBuyersImageCSV] = useState<File | null>(null)
+  const [aucnetImageFile, setAucnetImageFile] = useState<File | null>(null)
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
   // URLパラメータから検索キーワードの初期値を取得
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '')
@@ -401,8 +403,30 @@ export default function Home() {
     if (status === '未販売') return 'unsold'
     return 'all'
   }
-  const [quickFilter, setQuickFilter] = useState<'all' | 'unsold' | 'unlisted' | 'stale30' | 'stale90'>(initialQuickFilter)
+  const [quickFilter, setQuickFilter] = useState<'all' | 'unsold' | 'unlisted' | 'stale30' | 'stale90' | 'returns'>(initialQuickFilter)
+  // チェック済みのみ表示
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false)
+  // ドロップダウン検索用
+  const [dropdownSearchQuery, setDropdownSearchQuery] = useState('')
+  // クイックフィルター変更時にURLパラメータを更新
+  const updateQuickFilter = useCallback((value: 'all' | 'unsold' | 'unlisted' | 'stale30' | 'stale90' | 'returns') => {
+    setQuickFilter(value)
+    const url = new URL(window.location.href)
+    if (value !== 'all') {
+      url.searchParams.set('quickFilter', value)
+    } else {
+      url.searchParams.delete('quickFilter')
+    }
+    url.searchParams.delete('status') // 古いパラメータを削除
+    window.history.replaceState({}, '', url.toString())
+  }, [])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // 選択がなくなったらフィルターを自動オフ
+  useEffect(() => {
+    if (selectedIds.size === 0 && showSelectedOnly) {
+      setShowSelectedOnly(false)
+    }
+  }, [selectedIds.size, showSelectedOnly])
   // 選択状態の遅延値（UIの応答性を維持）
   const deferredSelectedIds = useDeferredValue(selectedIds)
   // 選択状態チェック用のメモ化関数（パフォーマンス最適化）
@@ -442,6 +466,7 @@ export default function Home() {
 
   // ラクマ手数料設定
   const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
+  const [rakumaSettingsLoaded, setRakumaSettingsLoaded] = useState(false)
   const [showRakumaModal, setShowRakumaModal] = useState(false)
   const [rakumaModalYearMonth, setRakumaModalYearMonth] = useState('')
   const [rakumaModalRate, setRakumaModalRate] = useState('')
@@ -449,14 +474,41 @@ export default function Home() {
 
   // オークション出品モーダル
   const [showAuctionExportModal, setShowAuctionExportModal] = useState(false)
-  const [auctionManagementField, setAuctionManagementField] = useState<'inventory_number' | 'memo'>('inventory_number')
+  const [auctionManagementField, setAuctionManagementField] = useState<'inventory_number' | 'memo'>('memo')
   const [selectedAuctionCompany, setSelectedAuctionCompany] = useState<string | null>(null)
   const [selectedAuctionCategory, setSelectedAuctionCategory] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
-  // ページネーション
-  const [currentPage, setCurrentPage] = useState(1)
+  // ページネーション（URLパラメータから初期値を取得）
+  const [currentPage, setCurrentPageState] = useState(() => {
+    const page = searchParams.get('page')
+    return page ? parseInt(page, 10) : 1
+  })
   const [itemsPerPage, setItemsPerPage] = useState(-1)
+
+  // ページ変更時にURLパラメータを更新
+  const updateCurrentPage = useCallback((pageOrUpdater: number | ((prev: number) => number)) => {
+    setCurrentPageState(prev => {
+      const newPage = typeof pageOrUpdater === 'function' ? pageOrUpdater(prev) : pageOrUpdater
+      return newPage
+    })
+  }, [])
+
+  // currentPage変更時にURLを更新（副作用として）
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    const url = new URL(window.location.href)
+    if (currentPage > 1) {
+      url.searchParams.set('page', String(currentPage))
+    } else {
+      url.searchParams.delete('page')
+    }
+    window.history.replaceState({}, '', url.toString())
+  }, [currentPage])
 
   // 汎用CSVインポート用state
   const [genericImportModal, setGenericImportModal] = useState<{
@@ -496,6 +548,7 @@ export default function Home() {
     { key: 'checkbox', label: '', draggable: false, width: 'w-8' },
     { key: 'index', label: 'No.', draggable: false, width: 'w-14' },
     { key: 'inventory_number', label: '管理\n番号', draggable: true, width: 'w-16' },
+    { key: 'refund_status', label: '返金\n完了', draggable: false, width: 'w-14' },
     { key: 'image', label: '画像', draggable: true, width: 'w-16' },
     { key: 'category', label: 'ジャンル', draggable: true, width: 'w-20' },
     { key: 'brand_name', label: 'ブランド', draggable: true, width: 'w-28' },
@@ -518,15 +571,36 @@ export default function Home() {
     { key: 'memo', label: 'メモ', draggable: true, width: 'w-40' },
   ]
   const [columns, setColumns] = useState(defaultColumns)
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set())
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inventory-hidden-columns')
+      if (saved) {
+        try {
+          return new Set(JSON.parse(saved))
+        } catch {
+          return new Set()
+        }
+      }
+    }
+    return new Set()
+  })
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [draggedCol, setDraggedCol] = useState<number | null>(null)
 
   // 全列に区切り線を入れる
-  const groupEndColumns = new Set(['checkbox', 'index', 'inventory_number', 'image', 'category', 'brand_name', 'product_name', 'purchase_source', 'sale_destination', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'purchase_date', 'listing_date', 'sale_date', 'turnover_days'])
+  const groupEndColumns = new Set(['checkbox', 'index', 'inventory_number', 'refund_status', 'image', 'category', 'brand_name', 'product_name', 'purchase_source', 'sale_destination', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'purchase_date', 'listing_date', 'sale_date', 'turnover_days'])
 
-  // 表示する列をフィルタリング
-  const visibleColumns = columns.filter(col => !hiddenColumns.has(col.key))
+  // 非表示列をlocalStorageに保存
+  useEffect(() => {
+    localStorage.setItem('inventory-hidden-columns', JSON.stringify(Array.from(hiddenColumns)))
+  }, [hiddenColumns])
+
+  // 表示する列をフィルタリング（返品タブ以外ではrefund_statusを非表示）
+  const visibleColumns = columns.filter(col => {
+    if (hiddenColumns.has(col.key)) return false
+    if (col.key === 'refund_status' && quickFilter !== 'returns') return false
+    return true
+  })
 
   const handleColumnDragStart = (index: number) => {
     setDraggedCol(index)
@@ -592,6 +666,7 @@ export default function Home() {
       })
       setRakumaCommissionSettings(settings)
     }
+    setRakumaSettingsLoaded(true)
   }, [])
 
   // 販路マスタを取得
@@ -608,6 +683,9 @@ export default function Home() {
 
   // 26日かどうかチェックして、来月の手数料が未設定なら通知
   useEffect(() => {
+    // データ取得完了前はモーダルを表示しない
+    if (!rakumaSettingsLoaded) return
+
     const today = new Date()
     const day = today.getDate()
 
@@ -627,13 +705,76 @@ export default function Home() {
         }
       }
     }
-  }, [rakumaCommissionSettings])
+  }, [rakumaCommissionSettings, rakumaSettingsLoaded])
 
   useEffect(() => {
     fetchInventory()
     fetchRakumaSettings()
     fetchPlatforms()
   }, [fetchInventory, fetchRakumaSettings, fetchPlatforms])
+
+  // 画像自動移行（バックグラウンドで実行）
+  const isMigratingRef = useRef(false)
+  useEffect(() => {
+    if (inventory.length === 0 || isMigratingRef.current) return
+
+    // 外部URLの画像を持つアイテムを抽出
+    const itemsToMigrate = inventory.filter(item => {
+      const imageUrl = item.saved_image_url || item.image_url
+      if (!imageUrl) return false
+      if (imageUrl.includes('supabase.co/storage')) return false
+      if (imageUrl.startsWith('data:')) return false
+      if (imageUrl.includes('googleusercontent.com')) return false
+      return true
+    })
+
+    if (itemsToMigrate.length === 0) return
+
+    // バックグラウンドで移行開始
+    isMigratingRef.current = true
+    const migrateImages = async () => {
+      const batchSize = 5
+      for (let i = 0; i < itemsToMigrate.length; i += batchSize) {
+        const batch = itemsToMigrate.slice(i, i + batchSize)
+        const items = batch.map(item => ({
+          id: item.id,
+          imageUrl: item.saved_image_url || item.image_url || ''
+        }))
+
+        try {
+          const response = await fetch('/api/upload-image', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+          })
+
+          if (response.ok) {
+            const { results } = await response.json()
+            for (const result of results) {
+              if (result.success && result.url) {
+                await supabase
+                  .from('inventory')
+                  .update({ saved_image_url: result.url })
+                  .eq('id', result.id)
+                // ローカルstateも更新
+                setInventory(prev => prev.map(item =>
+                  item.id === result.id ? { ...item, saved_image_url: result.url } : item
+                ))
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Auto image migration error:', error)
+        }
+
+        // 少し待機（サーバー負荷軽減）
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+      console.log(`画像自動移行完了: ${itemsToMigrate.length}件処理`)
+    }
+
+    migrateImages()
+  }, [inventory.length])
 
   // 固定スクロールバーとテーブルの同期
   useEffect(() => {
@@ -760,6 +901,12 @@ export default function Home() {
         // 売値が0またはnullの場合、入金額もリセット
         updateData.deposit_amount = null
       }
+    }
+
+    // 仕入総額が更新された場合、メモを自動更新（管理番号）仕入総額）
+    if (field === 'purchase_total' && currentItem.inventory_number) {
+      const newPurchaseTotal = value as number | null
+      updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal || 0}`
     }
 
     // 履歴に記録（変更されたフィールドのみ）
@@ -892,6 +1039,7 @@ export default function Home() {
         if (!target.closest('.date-filter-dropdown') && !target.closest('button')) {
           setOpenDateFilter(null)
           setDropdownPosition(null)
+          setDropdownSearchQuery('')
         }
       }
       // テーブルセル以外をクリックしたら選択解除
@@ -917,8 +1065,8 @@ export default function Home() {
     return null
   }
 
-  // CSVの種類を判定: 'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'unknown'
-  const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'unknown'> => {
+  // CSVの種類を判定
+  const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'aucnet' | 'unknown'> => {
     return new Promise((resolve) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       Papa.parse<any>(file, {
@@ -927,6 +1075,10 @@ export default function Home() {
         encoding: 'Shift_JIS',
         complete: (results) => {
           const firstRow = results.data[0]
+          const headers = firstRow ? Object.keys(firstRow) : []
+          // 引用符を除去してチェック
+          const cleanHeaders = headers.map(h => h.replace(/^"|"$/g, ''))
+
           if (firstRow && 'item_name' in firstRow) {
             resolve('ecoauc')
           } else if (firstRow && '管理番号' in firstRow && '落札金額' in firstRow) {
@@ -937,12 +1089,131 @@ export default function Home() {
             resolve('secondstreet')
           } else if (firstRow && '箱番' in firstRow && '枝番' in firstRow && '金額' in firstRow) {
             resolve('monobank')
+          } else if (cleanHeaders.includes('受付番号') && cleanHeaders.includes('請求商品代')) {
+            resolve('aucnet')
           } else {
             resolve('unknown')
           }
         },
         error: () => resolve('unknown')
       })
+    })
+  }
+
+  // オークネット2ファイルインポート処理
+  const handleAucnetImport = async (mainFile: File, imageFile: File | null) => {
+    // Shift-JISで読む
+    const readShiftJIS = (file: File): Promise<string> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target?.result as string)
+        reader.readAsText(file, 'Shift_JIS')
+      })
+    }
+
+    // 画像CSV: 受付番号 → URL マップ
+    const imageMap = new Map<string, string>()
+    if (imageFile) {
+      const imageText = await readShiftJIS(imageFile)
+      console.log('画像CSVの内容:', imageText.substring(0, 500))
+      for (const line of imageText.trim().split('\n')) {
+        const url = line.replace(/^"|"$/g, '').trim()
+        if (url.startsWith('http')) {
+          const match = url.match(/J\d+_(\d+-\d+)_/)
+          if (match) {
+            console.log(`画像マッチ: 受付番号=[${match[1]}], URL=[${url.substring(0, 80)}...]`)
+            imageMap.set(match[1], url)
+          }
+        }
+      }
+      console.log(`画像CSV: ${imageMap.size}件マッチ`)
+      console.log('画像マップのキー:', Array.from(imageMap.keys()))
+    }
+
+    // ファイル名から日付を抽出（20251212_オークネット計算書.csv → 2025-12-12）
+    let purchaseDate: string | null = null
+    const dateMatch = mainFile.name.match(/^(\d{4})(\d{2})(\d{2})/)
+    if (dateMatch) {
+      purchaseDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`
+    }
+
+    // 計算書CSV
+    const mainText = await readShiftJIS(mainFile)
+    Papa.parse(mainText, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const data = results.data as Record<string, string>[]
+        const getCol = (row: Record<string, string>, col: string) => row[col] || row[`"${col}"`] || ''
+
+        // 有効データのみ（受付番号あり、請求商品代 > 0）
+        const valid = data.filter(row => {
+          const num = getCol(row, '受付番号').trim()
+          const price = parseFloat((getCol(row, '請求商品代') || '0').replace(/,/g, ''))
+          return num && price > 0
+        })
+
+        if (valid.length === 0) {
+          alert('インポート対象のデータがありません')
+          return
+        }
+
+        // 既存の最大管理番号を取得
+        const { data: maxData } = await supabase
+          .from('inventory')
+          .select('inventory_number')
+          .order('inventory_number', { ascending: false })
+          .limit(1)
+          .single()
+        let nextNumber = (maxData?.inventory_number || 0) + 1
+
+        // マッピング: ジャンル→category, ブランド名→brand_name, 商品名→product_name, 請求商品代→purchase_price, 支払/請求税込合計→purchase_total
+        const records = valid.map(row => {
+          const receiptNum = getCol(row, '受付番号').trim()
+          console.log(`受付番号: [${receiptNum}], 画像URL: [${imageMap.get(receiptNum) || '無し'}]`)
+
+          // ブランド名をCSVから取得し、辞書で正規化
+          let rawBrand = getCol(row, 'ブランド名').replace(/\s+/g, ' ').trim()
+          rawBrand = rawBrand.replace(/[（\(][^）\)]*[）\)]$/, '').trim()
+          // 全角英数字を半角に変換
+          const toHalfWidth = (str: string) => str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+          const halfWidthBrand = toHalfWidth(rawBrand)
+          // ブランド名だけを抽出（最初のスペースまで、またはライン名の前まで）
+          const brandOnly = halfWidthBrand.split(/\s+/)[0]
+          const normalizedBrand = detectBrand(brandOnly) || detectBrand(halfWidthBrand)
+          console.log(`ブランド変換: [${rawBrand}] → [${normalizedBrand || rawBrand}]`)
+          const finalBrand = normalizedBrand || rawBrand || null
+
+          const inventoryNumber = nextNumber++
+
+          const purchaseTotal = parseFloat((getCol(row, '支払/請求税込合計') || '0').replace(/,/g, '')) || 0
+
+          return {
+            user_id: user?.id,
+            inventory_number: inventoryNumber,
+            category: getCol(row, 'ジャンル').trim() || null,
+            brand_name: finalBrand,
+            product_name: getCol(row, '商品名').trim() || null,
+            purchase_price: parseFloat((getCol(row, '請求商品代') || '0').replace(/,/g, '')) || 0,
+            purchase_total: purchaseTotal,
+            purchase_source: 'オークネット',
+            purchase_date: purchaseDate,
+            image_url: imageMap.get(receiptNum) || null,
+            status: '在庫あり',
+            memo: `${inventoryNumber}）${purchaseTotal}`,
+          }
+        }).filter(r => r.product_name || r.brand_name)
+
+        const { error } = await supabase.from('inventory').insert(records)
+        if (error) {
+          console.error('インポートエラー:', error)
+          alert(`エラー: ${error.message}`)
+        } else {
+          alert(`オークネットCSVインポート完了: ${records.length}件`)
+          setAucnetImageFile(null)
+          fetchInventory()
+        }
+      }
     })
   }
 
@@ -967,6 +1238,9 @@ export default function Home() {
     } else if (csvType === 'secondstreet') {
       // セカスト形式：そのまま処理
       handleCSVUpload(file, null, null)
+    } else if (csvType === 'aucnet') {
+      // オークネット形式：画像CSVがあれば一緒にインポート
+      handleAucnetImport(file, aucnetImageFile)
     } else {
       // 不明な形式は汎用インポートモーダルを表示
       handleGenericCSVImport(file)
@@ -1096,6 +1370,18 @@ export default function Home() {
 
   const handleGenericCSVImport = (file: File) => {
     console.log('handleGenericCSVImport called:', file.name, file.size)
+
+    // オークネット画像CSVかチェック（1行目からURLの場合はスキップ）
+    const checkAndProcess = (text: string) => {
+      const lines = text.trim().split('\n').slice(0, 5)
+      const isImageCSV = lines.some(line => line.includes('image.brand-auc.com'))
+      if (isImageCSV) {
+        alert('オークネット画像CSVは「在庫管理」→「単品仕入一覧」から計算書CSVと一緒にインポートしてください。')
+        return
+      }
+      tryParse(text)
+    }
+
     const tryParse = (text: string) => {
       console.log('tryParse called, text length:', text.length)
       Papa.parse(text, {
@@ -1161,14 +1447,14 @@ export default function Home() {
         sjisReader.onload = (e) => {
           const sjisText = e.target?.result as string
           console.log('Shift-JIS loaded, length:', sjisText?.length)
-          tryParse(sjisText)
+          checkAndProcess(sjisText)
         }
         sjisReader.onerror = (e) => {
           console.error('Shift-JIS read error:', e)
         }
         sjisReader.readAsText(file, 'Shift_JIS')
       } else {
-        tryParse(text)
+        checkAndProcess(text)
       }
     }
     reader.onerror = (e) => {
@@ -1232,6 +1518,15 @@ export default function Home() {
 
     setGenericImportModal({ ...genericImportModal, step: 'importing', progress: 0 })
 
+    // 最大の管理番号を取得して、その次から連番を割り当て
+    const { data: maxData } = await supabase
+      .from('inventory')
+      .select('inventory_number')
+      .order('inventory_number', { ascending: false })
+      .limit(1)
+      .single()
+    let nextNumber = (maxData?.inventory_number || 0) + 1
+
     let success = 0
     let failed = 0
     const batchSize = 50
@@ -1240,14 +1535,16 @@ export default function Home() {
       const batch = csvData.slice(i, i + batchSize)
 
       const records = batch.map(row => {
+        const invNum = nextNumber++
         const record: Record<string, string | number | null> = {
           user_id: user.id,
           status: '在庫あり',
+          inventory_number: invNum,
         }
 
         Object.entries(mapping).forEach(([csvHeader, inventoryColumn]) => {
-          // profit/profit_rateは常に計算で求めるのでインポートしない
-          if (['profit', 'profit_rate'].includes(inventoryColumn)) return
+          // profit/profit_rate/inventory_number/memoは自動で設定するのでインポートしない
+          if (['profit', 'profit_rate', 'inventory_number', 'memo'].includes(inventoryColumn)) return
           let value = row[csvHeader]
           if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(inventoryColumn)) {
             record[inventoryColumn] = parseGenericNumber(value)
@@ -1273,6 +1570,9 @@ export default function Home() {
         if (record.sale_date || record.sale_destination) {
           record.status = '売却済み'
         }
+
+        // メモを自動設定（管理番号）仕入総額）
+        record.memo = `${invNum}）${record.purchase_total || 0}`
 
         return record
       }).filter(record => record.product_name) // 商品名がない行はスキップ
@@ -1550,35 +1850,52 @@ export default function Home() {
           // ステップ1: 重複チェック
           setUploadProgress({ stage: '重複チェック中', current: 0, total: items.length })
 
-          // 既存データを取得
-          const { data: existingItems } = await supabase
-            .from('inventory')
-            .select('product_name, purchase_date, purchase_total, image_url')
+          // 既存データを全件取得（Supabaseのデフォルト1000件制限を回避）
+          let existingItems: { product_name: string; purchase_date: string | null; purchase_total: number | null; image_url: string | null }[] = []
+          let offset = 0
+          const batchSize = 1000
+          while (true) {
+            const { data } = await supabase
+              .from('inventory')
+              .select('product_name, purchase_date, purchase_total, image_url')
+              .range(offset, offset + batchSize - 1)
+            if (!data || data.length === 0) break
+            existingItems = existingItems.concat(data)
+            if (data.length < batchSize) break
+            offset += batchSize
+          }
 
-          // 重複チェック用のキーを生成（商品名 + 仕入日 + 仕入総額 + 画像URL）
-          const existingKeys = new Set(
-            (existingItems || []).map(item => {
-              if (item.image_url) {
-                return `${item.product_name}|${item.purchase_date}|${item.purchase_total}|${item.image_url}`
-              }
-              return `${item.product_name}|${item.purchase_date}|${item.purchase_total}`
-            })
+          // 重複チェック用のキーを生成
+          // 画像URLでも判定、商品名+仕入日+仕入総額でも判定（両方チェック）
+          const existingImageUrls = new Set(
+            (existingItems || []).filter(item => item.image_url).map(item => item.image_url)
           )
+          const existingKeys = new Set(
+            (existingItems || []).map(item => `${item.product_name}|${item.purchase_date}|${item.purchase_total}`)
+          )
+
+          console.log('=== 重複チェックデバッグ ===')
+          console.log('既存データ件数:', existingItems?.length || 0)
+          console.log('既存キー例（最初の3件）:', Array.from(existingKeys).slice(0, 3))
+          console.log('CSVアイテム件数:', items.length)
+          console.log('CSVアイテム例（最初の1件）:', items[0] ? `${items[0].product_name}|${items[0].purchase_date}|${items[0].purchase_total}` : 'なし')
 
           // 重複を除外し、スキップされたアイテムも記録
           const newItems: typeof items = []
           const skippedItems: typeof items = []
 
           for (const item of items) {
-            const key = item.image_url
-              ? `${item.product_name}|${item.purchase_date}|${item.purchase_total}|${item.image_url}`
-              : `${item.product_name}|${item.purchase_date}|${item.purchase_total}`
-            if (existingKeys.has(key)) {
+            const key = `${item.product_name}|${item.purchase_date}|${item.purchase_total}`
+            // 画像URLが一致、または商品名+日付+金額が一致していれば重複
+            if ((item.image_url && existingImageUrls.has(item.image_url)) || existingKeys.has(key)) {
               skippedItems.push(item)
             } else {
               newItems.push(item)
             }
           }
+
+          console.log('新規アイテム:', newItems.length, '件')
+          console.log('スキップ:', skippedItems.length, '件')
 
           if (newItems.length === 0) {
             setImportResult({
@@ -1623,7 +1940,24 @@ export default function Home() {
 
           // 単品をinventoryに登録
           if (singleItems.length > 0) {
-            const singleItemsWithUserId = singleItems.map(item => ({ ...item, user_id: user?.id }))
+            // 最大の管理番号を取得して、その次から連番を割り当て
+            const { data: maxData } = await supabase
+              .from('inventory')
+              .select('inventory_number')
+              .order('inventory_number', { ascending: false })
+              .limit(1)
+              .single()
+            let nextNumber = (maxData?.inventory_number || 0) + 1
+
+            const singleItemsWithUserId = singleItems.map(item => {
+              const invNum = nextNumber++
+              return {
+                ...item,
+                user_id: user?.id,
+                inventory_number: invNum,
+                memo: `${invNum}）${item.purchase_total || 0}`
+              }
+            })
             const { data, error } = await supabase
               .from('inventory')
               .insert(singleItemsWithUserId)
@@ -1745,16 +2079,28 @@ export default function Home() {
       }
     } else {
       // 単品仕入れに登録
+      // 最大の管理番号を取得して、その次の番号を割り当て
+      const { data: maxData } = await supabase
+        .from('inventory')
+        .select('inventory_number')
+        .order('inventory_number', { ascending: false })
+        .limit(1)
+        .single()
+      const nextNumber = (maxData?.inventory_number || 0) + 1
+
+      const purchaseTotal = newItemForm.purchase_total ? parseInt(newItemForm.purchase_total, 10) : 0
       const singleItem = {
         product_name: productName,
         brand_name: newItemForm.brand_name || detectBrand(productName) || null,
         category: newItemForm.category || detectCategory(productName) || null,
         purchase_price: newItemForm.purchase_price ? parseInt(newItemForm.purchase_price, 10) : null,
-        purchase_total: newItemForm.purchase_total ? parseInt(newItemForm.purchase_total, 10) : null,
+        purchase_total: purchaseTotal || null,
         purchase_date: newItemForm.purchase_date || null,
         purchase_source: newItemForm.purchase_source || null,
         status: '在庫あり',
-        user_id: user?.id
+        user_id: user?.id,
+        inventory_number: nextNumber,
+        memo: `${nextNumber}）${purchaseTotal}`
       }
 
       const { error } = await supabase.from('inventory').insert(singleItem)
@@ -1811,6 +2157,84 @@ export default function Home() {
     } else {
       setSelectedIds(new Set())
       fetchInventory()
+    }
+  }
+
+  // 画像一括移行（Supabase Storageへ）
+  const [isMigratingImages, setIsMigratingImages] = useState(false)
+  const handleMigrateImages = async () => {
+    if (selectedIds.size === 0) {
+      alert('画像を移行する商品を選択してください')
+      return
+    }
+
+    // 選択された商品のうち、外部画像URLを持つものを抽出
+    const itemsToMigrate = inventory.filter(item => {
+      if (!selectedIds.has(item.id)) return false
+      const imageUrl = item.saved_image_url || item.image_url
+      if (!imageUrl) return false
+      // すでにSupabase StorageやBase64の場合はスキップ
+      if (imageUrl.includes('supabase.co/storage')) return false
+      if (imageUrl.startsWith('data:')) return false
+      return true
+    })
+
+    if (itemsToMigrate.length === 0) {
+      alert('移行対象の画像がありません（すでに移行済みか、画像がない商品です）')
+      return
+    }
+
+    if (!confirm(`${itemsToMigrate.length}件の画像をSupabase Storageに移行しますか？\n\n※1件ずつ処理するため、時間がかかる場合があります`)) {
+      return
+    }
+
+    setIsMigratingImages(true)
+    let success = 0
+    let failed = 0
+
+    try {
+      // 10件ずつバッチ処理
+      const batchSize = 10
+      for (let i = 0; i < itemsToMigrate.length; i += batchSize) {
+        const batch = itemsToMigrate.slice(i, i + batchSize)
+        const items = batch.map(item => ({
+          id: item.id,
+          imageUrl: item.saved_image_url || item.image_url || ''
+        }))
+
+        const response = await fetch('/api/upload-image', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items })
+        })
+
+        if (response.ok) {
+          const { results } = await response.json()
+          for (const result of results) {
+            if (result.success && result.url) {
+              // DBを更新
+              await supabase
+                .from('inventory')
+                .update({ saved_image_url: result.url })
+                .eq('id', result.id)
+              success++
+            } else {
+              failed++
+            }
+          }
+        } else {
+          failed += batch.length
+        }
+      }
+
+      alert(`画像移行完了\n\n成功: ${success}件\n失敗: ${failed}件`)
+      setSelectedIds(new Set())
+      fetchInventory()
+    } catch (error) {
+      console.error('Image migration error:', error)
+      alert('画像移行中にエラーが発生しました')
+    } finally {
+      setIsMigratingImages(false)
     }
   }
 
@@ -1889,29 +2313,37 @@ export default function Home() {
   // 空の行を追加
   const handleAddRow = async () => {
     try {
+      // 現在の最大管理番号を取得
+      const maxInventoryNumber = inventory.reduce((max, item) => {
+        const num = parseInt(item.inventory_number || '0', 10)
+        return isNaN(num) ? max : Math.max(max, num)
+      }, 0)
+      const newInventoryNumber = String(maxInventoryNumber + 1)
+
       const { data, error } = await supabase
         .from('inventory')
         .insert({
           product_name: '新規商品',
           status: '在庫中',
+          inventory_number: newInventoryNumber,
         })
         .select()
         .single()
 
       if (error) {
         console.error('Error adding row:', error)
-        alert('行の追加に失敗しました')
+        alert('行の追加に失敗しました: ' + error.message)
         return
       }
 
-      // 追加した行を先頭に追加してリフレッシュ
-      setInventory(prev => [data, ...prev])
+      // 追加した行を最後に追加
+      setInventory(prev => [...prev, data])
 
-      // 追加した行を編集モードにする
-      setEditingCell({ id: data.id, field: 'product_name' })
+      // 追加した行の商品名をモーダルで編集
+      setModalEdit({ id: data.id, field: 'product_name', value: '新規商品' })
     } catch (error) {
       console.error('Error adding row:', error)
-      alert('行の追加に失敗しました')
+      alert('行の追加に失敗しました: ' + (error instanceof Error ? error.message : String(error)))
     }
   }
 
@@ -1919,6 +2351,14 @@ export default function Home() {
   const handleCellClick = (item: InventoryItem, field: keyof InventoryItem) => {
     // 既に編集中なら何もしない
     if (editingCell?.id === item.id && editingCell?.field === field) return
+
+    // 入力フィールドからフォーカスを外す（直接入力を可能にするため）
+    if (document.activeElement && document.activeElement instanceof HTMLElement) {
+      const tag = document.activeElement.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        document.activeElement.blur()
+      }
+    }
 
     // 同じセルが選択されている場合は編集モードに入る
     if (selectedCell?.id === item.id && selectedCell?.field === field && !selectionRange) {
@@ -2228,21 +2668,85 @@ export default function Home() {
     e.stopPropagation()
     setDragActive(false)
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      if (file.name.endsWith('.csv')) {
-        handleCSVSelect(file)
-      } else {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.csv'))
+      if (files.length === 0) {
         alert('CSVファイルをアップロードしてください')
+        return
       }
+      handleCSVFilesSelect(files)
     }
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleCSVSelect(e.target.files[0])
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files)
+      handleCSVFilesSelect(files)
       // 同じファイルを再度選択できるようにリセット
       e.target.value = ''
+    }
+  }
+
+  // 複数ファイル対応: オークネットの場合は計算書CSVと画像CSVを同時選択可能
+  const handleCSVFilesSelect = async (files: File[]) => {
+    // オークネット画像CSVかチェック
+    const checkImageCSV = (text: string): boolean => {
+      const lines = text.trim().split('\n').slice(0, 5)
+      return lines.some(line => line.includes('image.brand-auc.com'))
+    }
+
+    // ファイルを読み込んでテキストとして返す（エンコード自動判定）
+    const readFileAsText = (file: File): Promise<string> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          const text = event.target?.result as string
+          const hasJapanese = /[あ-んア-ン一-龯]/.test(text)
+          const hasGarbage = /[\ufffd\u0000-\u001f]/.test(text) && !hasJapanese
+          if (hasGarbage || (!hasJapanese && text.includes('�'))) {
+            const sjisReader = new FileReader()
+            sjisReader.onload = (e) => resolve(e.target?.result as string)
+            sjisReader.readAsText(file, 'Shift_JIS')
+          } else {
+            resolve(text)
+          }
+        }
+        reader.readAsText(file, 'UTF-8')
+      })
+    }
+
+    // 1ファイルの場合は従来通り
+    if (files.length === 1) {
+      const text = await readFileAsText(files[0])
+      if (checkImageCSV(text)) {
+        alert('オークネット画像CSVだけでは取り込めません。計算書CSVも一緒に選択してください。')
+        return
+      }
+      handleCSVSelect(files[0])
+      return
+    }
+
+    // 2ファイル以上: オークネット計算書CSVと画像CSVを探す
+    let mainFile: File | null = null
+    let imageFile: File | null = null
+
+    for (const file of files) {
+      const text = await readFileAsText(file)
+      if (checkImageCSV(text)) {
+        imageFile = file
+      } else {
+        mainFile = file
+      }
+    }
+
+    if (mainFile && imageFile) {
+      // 両方ある場合は直接オークネットインポートを実行（state経由だと非同期で遅延する）
+      console.log('オークネット2ファイルインポート開始:', mainFile.name, imageFile.name)
+      handleAucnetImport(mainFile, imageFile)
+    } else if (mainFile) {
+      handleCSVSelect(mainFile)
+    } else {
+      alert('認識できるCSVファイルがありませんでした')
     }
   }
 
@@ -2280,8 +2784,8 @@ export default function Home() {
       !isExcludedText(i.sale_date) && !isExcludedText(i.listing_date)
     )
 
-    // 未販売：売却日が空のもの（スプシと同じ条件）
-    const unsoldItems = validItems.filter(i => !i.sale_date)
+    // 未販売：売却日が空のもの、かつ返品でないもの
+    const unsoldItems = validItems.filter(i => !i.sale_date && i.sale_destination !== '返品')
     const unsoldCount = unsoldItems.length // 未販売数
 
     // 未出品：出品日が空のもの（スプシと同じ条件）
@@ -2328,6 +2832,10 @@ export default function Home() {
     const stale90Count = stale90Items.length
     const stale90StockValue = stale90Items.reduce((sum, i) => sum + (i.purchase_total || 0), 0)
 
+    // 返品
+    const returnsItems = inventory.filter(i => i.sale_destination === '返品')
+    const returnsCount = returnsItems.length
+
     return {
       totalCount,
       unsoldCount,
@@ -2342,6 +2850,7 @@ export default function Home() {
       stale30StockValue,
       stale90Count,
       stale90StockValue,
+      returnsCount,
     }
   }, [inventory])
 
@@ -2532,8 +3041,8 @@ export default function Home() {
 
     // クイックフィルター（未販売・未出品・滞留）
     if (quickFilter === 'unsold') {
-      // 未販売：売却済みでないもの
-      result = result.filter(item => item.status !== '売却済み')
+      // 未販売：売却済みでないもの、かつ返品でないもの
+      result = result.filter(item => item.status !== '売却済み' && item.sale_destination !== '返品')
     } else if (quickFilter === 'unlisted') {
       // 未出品：出品日が空欄のもの
       result = result.filter(item => !item.listing_date)
@@ -2548,16 +3057,24 @@ export default function Home() {
         const days = Math.floor((now.getTime() - listingDate.getTime()) / (1000 * 60 * 60 * 24))
         return days >= threshold
       })
+    } else if (quickFilter === 'returns') {
+      // 返品：販売先が「返品」のもの
+      result = result.filter(item => item.sale_destination === '返品')
+    }
+
+    // チェック済みのみ表示
+    if (showSelectedOnly && selectedIds.size > 0) {
+      result = result.filter(item => selectedIds.has(item.id))
     }
 
     return result
-  }, [inventory, searchQuery, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations, dateFilters, dateRangeFilter, turnoverDaysFilter, quickFilter])
+  }, [inventory, searchQuery, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations, dateFilters, dateRangeFilter, turnoverDaysFilter, quickFilter, showSelectedOnly, selectedIds])
 
   // ソート済みのインベントリ
   // 利益計算ヘルパー関数（常に計算で求める）
   const calcProfit = (item: InventoryItem): number | null => {
-    // 売上日がある場合のみ計算（売却確定時）
-    if (!item.sale_date) return null
+    // 売上日がある場合のみ計算（売却確定時）、返品は除外
+    if (!item.sale_date || item.sale_date === '返品') return null
     // 入金額がある場合のみ計算
     return item.deposit_amount !== null
       ? Number(item.deposit_amount) - (item.purchase_total || 0) - (item.other_cost || 0)
@@ -2641,10 +3158,15 @@ export default function Home() {
     overscan: 10, // 画面外に余分にレンダリングする行数
   })
 
-  // フィルター変更時にページをリセット
+  // フィルター変更時にページをリセット（初回ロード時は除く）
+  const isInitialMount = useRef(true)
   useEffect(() => {
-    setCurrentPage(1)
-  }, [filteredInventory.length])
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+    updateCurrentPage(1)
+  }, [filteredInventory.length, updateCurrentPage])
 
   // 最後にクリックしたアイテムのインデックスを記録
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
@@ -2835,8 +3357,73 @@ export default function Home() {
     return () => document.removeEventListener('keydown', handleCopyKey)
   }, [selectionRange, copySelectedCells])
 
-  // 選択セルの削除
+  // 選択セルの削除（単一セル or 範囲選択）
   const deleteSelectedCells = useCallback(async () => {
+    // 単一セル選択の場合
+    if (selectedCell && !selectionRange) {
+      const item = sortedInventory.find(i => i.id === selectedCell.id)
+      if (!item) return
+
+      const field = selectedCell.field
+      const nonEditableFields = ['id', 'created_at', 'checkbox', 'index', 'image', 'profit', 'profit_rate', 'turnover_days', 'deposit_amount', 'commission', 'inventory_number']
+      if (nonEditableFields.includes(field)) return
+
+      const oldValue = item[field as keyof InventoryItem]
+      if (oldValue === null) return // 既にnullなら何もしない
+
+      // 販売先が「返品」の場合、出品日・売却日も連動してクリア
+      if (field === 'sale_destination' && item.sale_destination === '返品') {
+        // 履歴に記録
+        const historyChanges = [
+          { id: item.id, field: 'sale_destination', oldValue: item.sale_destination, newValue: null },
+          { id: item.id, field: 'listing_date', oldValue: item.listing_date, newValue: null },
+          { id: item.id, field: 'sale_date', oldValue: item.sale_date, newValue: null }
+        ]
+        setUndoStack(prev => {
+          const newStack = [...prev, historyChanges]
+          if (newStack.length > MAX_HISTORY) {
+            return newStack.slice(-MAX_HISTORY)
+          }
+          return newStack
+        })
+        setRedoStack([])
+
+        // データベース更新
+        const { error } = await supabase
+          .from('inventory')
+          .update({ sale_destination: null, listing_date: null, sale_date: null })
+          .eq('id', item.id)
+
+        if (!error) {
+          setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: null, listing_date: null, sale_date: null } : inv))
+        }
+        return
+      }
+
+      // 通常のクリア処理
+      // 履歴に記録
+      setUndoStack(prev => {
+        const newStack = [...prev, [{ id: item.id, field, oldValue, newValue: null }]]
+        if (newStack.length > MAX_HISTORY) {
+          return newStack.slice(-MAX_HISTORY)
+        }
+        return newStack
+      })
+      setRedoStack([])
+
+      // データベース更新
+      const { error } = await supabase
+        .from('inventory')
+        .update({ [field]: null })
+        .eq('id', item.id)
+
+      if (!error) {
+        setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, [field]: null } : inv))
+      }
+      return
+    }
+
+    // 範囲選択の場合
     if (!selectionRange) return
 
     const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
@@ -2908,7 +3495,7 @@ export default function Home() {
       }
       return item
     }))
-  }, [selectionRange, sortedInventory, visibleColumns, MAX_HISTORY])
+  }, [selectedCell, selectionRange, sortedInventory, visibleColumns, MAX_HISTORY])
 
   // Delete/Backspaceで選択セルを削除
   useEffect(() => {
@@ -2918,14 +3505,173 @@ export default function Home() {
       // 入力フィールドにフォーカスがある場合は無視
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'SELECT') return
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectionRange) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && (selectionRange || selectedCell)) {
         e.preventDefault()
         deleteSelectedCells()
       }
     }
     document.addEventListener('keydown', handleDeleteKey)
     return () => document.removeEventListener('keydown', handleDeleteKey)
-  }, [selectionRange, editingCell, deleteSelectedCells])
+  }, [selectionRange, selectedCell, editingCell, deleteSelectedCells])
+
+  // セルのコピー機能 (Ctrl+C / Cmd+C)
+  useEffect(() => {
+    const handleCopy = (e: KeyboardEvent) => {
+      // 編集中は無視
+      if (editingCell) return
+      // 入力フィールドにフォーカスがある場合は無視
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'SELECT') return
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedCell) {
+        e.preventDefault()
+        const item = sortedInventory.find(i => i.id === selectedCell.id)
+        if (!item) return
+
+        const value = item[selectedCell.field]
+        const textValue = value !== null && value !== undefined ? String(value) : ''
+
+        navigator.clipboard.writeText(textValue).catch(err => {
+          console.error('Failed to copy:', err)
+        })
+      }
+    }
+    document.addEventListener('keydown', handleCopy)
+    return () => document.removeEventListener('keydown', handleCopy)
+  }, [selectedCell, editingCell, sortedInventory])
+
+  // セルのペースト機能 (Ctrl+V / Cmd+V)
+  useEffect(() => {
+    const handlePaste = async (e: KeyboardEvent) => {
+      // 編集中は無視
+      if (editingCell) return
+      // 入力フィールドにフォーカスがある場合は無視
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'SELECT') return
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && (selectedCell || selectionRange)) {
+        e.preventDefault()
+
+        try {
+          const clipboardText = await navigator.clipboard.readText()
+          const nonEditableFields = ['id', 'user_id', 'created_at', 'profit', 'profit_rate', 'turnover_days']
+          const numericFields = ['inventory_number', 'purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount']
+
+          // 範囲選択がある場合は複数セルにペースト
+          if (selectionRange) {
+            const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
+            const maxRow = Math.max(selectionRange.startRow, selectionRange.endRow)
+            const minCol = Math.min(selectionRange.startCol, selectionRange.endCol)
+            const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
+
+            const updates: { id: string; field: string; value: string | number | null }[] = []
+
+            for (let row = minRow; row <= maxRow; row++) {
+              for (let col = minCol; col <= maxCol; col++) {
+                const item = sortedInventory[row]
+                const column = visibleColumns[col]
+                if (!item || !column) continue
+
+                const field = column.key
+                if (nonEditableFields.includes(field)) continue
+
+                let newValue: string | number | null = clipboardText.trim()
+                if (numericFields.includes(field)) {
+                  const num = parseFloat(newValue.replace(/,/g, ''))
+                  newValue = isNaN(num) ? null : num
+                }
+
+                updates.push({ id: item.id, field, value: newValue })
+              }
+            }
+
+            // 一括更新
+            for (const update of updates) {
+              // 返品処理：販売先に「返品」を設定した場合
+              if (update.field === 'sale_destination' && update.value === '返品') {
+                await supabase.from('inventory').update({
+                  sale_destination: '返品',
+                  listing_date: '返品',
+                  sale_date: '返品',
+                  sale_price: null,
+                  commission: null,
+                  profit: null,
+                  profit_rate: null
+                }).eq('id', update.id)
+              } else {
+                await supabase.from('inventory').update({ [update.field]: update.value }).eq('id', update.id)
+              }
+            }
+            setInventory(prev => prev.map(item => {
+              const itemUpdates = updates.filter(u => u.id === item.id)
+              if (itemUpdates.length === 0) return item
+              const newItem = { ...item }
+              for (const u of itemUpdates) {
+                // 返品処理
+                if (u.field === 'sale_destination' && u.value === '返品') {
+                  newItem.sale_destination = '返品'
+                  newItem.listing_date = '返品'
+                  newItem.sale_date = '返品'
+                  newItem.sale_price = null
+                  newItem.commission = null
+                  newItem.profit = null
+                  newItem.profit_rate = null
+                } else {
+                  (newItem as Record<string, unknown>)[u.field] = u.value
+                }
+              }
+              return newItem as InventoryItem
+            }))
+          } else if (selectedCell) {
+            // 単一セルにペースト
+            const item = sortedInventory.find(i => i.id === selectedCell.id)
+            if (!item) return
+
+            const field = selectedCell.field
+            if (nonEditableFields.includes(field as string)) return
+
+            let newValue: string | number | null = clipboardText.trim()
+            if (numericFields.includes(field as string)) {
+              const num = parseFloat(newValue.replace(/,/g, ''))
+              newValue = isNaN(num) ? null : num
+            }
+
+            // 返品処理：販売先に「返品」をペーストした場合
+            if (field === 'sale_destination' && newValue === '返品') {
+              const { error } = await supabase.from('inventory').update({
+                sale_destination: '返品',
+                listing_date: '返品',
+                sale_date: '返品',
+                sale_price: null,
+                commission: null,
+                profit: null,
+                profit_rate: null
+              }).eq('id', item.id)
+              if (!error) {
+                setInventory(prev => prev.map(i => i.id === item.id ? {
+                  ...i,
+                  sale_destination: '返品',
+                  listing_date: '返品',
+                  sale_date: '返品',
+                  sale_price: null,
+                  commission: null,
+                  profit: null,
+                  profit_rate: null
+                } : i))
+              }
+            } else {
+              const { error } = await supabase.from('inventory').update({ [field]: newValue }).eq('id', item.id)
+              if (!error) {
+                setInventory(prev => prev.map(i => i.id === item.id ? { ...i, [field]: newValue } : i))
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to paste:', err)
+        }
+      }
+    }
+    document.addEventListener('keydown', handlePaste)
+    return () => document.removeEventListener('keydown', handlePaste)
+  }, [selectedCell, selectionRange, editingCell, sortedInventory, visibleColumns])
 
   // Undo実行
   const executeUndo = useCallback(async () => {
@@ -2936,9 +3682,20 @@ export default function Home() {
 
     // データベースを元に戻す
     for (const change of lastChanges) {
+      const updateData: Record<string, unknown> = { [change.field]: change.oldValue }
+
+      // sale_dateが変更された場合、statusも更新
+      if (change.field === 'sale_date') {
+        if (!change.oldValue || change.oldValue === '') {
+          updateData.status = '在庫あり'
+        } else if (change.oldValue !== '返品') {
+          updateData.status = '売却済み'
+        }
+      }
+
       const { error } = await supabase
         .from('inventory')
-        .update({ [change.field]: change.oldValue })
+        .update(updateData)
         .eq('id', change.id)
 
       if (error) {
@@ -2950,7 +3707,16 @@ export default function Home() {
     setInventory(prev => prev.map(item => {
       const change = lastChanges.find(c => c.id === item.id)
       if (change) {
-        return { ...item, [change.field]: change.oldValue }
+        const updates: Record<string, unknown> = { [change.field]: change.oldValue }
+        // sale_dateが変更された場合、statusも更新
+        if (change.field === 'sale_date') {
+          if (!change.oldValue || change.oldValue === '') {
+            updates.status = '在庫あり'
+          } else if (change.oldValue !== '返品') {
+            updates.status = '売却済み'
+          }
+        }
+        return { ...item, ...updates }
       }
       return item
     }))
@@ -2968,9 +3734,20 @@ export default function Home() {
 
     // データベースを再適用
     for (const change of lastChanges) {
+      const updateData: Record<string, unknown> = { [change.field]: change.newValue }
+
+      // sale_dateが変更された場合、statusも更新
+      if (change.field === 'sale_date') {
+        if (!change.newValue || change.newValue === '') {
+          updateData.status = '在庫あり'
+        } else if (change.newValue !== '返品') {
+          updateData.status = '売却済み'
+        }
+      }
+
       const { error } = await supabase
         .from('inventory')
-        .update({ [change.field]: change.newValue })
+        .update(updateData)
         .eq('id', change.id)
 
       if (error) {
@@ -2982,7 +3759,16 @@ export default function Home() {
     setInventory(prev => prev.map(item => {
       const change = lastChanges.find(c => c.id === item.id)
       if (change) {
-        return { ...item, [change.field]: change.newValue }
+        const updates: Record<string, unknown> = { [change.field]: change.newValue }
+        // sale_dateが変更された場合、statusも更新
+        if (change.field === 'sale_date') {
+          if (!change.newValue || change.newValue === '') {
+            updates.status = '在庫あり'
+          } else if (change.newValue !== '返品') {
+            updates.status = '売却済み'
+          }
+        }
+        return { ...item, ...updates }
       }
       return item
     }))
@@ -3066,6 +3852,8 @@ export default function Home() {
       if (editingCell) return
       // セルが選択されていない場合は無視
       if (!selectedCell) return
+      // 入力フィールドにフォーカスがある場合は無視
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'SELECT') return
       // モーダルが開いている場合は無視
       if (modalEdit || imageEditModal) return
       // 修飾キーが押されている場合は無視（ショートカット用）
@@ -3191,7 +3979,7 @@ export default function Home() {
     return colors
   }, [masterPlatforms])
 
-  const saleDestinationColors = { ...platformColors, '返品': 'bg-red-100 text-red-800' }
+  const saleDestinationColors: Record<string, string> = { ...platformColors, '返品': 'bg-red-100 text-red-800' }
 
   // 有効な販路のみ表示（sort_order順）
   const platformOptions = useMemo(() => {
@@ -3201,7 +3989,10 @@ export default function Home() {
   }, [masterPlatforms])
 
   const visiblePlatformOptions = platformOptions.filter(p => !hiddenPlatforms.has(p))
-  const saleDestinationOptions = [...visiblePlatformOptions, '返品']
+  // 「返品」がマスタにない場合のみ追加
+  const saleDestinationOptions = visiblePlatformOptions.includes('返品')
+    ? visiblePlatformOptions
+    : [...visiblePlatformOptions, '返品']
 
   // チップ列の幅を最長の名前に基づいて計算（仕入先・販売先で共通）
   const chipColumnWidth = useMemo(() => {
@@ -3213,10 +4004,32 @@ export default function Home() {
     return Math.max(100, Math.min(200, calculatedWidth)) // 100px〜200pxの範囲
   }, [masterPlatforms])
 
+  // Tailwindの幅クラスをピクセルに変換するマップ
+  const widthMap: Record<string, number> = {
+    'w-8': 32, 'w-10': 40, 'w-12': 48, 'w-14': 56, 'w-16': 64,
+    'w-20': 80, 'w-24': 96, 'w-28': 112, 'w-32': 128, 'w-40': 160,
+    'w-[140px]': 140
+  }
+
+  // 列幅の配列をメモ化（スクロール時の再計算を防ぐ）
+  const columnWidths = useMemo(() => {
+    return visibleColumns.map(col => {
+      if (col.key === 'purchase_source' || col.key === 'sale_destination') {
+        return chipColumnWidth
+      }
+      return widthMap[col.width] || 80
+    })
+  }, [visibleColumns, chipColumnWidth])
+
+  // テーブル全体の幅を計算
+  const tableWidth = useMemo(() => {
+    return columnWidths.reduce((sum, w) => sum + w, 0)
+  }, [columnWidths])
+
   // 列の幅を取得（チップ列は動的に計算）
   const getColumnWidth = useCallback((col: { key: string; width: string }) => {
     if (col.key === 'purchase_source' || col.key === 'sale_destination') {
-      return { width: `${chipColumnWidth}px`, minWidth: `${chipColumnWidth}px` }
+      return { width: `${chipColumnWidth}px`, minWidth: `${chipColumnWidth}px`, maxWidth: `${chipColumnWidth}px` }
     }
     return {}
   }, [chipColumnWidth])
@@ -3334,7 +4147,7 @@ export default function Home() {
 
   return (
       <div className="min-h-screen bg-gray-50">
-      <main className="px-4 py-6">
+      <main className={`px-4 py-6 ${modalEdit ? 'pb-32' : ''}`}>
         {/* CSVアップロードエリア */}
         <div
           className={`mb-6 border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -3378,6 +4191,7 @@ export default function Home() {
                   <input
                     type="file"
                     accept=".csv"
+                    multiple
                     onChange={handleFileInput}
                     className="hidden"
                   />
@@ -3399,7 +4213,7 @@ export default function Home() {
           <div className="border-b border-gray-200">
             <div className="flex">
               <button
-                onClick={() => setQuickFilter('all')}
+                onClick={() => updateQuickFilter('all')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   quickFilter === 'all'
                     ? 'border-blue-600 text-blue-600 bg-blue-50'
@@ -3409,7 +4223,7 @@ export default function Home() {
                 全件 ({inventory.length})
               </button>
               <button
-                onClick={() => setQuickFilter('unsold')}
+                onClick={() => updateQuickFilter('unsold')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   quickFilter === 'unsold'
                     ? 'border-blue-600 text-blue-600 bg-blue-50'
@@ -3419,7 +4233,7 @@ export default function Home() {
                 未販売 ({inventoryStats.unsoldCount})
               </button>
               <button
-                onClick={() => setQuickFilter('unlisted')}
+                onClick={() => updateQuickFilter('unlisted')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   quickFilter === 'unlisted'
                     ? 'border-orange-600 text-orange-600 bg-orange-50'
@@ -3429,7 +4243,7 @@ export default function Home() {
                 未出品 ({inventoryStats.unlistedCount})
               </button>
               <button
-                onClick={() => setQuickFilter('stale30')}
+                onClick={() => updateQuickFilter('stale30')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   quickFilter === 'stale30'
                     ? 'border-yellow-600 text-yellow-600 bg-yellow-50'
@@ -3439,7 +4253,7 @@ export default function Home() {
                 滞留30日以上 ({inventoryStats.stale30Count})
               </button>
               <button
-                onClick={() => setQuickFilter('stale90')}
+                onClick={() => updateQuickFilter('stale90')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   quickFilter === 'stale90'
                     ? 'border-red-600 text-red-600 bg-red-50'
@@ -3447,6 +4261,29 @@ export default function Home() {
                 }`}
               >
                 滞留90日以上 ({inventoryStats.stale90Count})
+              </button>
+              <button
+                onClick={() => updateQuickFilter('returns')}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  quickFilter === 'returns'
+                    ? 'border-purple-600 text-purple-600 bg-purple-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                返品 ({inventoryStats.returnsCount})
+              </button>
+              <button
+                onClick={() => setShowSelectedOnly(!showSelectedOnly)}
+                disabled={selectedIds.size === 0}
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  showSelectedOnly
+                    ? 'border-green-600 text-green-600 bg-green-50'
+                    : selectedIds.size > 0
+                      ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      : 'border-transparent text-gray-300 cursor-not-allowed'
+                }`}
+              >
+                選択中 ({selectedIds.size})
               </button>
               {/* タブに応じた金額表示 */}
               <div className="ml-auto flex items-center gap-4 pr-4 text-sm">
@@ -3493,7 +4330,7 @@ export default function Home() {
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value))
-                  setCurrentPage(1)
+                  updateCurrentPage(1)
                 }}
                 className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900 bg-white"
               >
@@ -3555,6 +4392,27 @@ export default function Home() {
                   </button>
                 )}
               </div>
+              {/* フィルター全リセットボタン */}
+              <button
+                onClick={() => {
+                  updateSearchQuery('')
+                  setSelectedBrands(new Set())
+                  setSelectedCategories(new Set())
+                  setSelectedPurchaseSources(new Set())
+                  setSelectedSaleDestinations(new Set())
+                  setDateFilters({
+                    purchase_date: { year: '', month: '' },
+                    listing_date: { year: '', month: '' },
+                    sale_date: { year: '', month: '' },
+                  })
+                  setDateRangeFilter(prev => ({ ...prev, startDate: '', endDate: '' }))
+                  setTurnoverDaysFilter('')
+                }}
+                className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                title="全フィルターをリセット"
+              >
+                フィルター全解除
+              </button>
               {/* Undo/Redoボタン */}
               <div className="flex items-center gap-1">
                 <button
@@ -3691,13 +4549,21 @@ export default function Home() {
             </div>
           ) : (
             <div ref={tableContainerRef} className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] table-scroll-container">
-              <table className="w-full divide-y divide-gray-200 table-fixed">
+              <table className="divide-y divide-gray-200 select-none" style={{ tableLayout: 'fixed', width: `${tableWidth}px`, minWidth: `${tableWidth}px` }}>
+                <colgroup>
+                  {columnWidths.map((width, index) => (
+                    <col key={visibleColumns[index]?.key || index} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} />
+                  ))}
+                </colgroup>
                 <thead className="sticky top-0 z-20" style={{ backgroundColor: '#334155' }}>
                   <tr>
                     {visibleColumns.map((col, colIndex) => {
+                      const colWidth = columnWidths[colIndex]
+                      const cellStyle = { width: `${colWidth}px`, minWidth: `${colWidth}px`, maxWidth: `${colWidth}px`, backgroundColor: '#334155', color: '#ffffff' }
+
                       if (col.key === 'checkbox') {
                         return (
-                          <th key={col.key} style={{ backgroundColor: '#334155' }} className={`px-2 py-2 ${col.width} ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}>
+                          <th key={col.key} style={cellStyle} className={`px-2 py-2 ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}>
                             <input
                               type="checkbox"
                               checked={sortedInventory.length > 0 && deferredSelectedIds.size === sortedInventory.length}
@@ -3718,10 +4584,6 @@ export default function Home() {
                       const dateKey = col.key as 'purchase_date' | 'listing_date' | 'sale_date'
                       const hasDateFilter = isDateColumn && (dateFilters[dateKey]?.year || dateFilters[dateKey]?.month)
 
-                      // チップ列の幅を動的に取得
-                      const dynamicWidth = getColumnWidth(col)
-                      const widthClass = (isPurchaseSourceColumn || isSaleDestinationColumn) ? '' : col.width
-
                       return (
                         <th
                           key={col.key}
@@ -3729,8 +4591,8 @@ export default function Home() {
                           onDragStart={() => col.draggable && handleColumnDragStart(colIndex)}
                           onDragOver={(e) => handleColumnDragOver(e, colIndex)}
                           onDragEnd={handleColumnDragEnd}
-                          style={{ ...dynamicWidth, color: '#ffffff', backgroundColor: '#334155' }}
-                          className={`px-2 py-2 text-xs font-medium uppercase whitespace-pre-line select-none group relative text-center ${widthClass} ${col.draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isSortable ? 'hover:bg-slate-600 cursor-pointer' : ''} ${draggedCol === colIndex ? 'bg-slate-500' : ''} ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}
+                          style={cellStyle}
+                          className={`px-2 py-2 text-xs font-medium uppercase whitespace-nowrap select-none group relative text-center ${col.draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isSortable ? 'hover:bg-slate-600 cursor-pointer' : ''} ${draggedCol === colIndex ? 'bg-slate-500' : ''} ${groupEndColumns.has(col.key) ? 'border-r border-slate-500' : ''}`}
                         >
                           <span
                             className="inline-flex items-center"
@@ -3791,6 +4653,7 @@ export default function Home() {
                                   if (openDateFilter === 'brand_filter') {
                                     setOpenDateFilter(null)
                                     setDropdownPosition(null)
+                                    setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
                                     setDropdownPosition({
@@ -3798,6 +4661,7 @@ export default function Home() {
                                       right: window.innerWidth - rect.right
                                     })
                                     setOpenDateFilter('brand_filter')
+                                    setDropdownSearchQuery('')
                                   }
                                 }}
                                 className={`ml-1 text-[10px] ${selectedBrands.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
@@ -3812,6 +4676,7 @@ export default function Home() {
                                   if (openDateFilter === 'category_filter') {
                                     setOpenDateFilter(null)
                                     setDropdownPosition(null)
+                                    setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
                                     setDropdownPosition({
@@ -3819,6 +4684,7 @@ export default function Home() {
                                       right: window.innerWidth - rect.right
                                     })
                                     setOpenDateFilter('category_filter')
+                                    setDropdownSearchQuery('')
                                   }
                                 }}
                                 className={`ml-1 text-[10px] ${selectedCategories.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
@@ -3833,6 +4699,7 @@ export default function Home() {
                                   if (openDateFilter === 'purchase_source_filter') {
                                     setOpenDateFilter(null)
                                     setDropdownPosition(null)
+                                    setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
                                     setDropdownPosition({
@@ -3840,6 +4707,7 @@ export default function Home() {
                                       right: window.innerWidth - rect.right
                                     })
                                     setOpenDateFilter('purchase_source_filter')
+                                    setDropdownSearchQuery('')
                                   }
                                 }}
                                 className={`ml-1 text-[10px] ${selectedPurchaseSources.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
@@ -3854,6 +4722,7 @@ export default function Home() {
                                   if (openDateFilter === 'sale_destination_filter') {
                                     setOpenDateFilter(null)
                                     setDropdownPosition(null)
+                                    setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
                                     setDropdownPosition({
@@ -3861,6 +4730,7 @@ export default function Home() {
                                       right: window.innerWidth - rect.right
                                     })
                                     setOpenDateFilter('sale_destination_filter')
+                                    setDropdownSearchQuery('')
                                   }
                                 }}
                                 className={`ml-1 text-[10px] ${selectedSaleDestinations.size > 0 ? 'text-blue-300' : 'text-slate-400 hover:text-white'}`}
@@ -3916,26 +4786,40 @@ export default function Home() {
                           {/* ブランドフィルタードロップダウン */}
                           {isBrandColumn && openDateFilter === 'brand_filter' && dropdownPosition && (
                             <div
-                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-56 max-h-80 overflow-y-auto"
+                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-56 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
                                 right: dropdownPosition.right,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
-                                <span className="text-xs text-gray-500">{availableBrands.length}件</span>
-                                {selectedBrands.size > 0 && (
-                                  <button
-                                    onClick={() => setSelectedBrands(new Set())}
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    クリア
-                                  </button>
-                                )}
+                              <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                                <input
+                                  type="text"
+                                  value={dropdownSearchQuery}
+                                  onChange={(e) => setDropdownSearchQuery(e.target.value)}
+                                  placeholder="ブランドを検索..."
+                                  className="w-full text-sm border border-gray-300 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  autoFocus
+                                />
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-gray-500">
+                                    {availableBrands.filter(b => b.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length}件
+                                  </span>
+                                  {selectedBrands.size > 0 && (
+                                    <button
+                                      onClick={() => setSelectedBrands(new Set())}
+                                      className="text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                      クリア
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              <div className="p-1">
-                                {availableBrands.map(brand => (
+                              <div className="p-1 overflow-y-auto flex-1">
+                                {availableBrands
+                                  .filter(brand => brand.toLowerCase().includes(dropdownSearchQuery.toLowerCase()))
+                                  .map(brand => (
                                   <label
                                     key={brand}
                                     className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
@@ -3957,8 +4841,10 @@ export default function Home() {
                                     <span className="text-sm text-gray-700">{brand}</span>
                                   </label>
                                 ))}
-                                {availableBrands.length === 0 && (
-                                  <p className="text-sm text-gray-500 px-2 py-2">ブランドがありません</p>
+                                {availableBrands.filter(b => b.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length === 0 && (
+                                  <p className="text-sm text-gray-500 px-2 py-2">
+                                    {dropdownSearchQuery ? '該当するブランドがありません' : 'ブランドがありません'}
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -3966,26 +4852,40 @@ export default function Home() {
                           {/* カテゴリフィルタードロップダウン */}
                           {isCategoryColumn && openDateFilter === 'category_filter' && dropdownPosition && (
                             <div
-                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-y-auto"
+                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
                                 right: dropdownPosition.right,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
-                                <span className="text-xs text-gray-500">{availableCategories.length}件</span>
-                                {selectedCategories.size > 0 && (
-                                  <button
-                                    onClick={() => setSelectedCategories(new Set())}
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    クリア
-                                  </button>
-                                )}
+                              <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                                <input
+                                  type="text"
+                                  value={dropdownSearchQuery}
+                                  onChange={(e) => setDropdownSearchQuery(e.target.value)}
+                                  placeholder="ジャンルを検索..."
+                                  className="w-full text-sm border border-gray-300 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  autoFocus
+                                />
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-gray-500">
+                                    {availableCategories.filter(c => c.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length}件
+                                  </span>
+                                  {selectedCategories.size > 0 && (
+                                    <button
+                                      onClick={() => setSelectedCategories(new Set())}
+                                      className="text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                      クリア
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              <div className="p-1">
-                                {availableCategories.map(category => (
+                              <div className="p-1 overflow-y-auto flex-1">
+                                {availableCategories
+                                  .filter(category => category.toLowerCase().includes(dropdownSearchQuery.toLowerCase()))
+                                  .map(category => (
                                   <label
                                     key={category}
                                     className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
@@ -4007,8 +4907,10 @@ export default function Home() {
                                     <span className="text-sm text-gray-700">{category}</span>
                                   </label>
                                 ))}
-                                {availableCategories.length === 0 && (
-                                  <p className="text-sm text-gray-500 px-2 py-2">ジャンルがありません</p>
+                                {availableCategories.filter(c => c.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length === 0 && (
+                                  <p className="text-sm text-gray-500 px-2 py-2">
+                                    {dropdownSearchQuery ? '該当するジャンルがありません' : 'ジャンルがありません'}
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -4016,26 +4918,40 @@ export default function Home() {
                           {/* 仕入先フィルタードロップダウン */}
                           {isPurchaseSourceColumn && openDateFilter === 'purchase_source_filter' && dropdownPosition && (
                             <div
-                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-y-auto"
+                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
                                 right: dropdownPosition.right,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
-                                <span className="text-xs text-gray-500">{availablePurchaseSources.length}件</span>
-                                {selectedPurchaseSources.size > 0 && (
-                                  <button
-                                    onClick={() => setSelectedPurchaseSources(new Set())}
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    クリア
-                                  </button>
-                                )}
+                              <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                                <input
+                                  type="text"
+                                  value={dropdownSearchQuery}
+                                  onChange={(e) => setDropdownSearchQuery(e.target.value)}
+                                  placeholder="仕入先を検索..."
+                                  className="w-full text-sm border border-gray-300 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  autoFocus
+                                />
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-gray-500">
+                                    {availablePurchaseSources.filter(s => s.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length}件
+                                  </span>
+                                  {selectedPurchaseSources.size > 0 && (
+                                    <button
+                                      onClick={() => setSelectedPurchaseSources(new Set())}
+                                      className="text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                      クリア
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              <div className="p-1">
-                                {availablePurchaseSources.map(source => (
+                              <div className="p-1 overflow-y-auto flex-1">
+                                {availablePurchaseSources
+                                  .filter(source => source.toLowerCase().includes(dropdownSearchQuery.toLowerCase()))
+                                  .map(source => (
                                   <label
                                     key={source}
                                     className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
@@ -4057,8 +4973,10 @@ export default function Home() {
                                     <span className="text-sm text-gray-700">{source}</span>
                                   </label>
                                 ))}
-                                {availablePurchaseSources.length === 0 && (
-                                  <p className="text-sm text-gray-500 px-2 py-2">仕入先がありません</p>
+                                {availablePurchaseSources.filter(s => s.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length === 0 && (
+                                  <p className="text-sm text-gray-500 px-2 py-2">
+                                    {dropdownSearchQuery ? '該当する仕入先がありません' : '仕入先がありません'}
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -4066,26 +4984,40 @@ export default function Home() {
                           {/* 販売先フィルタードロップダウン */}
                           {isSaleDestinationColumn && openDateFilter === 'sale_destination_filter' && dropdownPosition && (
                             <div
-                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-y-auto"
+                              className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
                                 right: dropdownPosition.right,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="p-2 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
-                                <span className="text-xs text-gray-500">{availableSaleDestinations.length}件</span>
-                                {selectedSaleDestinations.size > 0 && (
-                                  <button
-                                    onClick={() => setSelectedSaleDestinations(new Set())}
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    クリア
-                                  </button>
-                                )}
+                              <div className="p-2 border-b border-gray-100 sticky top-0 bg-white">
+                                <input
+                                  type="text"
+                                  value={dropdownSearchQuery}
+                                  onChange={(e) => setDropdownSearchQuery(e.target.value)}
+                                  placeholder="販売先を検索..."
+                                  className="w-full text-sm border border-gray-300 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  autoFocus
+                                />
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-gray-500">
+                                    {availableSaleDestinations.filter(d => d.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length}件
+                                  </span>
+                                  {selectedSaleDestinations.size > 0 && (
+                                    <button
+                                      onClick={() => setSelectedSaleDestinations(new Set())}
+                                      className="text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                      クリア
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              <div className="p-1">
-                                {availableSaleDestinations.map(destination => (
+                              <div className="p-1 overflow-y-auto flex-1">
+                                {availableSaleDestinations
+                                  .filter(destination => destination.toLowerCase().includes(dropdownSearchQuery.toLowerCase()))
+                                  .map(destination => (
                                   <label
                                     key={destination}
                                     className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
@@ -4107,8 +5039,10 @@ export default function Home() {
                                     <span className="text-sm text-gray-700">{destination}</span>
                                   </label>
                                 ))}
-                                {availableSaleDestinations.length === 0 && (
-                                  <p className="text-sm text-gray-500 px-2 py-2">販売先がありません</p>
+                                {availableSaleDestinations.filter(d => d.toLowerCase().includes(dropdownSearchQuery.toLowerCase())).length === 0 && (
+                                  <p className="text-sm text-gray-500 px-2 py-2">
+                                    {dropdownSearchQuery ? '該当する販売先がありません' : '販売先がありません'}
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -4226,7 +5160,7 @@ export default function Home() {
 
                     const inputClass = "w-full h-full px-0 py-0 text-sm border-none outline-none bg-transparent text-black font-medium"
                     const numInputClass = "w-full h-full px-0 py-0 text-sm border-none outline-none bg-transparent text-black font-medium text-right"
-                    const cellClass = "px-3 py-2 cursor-pointer hover:bg-blue-50 overflow-visible"
+                    const cellClass = "px-3 py-2 cursor-pointer hover:bg-blue-50 overflow-visible whitespace-nowrap"
 
                     const isEditingCell = (field: keyof InventoryItem) =>
                       editingCell?.id === item.id && editingCell?.field === field
@@ -4282,30 +5216,59 @@ export default function Home() {
                                 <option value="売却済み">売却済み</option>
                               </select>
                             ) : inputType === 'date' ? (
-                              <div className="absolute left-0 top-0 z-50 bg-white p-0.5">
-                                <input
-                                  type="date"
-                                  value={editValue}
-                                  onChange={(e) => setEditValue(e.target.value)}
-                                  onKeyDown={handleKeyDown}
-                                  className="px-2 py-1 text-sm border-2 border-blue-500 rounded font-semibold shadow-lg cursor-pointer"
-                                  style={{ backgroundColor: '#ffffff', color: '#111827', colorScheme: 'light', opacity: 1 }}
-                                  autoFocus
-                                  ref={(el) => {
-                                    if (el && editingCell?.id === item.id && editingCell?.field === field) {
-                                      setTimeout(() => {
-                                        if (document.activeElement === el) {
-                                          try {
-                                            el.showPicker()
-                                          } catch {
-                                            // showPickerがサポートされていない場合は無視
-                                          }
-                                        }
-                                      }, 100)
+                              <input
+                                type="date"
+                                value={editValue}
+                                onChange={async (e) => {
+                                  const val = e.target.value || null
+
+                                  // Build update data
+                                  let updateData: Record<string, string | number | null> = { [field]: val }
+
+                                  // If it's sale_date, update status and recalculate commission
+                                  if (field === 'sale_date') {
+                                    if (val && val !== '返品') {
+                                      updateData.status = '売却済み'
+                                      // Recalculate commission
+                                      const newCommission = calculateCommission(item.sale_destination, item.sale_price, val)
+                                      updateData.commission = newCommission
+                                      // Recalculate deposit amount
+                                      if (item.sale_price !== null) {
+                                        updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0)
+                                      }
+                                    } else if (!val) {
+                                      // Clear sale_date - always revert to unsold status
+                                      updateData.status = '在庫あり'
                                     }
-                                  }}
-                                />
-                              </div>
+                                  }
+
+                                  // Save to database
+                                  const { error } = await supabase.from('inventory').update(updateData).eq('id', item.id)
+                                  if (!error) {
+                                    setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...updateData } : inv))
+                                  }
+
+                                  setEditingCell(null)
+                                  setEditValue('')
+                                }}
+                                onKeyDown={handleKeyDown}
+                                onBlur={() => {
+                                  setEditingCell(null)
+                                  setEditValue('')
+                                }}
+                                className="w-full px-1 py-1 text-sm border-2 border-blue-500 rounded font-semibold cursor-pointer"
+                                style={{ backgroundColor: '#ffffff', color: '#111827', colorScheme: 'light' }}
+                                ref={(el) => {
+                                  if (el) {
+                                    el.focus()
+                                    try {
+                                      el.showPicker()
+                                    } catch {
+                                      // showPickerがサポートされていない場合は無視
+                                    }
+                                  }
+                                }}
+                              />
                             ) : inputType === 'sale_destination' ? (
                               <select
                                 value={editValue}
@@ -4438,21 +5401,88 @@ export default function Home() {
                             </td>
                           )
                         case 'index':
-                          return <td key={colKey} className={`px-3 py-2 text-sm text-gray-900 text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''}`}>{globalIndex + 1}</td>
-                        case 'inventory_number':
-                          return <td key={colKey} className={`px-3 py-2 text-sm text-gray-500 text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''}`}>{item.inventory_number || '-'}</td>
-                        case 'image':
+                          const isIndexSelected = isSelectedCell('inventory_number') // indexはinventory_numberとして扱う（コピー用）
                           return (
                             <td
                               key={colKey}
-                              className={`px-3 py-2 ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} ${rangeClass} ${autoFillClass} select-none`}
+                              className={`px-3 py-2 text-sm text-gray-900 text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} cursor-pointer hover:bg-blue-50`}
+                            >
+                              {globalIndex + 1}
+                            </td>
+                          )
+                        case 'inventory_number':
+                          const isInvNumSelected = isSelectedCell('inventory_number') && !selectionRange
+                          return (
+                            <td
+                              key={colKey}
+                              className={`px-3 py-2 text-sm text-gray-500 text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} cursor-pointer hover:bg-blue-50 ${isInvNumSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''}`}
+                              onClick={() => {
+                                setSelectedCell({ id: item.id, field: 'inventory_number' })
+                                setSelectionRange(null)
+                              }}
+                            >
+                              {item.inventory_number || '-'}
+                            </td>
+                          )
+                        case 'refund_status':
+                          const isRefundSelected = isSelectedCell('refund_status') && !selectionRange
+                          const refundInRange = colIndex !== undefined && isCellInRange(index, colIndex)
+                          return (
+                            <td
+                              key={colKey}
+                              className={`px-3 py-2 text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} cursor-pointer hover:bg-blue-50 ${isRefundSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${refundInRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''}`}
+                              onClick={() => {
+                                setSelectedCell({ id: item.id, field: 'refund_status' })
+                                setSelectionRange(null)
+                              }}
+                              onMouseDown={(e) => colIndex !== undefined && handleCellMouseDown(index, colIndex, e)}
+                              onMouseEnter={() => {
+                                if (colIndex !== undefined) {
+                                  handleCellMouseEnter(index, colIndex)
+                                }
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={item.refund_status === '返金済み'}
+                                onChange={async (e) => {
+                                  // セル選択も行う
+                                  setSelectedCell({ id: item.id, field: 'refund_status' })
+                                  setSelectionRange(null)
+                                  const newStatus = e.target.checked ? '返金済み' : null
+                                  const { error } = await supabase
+                                    .from('inventory')
+                                    .update({ refund_status: newStatus })
+                                    .eq('id', item.id)
+                                  if (!error) {
+                                    setInventory(prev => prev.map(inv =>
+                                      inv.id === item.id ? { ...inv, refund_status: newStatus } : inv
+                                    ))
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                              />
+                            </td>
+                          )
+                        case 'image':
+                          const isImageSelected = isSelectedCell('image_url') && !selectionRange
+                          return (
+                            <td
+                              key={colKey}
+                              className={`px-3 py-1 overflow-hidden ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} ${rangeClass} ${autoFillClass} select-none cursor-pointer hover:bg-blue-50 ${isImageSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''}`}
+                              style={{ height: '41px', maxHeight: '41px' }}
+                              onClick={() => {
+                                setSelectedCell({ id: item.id, field: 'image_url' })
+                                setSelectionRange(null)
+                              }}
                               onMouseDown={(e) => handleCellMouseDown(index, colIndex, e)}
                               onMouseEnter={() => {
                                 handleCellMouseEnter(index, colIndex)
                                 handleAutoFillMouseEnter(index, colIndex)
                               }}
                             >
-                              <div className="flex justify-center">
+                              <div className="flex justify-center items-center" style={{ height: '40px' }}>
                                 {(() => {
                                   const imageUrl = item.saved_image_url || item.image_url
                                   const proxiedUrl = getProxiedImageUrl(imageUrl)
@@ -4461,11 +5491,11 @@ export default function Home() {
                                   // 画像URLがあり、エラーが発生していない場合
                                   if (imageUrl && !hasImageError) {
                                     return (
-                                      <div className="relative group">
+                                      <div className="relative group flex-shrink-0" style={{ width: '40px', height: '40px' }}>
                                         <img
                                           src={proxiedUrl || ''}
                                           alt=""
-                                          className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80"
+                                          className="absolute inset-0 w-full h-full object-cover rounded cursor-pointer hover:opacity-80"
                                           onClick={() => setImageModal(proxiedUrl)}
                                           onError={() => setImageErrors(prev => new Set(prev).add(item.id))}
                                         />
@@ -4518,7 +5548,125 @@ export default function Home() {
                         case 'category':
                           return renderCell('category', <span className="text-sm text-gray-900 block text-center">{item.category || '-'}</span>, 'datalist', categoryOptions, colIndex)
                         case 'brand_name':
-                          return renderCell('brand_name', <span className="text-sm text-gray-900 block text-center" title={item.brand_name || ''}>{item.brand_name || '-'}</span>, 'datalist', uniqueBrands, colIndex)
+                          const isBrandOpen = editingCell?.id === item.id && editingCell?.field === 'brand_name' && dropdownPosition
+                          const isBrandSelected = isSelectedCell('brand_name') && !isBrandOpen && !selectionRange
+                          const brandInRange = colIndex !== undefined && isCellInRange(index, colIndex)
+                          const brandAutoFillRange = colIndex !== undefined && isCellInAutoFillRange(index, colIndex)
+                          return (
+                            <td
+                              key={colKey}
+                              className={`${cellClass} ${isBrandSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${brandInRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''} ${brandAutoFillRange ? 'bg-green-100 ring-1 ring-green-500 ring-inset' : ''} ${groupEndColumns.has('brand_name') ? 'border-r border-gray-300' : ''} select-none relative cursor-pointer`}
+                              onClick={(e) => {
+                                if (selectedCell?.id === item.id && selectedCell?.field === 'brand_name' && !selectionRange) {
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  const dropdownHeight = 300
+                                  const spaceBelow = window.innerHeight - rect.bottom
+                                  const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                  setDropdownPosition({ top, left: rect.left })
+                                  startEditCell(item, 'brand_name')
+                                } else {
+                                  setSelectedCell({ id: item.id, field: 'brand_name' })
+                                  setSelectionRange(null)
+                                  if (editingCell) {
+                                    saveEditingCell()
+                                    setDropdownPosition(null)
+                                  }
+                                }
+                              }}
+                              onDoubleClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                const dropdownHeight = 300
+                                const spaceBelow = window.innerHeight - rect.bottom
+                                const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                setDropdownPosition({ top, left: rect.left })
+                                setSelectedCell({ id: item.id, field: 'brand_name' })
+                                setSelectionRange(null)
+                                startEditCell(item, 'brand_name')
+                              }}
+                              onMouseDown={(e) => colIndex !== undefined && handleCellMouseDown(index, colIndex, e)}
+                              onMouseEnter={() => {
+                                if (colIndex !== undefined) {
+                                  handleCellMouseEnter(index, colIndex)
+                                  handleAutoFillMouseEnter(index, colIndex)
+                                }
+                              }}
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-sm text-gray-900 truncate" title={item.brand_name || ''}>{item.brand_name || '-'}</span>
+                                <span
+                                  className="cursor-pointer hover:opacity-70 flex-shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
+                                    const dropdownHeight = 300
+                                    const spaceBelow = window.innerHeight - rect.bottom
+                                    const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                    setDropdownPosition({ top, left: rect.left })
+                                    setSelectedCell({ id: item.id, field: 'brand_name' })
+                                    setSelectionRange(null)
+                                    startEditCell(item, 'brand_name')
+                                  }}
+                                >
+                                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="text-gray-400">
+                                    <path d="M2 3.5L5 7L8 3.5H2Z" />
+                                  </svg>
+                                </span>
+                              </div>
+                              {isBrandOpen && createPortal(
+                                <>
+                                  <div className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); setEditingCell(null); setEditValue(''); setDropdownPosition(null) }} />
+                                  <div
+                                    className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto"
+                                    style={{ top: dropdownPosition.top, left: dropdownPosition.left, minWidth: '150px' }}
+                                  >
+                                    <input
+                                      type="text"
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault()
+                                          const val = editValue || null
+                                          supabase.from('inventory').update({ brand_name: val }).eq('id', item.id).then(({ error }) => {
+                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, brand_name: val } : inv))
+                                          })
+                                          setEditingCell(null)
+                                          setEditValue('')
+                                          setDropdownPosition(null)
+                                        } else if (e.key === 'Escape') {
+                                          setEditingCell(null)
+                                          setEditValue('')
+                                          setDropdownPosition(null)
+                                        }
+                                      }}
+                                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded mb-1"
+                                      placeholder="ブランド名を入力..."
+                                      autoFocus
+                                    />
+                                    {uniqueBrands
+                                      .filter(brand => !editValue || brand.toLowerCase().includes(editValue.toLowerCase()))
+                                      .slice(0, 20)
+                                      .map((brand) => (
+                                        <div
+                                          key={brand}
+                                          className="px-2 py-1 text-sm hover:bg-gray-100 rounded cursor-pointer"
+                                          onClick={async () => {
+                                            const { error } = await supabase.from('inventory').update({ brand_name: brand }).eq('id', item.id)
+                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, brand_name: brand } : inv))
+                                            setEditingCell(null)
+                                            setEditValue('')
+                                            setDropdownPosition(null)
+                                          }}
+                                        >
+                                          {brand}
+                                        </div>
+                                      ))}
+                                  </div>
+                                </>,
+                                document.body
+                              )}
+                            </td>
+                          )
                         case 'product_name':
                           const isProductEditing = isEditingCell('product_name')
                           const isProductSelected = isSelectedCell('product_name') && !isProductEditing && !selectionRange
@@ -4529,17 +5677,15 @@ export default function Home() {
                               key={colKey}
                               className={`${cellClass} ${isProductEditing ? 'ring-2 ring-blue-500 ring-inset' : ''} ${isProductSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${productInRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''} ${productAutoFillRange ? 'bg-green-100 ring-1 ring-green-500 ring-inset' : ''} ${groupEndColumns.has('product_name') ? 'border-r border-gray-300' : ''} select-none relative`}
                               onClick={() => {
-                                if (!isProductEditing && item.product_name) {
-                                  setModalEdit({ id: item.id, field: 'product_name', value: item.product_name })
-                                }
                                 if (!isProductEditing) {
+                                  setModalEdit({ id: item.id, field: 'product_name', value: item.product_name || '' })
                                   setSelectedCell({ id: item.id, field: 'product_name' })
                                   setSelectionRange(null)
                                 }
                               }}
                               onDoubleClick={() => {
-                                if (!isProductEditing && item.product_name) {
-                                  setModalEdit({ id: item.id, field: 'product_name', value: item.product_name })
+                                if (!isProductEditing) {
+                                  setModalEdit({ id: item.id, field: 'product_name', value: item.product_name || '' })
                                 }
                               }}
                               onMouseDown={(e) => colIndex !== undefined && handleCellMouseDown(index, colIndex, e)}
@@ -4827,24 +5973,28 @@ export default function Home() {
                                   </span>
                                 ) : (
                                   <span
-                                    className="inline-flex items-center justify-center text-sm text-gray-400 cursor-pointer hover:text-gray-600"
+                                    className="inline-flex items-center justify-center text-sm text-gray-400"
                                     style={{ width: `${chipColumnWidth - 16}px` }}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
-                                      const dropdownHeight = 300
-                                      const spaceBelow = window.innerHeight - rect.bottom
-                                      const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
-                                      setDropdownPosition({ top, left: rect.left })
-                                      setSelectedCell({ id: item.id, field: 'sale_destination' })
-                                      setSelectionRange(null)
-                                      startEditCell(item, 'sale_destination')
-                                    }}
                                   >
                                     -
-                                    <svg className="ml-0.5" width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                                      <path d="M2 3.5L5 7L8 3.5H2Z" />
-                                    </svg>
+                                    <span
+                                      className="ml-0.5 cursor-pointer hover:text-gray-600 flex-shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
+                                        const dropdownHeight = 300
+                                        const spaceBelow = window.innerHeight - rect.bottom
+                                        const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
+                                        setDropdownPosition({ top, left: rect.left })
+                                        setSelectedCell({ id: item.id, field: 'sale_destination' })
+                                        setSelectionRange(null)
+                                        startEditCell(item, 'sale_destination')
+                                      }}
+                                    >
+                                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                                        <path d="M2 3.5L5 7L8 3.5H2Z" />
+                                      </svg>
+                                    </span>
                                   </span>
                                 )}
                               </div>
@@ -4866,17 +6016,31 @@ export default function Home() {
                                           if (e.key === 'Enter') {
                                             const value = (e.target as HTMLInputElement).value.trim()
                                             if (value) {
-                                              // 「返品」の場合は出品日・売却日も「返品」に設定
+                                              // 「返品」の場合は出品日・売却日も「返品」に設定、売上関連をクリア
                                               if (value === '返品') {
                                                 const { error } = await supabase.from('inventory').update({
                                                   sale_destination: value,
                                                   listing_date: '返品',
-                                                  sale_date: '返品'
+                                                  sale_date: '返品',
+                                                  sale_price: null,
+                                                  commission: null,
+                                                  profit: null,
+                                                  profit_rate: null
                                                 }).eq('id', item.id)
-                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value, listing_date: '返品', sale_date: '返品' } : inv))
+                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value, listing_date: '返品', sale_date: '返品', sale_price: null, commission: null, profit: null, profit_rate: null } : inv))
                                               } else {
-                                                const { error } = await supabase.from('inventory').update({ sale_destination: value }).eq('id', item.id)
-                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value } : inv))
+                                                // 返品から別の販売先に変更した場合、出品日・売却日をクリア
+                                                if (item.sale_destination === '返品') {
+                                                  const { error } = await supabase.from('inventory').update({
+                                                    sale_destination: value,
+                                                    listing_date: null,
+                                                    sale_date: null
+                                                  }).eq('id', item.id)
+                                                  if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value, listing_date: null, sale_date: null } : inv))
+                                                } else {
+                                                  const { error } = await supabase.from('inventory').update({ sale_destination: value }).eq('id', item.id)
+                                                  if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value } : inv))
+                                                }
                                               }
                                             }
                                             setEditingCell(null)
@@ -4891,8 +6055,18 @@ export default function Home() {
                                       onClick={async (e) => {
                                         e.stopPropagation()
                                         if (item.sale_destination !== null) {
-                                          const { error } = await supabase.from('inventory').update({ sale_destination: null }).eq('id', item.id)
-                                          if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: null } : inv))
+                                          // 返品からクリアした場合、出品日・売却日もクリア
+                                          if (item.sale_destination === '返品') {
+                                            const { error } = await supabase.from('inventory').update({
+                                              sale_destination: null,
+                                              listing_date: null,
+                                              sale_date: null
+                                            }).eq('id', item.id)
+                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: null, listing_date: null, sale_date: null } : inv))
+                                          } else {
+                                            const { error } = await supabase.from('inventory').update({ sale_destination: null }).eq('id', item.id)
+                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: null } : inv))
+                                          }
                                         }
                                         setEditingCell(null)
                                         setEditValue('')
@@ -4917,13 +6091,27 @@ export default function Home() {
                                                 const { error } = await supabase.from('inventory').update({
                                                   sale_destination: option,
                                                   listing_date: '返品',
-                                                  sale_date: '返品'
+                                                  sale_date: '返品',
+                                                  sale_price: null,
+                                                  commission: null,
+                                                  profit: null,
+                                                  profit_rate: null
                                                 }).eq('id', item.id)
                                                 console.log('返品更新結果:', error ? error.message : '成功')
-                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option, listing_date: '返品', sale_date: '返品' } : inv))
+                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option, listing_date: '返品', sale_date: '返品', sale_price: null, commission: null, profit: null, profit_rate: null } : inv))
                                               } else {
-                                                const { error } = await supabase.from('inventory').update({ sale_destination: option }).eq('id', item.id)
-                                                if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option } : inv))
+                                                // 返品から別の販売先に変更した場合、出品日・売却日をクリア
+                                                if (item.sale_destination === '返品') {
+                                                  const { error } = await supabase.from('inventory').update({
+                                                    sale_destination: option,
+                                                    listing_date: null,
+                                                    sale_date: null
+                                                  }).eq('id', item.id)
+                                                  if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option, listing_date: null, sale_date: null } : inv))
+                                                } else {
+                                                  const { error } = await supabase.from('inventory').update({ sale_destination: option }).eq('id', item.id)
+                                                  if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option } : inv))
+                                                }
                                               }
                                             }
                                             setEditingCell(null)
@@ -5023,12 +6211,15 @@ export default function Home() {
                     }
 
                     const isSold = !!item.sale_destination
+                    // 返品タブでは返金済みをグレーアウト、それ以外は売却済みをグレーアウト
+                    const shouldGrayOut = quickFilter === 'returns' ? item.refund_status === '返金済み' : isSold
 
                     return (
                       <tr
                         key={item.id}
                         data-index={virtualRow.index}
-                        className={`hover:bg-gray-50 ${isSold ? 'bg-gray-100 opacity-60' : ''}`}
+                        className={`hover:bg-gray-50 ${shouldGrayOut ? 'bg-gray-100 opacity-60' : ''}`}
+                        style={{ height: '41px', maxHeight: '41px' }}
                       >
                         {visibleColumns.map((col, colIdx) => renderColumnCell(col, colIdx))}
                       </tr>
@@ -5058,14 +6249,14 @@ export default function Home() {
               </span>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage(1)}
+                  onClick={() => updateCurrentPage(1)}
                   disabled={currentPage === 1}
                   className="px-2 py-1 text-sm text-black border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
                 >
                   最初
                 </button>
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onClick={() => updateCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                   className="px-3 py-1 text-sm text-black border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
                 >
@@ -5075,14 +6266,14 @@ export default function Home() {
                   {currentPage} / {totalPages}
                 </span>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() => updateCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
                   className="px-3 py-1 text-sm text-black border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
                 >
                   →
                 </button>
                 <button
-                  onClick={() => setCurrentPage(totalPages)}
+                  onClick={() => updateCurrentPage(totalPages)}
                   disabled={currentPage === totalPages}
                   className="px-2 py-1 text-sm text-black border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
                 >
@@ -5094,15 +6285,23 @@ export default function Home() {
         </div>
       </main>
 
-      {/* 商品名編集モーダル（画面上部に表示） */}
+      {/* 商品名編集モーダル（画面下部に固定表示） */}
       {modalEdit && (
-        <div className="fixed top-14 left-0 right-0 z-[110] bg-white shadow-lg border-b">
+        <div className="fixed bottom-4 left-4 right-4 z-[110] bg-white shadow-lg border rounded-lg">
           <div className="px-4 py-3 flex items-center gap-4">
             <span className="text-sm font-medium text-gray-600 whitespace-nowrap">商品名:</span>
             <input
               type="text"
               value={modalEdit.value}
               onChange={(e) => setModalEdit({ ...modalEdit, value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  saveModalEdit()
+                } else if (e.key === 'Escape') {
+                  setModalEdit(null)
+                }
+              }}
               className="flex-1 px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
               autoFocus
             />
@@ -5125,7 +6324,7 @@ export default function Home() {
       {/* 画像拡大モーダル */}
       {imageModal && (
         <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[200] bg-black bg-opacity-75 flex items-center justify-center p-4"
           onClick={() => setImageModal(null)}
         >
           <div className="relative max-w-4xl max-h-full">
@@ -5583,7 +6782,10 @@ export default function Home() {
                         updated_at: new Date().toISOString()
                       }, { onConflict: 'year_month' })
 
-                    if (!error) {
+                    if (error) {
+                      console.error('ラクマ手数料保存エラー:', error)
+                      alert('ラクマ手数料の保存に失敗しました。テーブルが存在しない可能性があります。\n\nエラー: ' + error.message)
+                    } else {
                       setRakumaCommissionSettings(prev => ({
                         ...prev,
                         [rakumaModalYearMonth]: rate
@@ -5790,7 +6992,10 @@ export default function Home() {
                           updated_at: new Date().toISOString()
                         }, { onConflict: 'year_month' })
 
-                      if (!error) {
+                      if (error) {
+                        console.error('ラクマ手数料保存エラー:', error)
+                        alert('ラクマ手数料の保存に失敗しました。\n\nエラー: ' + error.message)
+                      } else {
                         setRakumaCommissionSettings(prev => ({
                           ...prev,
                           [rakumaModalYearMonth]: rate
@@ -5872,32 +7077,35 @@ export default function Home() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100 sticky top-0">
                     <tr>
+                      <th className="px-3 py-2 text-center text-gray-900 font-semibold w-12">No.</th>
                       <th className="px-3 py-2 text-left text-gray-900 font-semibold">画像</th>
                       <th className="px-3 py-2 text-left text-gray-900 font-semibold">商品名</th>
-                      <th className="px-3 py-2 text-right text-gray-900 font-semibold">仕入値</th>
+                      <th className="px-3 py-2 text-right text-gray-900 font-semibold">仕入総額</th>
                       <th className="px-3 py-2 text-right text-gray-900 font-semibold">指値（+1万）</th>
                     </tr>
                   </thead>
                   <tbody>
                     {inventory
                       .filter(item => selectedIds.has(item.id))
-                      .map(item => (
+                      .map((item, idx) => (
                         <tr key={item.id} className="border-t">
+                          <td className="px-3 py-2 text-center text-gray-900 font-medium">{idx + 1}</td>
                           <td className="px-3 py-2">
                             {(item.saved_image_url || item.image_url) && (
                               <img
                                 src={getProxiedImageUrl(item.saved_image_url || item.image_url) || ''}
                                 alt=""
-                                className="w-12 h-12 object-cover rounded"
+                                className="w-12 h-12 object-cover rounded cursor-pointer hover:opacity-80"
+                                onClick={() => setImageModal(getProxiedImageUrl(item.saved_image_url || item.image_url))}
                               />
                             )}
                           </td>
                           <td className="px-3 py-2 text-gray-900">{item.product_name || '-'}</td>
                           <td className="px-3 py-2 text-right text-gray-900">
-                            {item.purchase_price ? `¥${item.purchase_price.toLocaleString()}` : '-'}
+                            {(item.purchase_total || item.purchase_price) ? `¥${(item.purchase_total || item.purchase_price)!.toLocaleString()}` : '-'}
                           </td>
                           <td className="px-3 py-2 text-right font-medium text-orange-600">
-                            {item.purchase_price ? `¥${(item.purchase_price + 10000).toLocaleString()}` : '-'}
+                            {(item.purchase_total || item.purchase_price) ? `¥${((item.purchase_total || item.purchase_price)! + 10000).toLocaleString()}` : '-'}
                           </td>
                         </tr>
                       ))}
@@ -6178,6 +7386,7 @@ export default function Home() {
                           accessories: '',
                           notes: item.memo,
                           purchase_price: item.purchase_price,
+                          purchase_total: item.purchase_total,
                           management_number: auctionManagementField === 'inventory_number'
                             ? item.inventory_number
                             : item.memo,
@@ -6193,6 +7402,22 @@ export default function Home() {
                     a.download = `${selectedAuctionCategory}_${new Date().toISOString().slice(0, 10)}.xlsx`
                     a.click()
                     URL.revokeObjectURL(url)
+
+                    // 選択した商品の出品日を本日の日付で更新
+                    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD形式
+                    const selectedItemIds = Array.from(selectedIds)
+                    const { error: updateError } = await supabase
+                      .from('inventory')
+                      .update({ listing_date: today })
+                      .in('id', selectedItemIds)
+
+                    if (!updateError) {
+                      // ローカルステートも更新
+                      setInventory(prev => prev.map(item =>
+                        selectedIds.has(item.id) ? { ...item, listing_date: today } : item
+                      ))
+                    }
+
                     setShowAuctionExportModal(false)
                     setSelectedAuctionCompany(null)
                     setSelectedAuctionCategory(null)

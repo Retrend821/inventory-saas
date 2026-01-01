@@ -69,10 +69,32 @@ type Platform = {
   sales_type: 'toB' | 'toC'
 }
 
+type ManualSale = {
+  id: string
+  product_name: string | null
+  brand_name: string | null
+  category: string | null
+  purchase_source: string | null
+  sale_destination: string | null
+  sale_price: number | null
+  commission: number | null
+  shipping_cost: number | null
+  other_cost: number | null
+  purchase_total: number | null
+  profit: number | null
+  profit_rate: number | null
+  purchase_date: string | null
+  listing_date: string | null
+  sale_date: string | null
+  memo: string | null
+  inventory_number: string | null
+  sale_type: string | null
+}
+
 // 統一された売上データ型
 type UnifiedSale = {
   id: string
-  type: 'single' | 'bulk'
+  type: 'single' | 'bulk' | 'manual'
   inventory_number: string | null
   product_name: string
   brand_name: string | null
@@ -101,14 +123,16 @@ export default function AllSalesPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [bulkPurchases, setBulkPurchases] = useState<BulkPurchase[]>([])
   const [bulkSales, setBulkSales] = useState<BulkSale[]>([])
+  const [manualSales, setManualSales] = useState<ManualSale[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [activeTab, setActiveTab] = useState<'summary' | 'history' | 'graph'>('history')
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
-  const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk'>('all')
+  const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk' | 'manual'>('all')
   const [salesTypeFilter, setSalesTypeFilter] = useState<'all' | 'toC' | 'toB'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // 列の設定
   const defaultColumns = [
@@ -201,15 +225,41 @@ export default function AllSalesPage() {
         setPlatforms(platformData || [])
       }
 
+      // 手入力売上データ取得（ページネーションで全件取得）
+      let allManualSales: ManualSale[] = []
+      from = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('manual_sales')
+          .select('*')
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching manual_sales:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allManualSales = [...allManualSales, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
+      }
+      setManualSales(allManualSales)
+
       setLoading(false)
     }
 
     fetchData()
 
-    // 現在の年月をデフォルトで設定
+    // 現在の年をデフォルトで設定、月は全期間
     const now = new Date()
     setSelectedYear(now.getFullYear().toString())
-    setSelectedMonth((now.getMonth() + 1).toString().padStart(2, '0'))
+    setSelectedMonth('all')
   }, [])
 
   // まとめ仕入れのID→データのマップ
@@ -232,9 +282,9 @@ export default function AllSalesPage() {
   const unifiedSales = useMemo(() => {
     const sales: UnifiedSale[] = []
 
-    // 単品仕入れの販売データ（販売先が入っていれば売上認定）
+    // 単品仕入れの販売データ（販売先が入っていれば売上認定、返品を除く）
     inventory.forEach(item => {
-      if (item.sale_destination) {
+      if (item.sale_destination && item.sale_destination !== '返品') {
         const salePrice = item.sale_price || 0
         const purchaseCost = item.purchase_total || 0
         const purchasePrice = item.purchase_price || 0
@@ -319,8 +369,48 @@ export default function AllSalesPage() {
       }
     })
 
+    // 手入力売上データ
+    manualSales.forEach(item => {
+      if (item.sale_date) {
+        const salePrice = item.sale_price || 0
+        const purchaseCost = item.purchase_total || 0
+        const commission = item.commission || 0
+        const shippingCost = item.shipping_cost || 0
+        const otherCost = item.other_cost || 0
+        const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost - otherCost)
+        const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
+
+        sales.push({
+          id: `manual-${item.id}`,
+          type: 'manual',
+          inventory_number: item.inventory_number,
+          product_name: item.product_name || '(手入力)',
+          brand_name: item.brand_name,
+          category: item.category,
+          image_url: null,
+          purchase_source: item.purchase_source,
+          sale_destination: item.sale_destination,
+          sale_price: salePrice,
+          commission,
+          shipping_cost: shippingCost,
+          other_cost: otherCost,
+          purchase_price: purchaseCost,
+          purchase_cost: purchaseCost,
+          deposit_amount: salePrice - commission - shippingCost - otherCost,
+          profit,
+          profit_rate: profitRate,
+          purchase_date: item.purchase_date,
+          listing_date: item.listing_date,
+          sale_date: item.sale_date,
+          turnover_days: calculateTurnoverDays(item.purchase_date, item.sale_date),
+          memo: item.memo,
+          quantity: 1,
+        })
+      }
+    })
+
     return sales
-  }, [inventory, bulkSales, bulkPurchaseMap])
+  }, [inventory, bulkSales, bulkPurchaseMap, manualSales])
 
   // 利用可能な年のリスト
   const availableYears = useMemo(() => {
@@ -379,7 +469,22 @@ export default function AllSalesPage() {
           salesTypeMatch = wholesalePlatforms.has(sale.sale_destination || '')
         }
 
-        return dateMatch && typeMatch && salesTypeMatch
+        // テキスト検索フィルター
+        let searchMatch = true
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase()
+          searchMatch = !!(
+            (sale.inventory_number && String(sale.inventory_number).toLowerCase().includes(query)) ||
+            (sale.product_name && String(sale.product_name).toLowerCase().includes(query)) ||
+            (sale.brand_name && String(sale.brand_name).toLowerCase().includes(query)) ||
+            (sale.category && String(sale.category).toLowerCase().includes(query)) ||
+            (sale.purchase_source && String(sale.purchase_source).toLowerCase().includes(query)) ||
+            (sale.sale_destination && String(sale.sale_destination).toLowerCase().includes(query)) ||
+            (sale.memo && String(sale.memo).toLowerCase().includes(query))
+          )
+        }
+
+        return dateMatch && typeMatch && salesTypeMatch && searchMatch
       })
       .sort((a, b) => {
         // sale_dateがnullの場合は最後にソート
@@ -388,7 +493,7 @@ export default function AllSalesPage() {
         if (!b.sale_date) return -1
         return b.sale_date.localeCompare(a.sale_date)
       })
-  }, [unifiedSales, selectedYear, selectedMonth, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms])
+  }, [unifiedSales, selectedYear, selectedMonth, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms, searchQuery])
 
   // ヘルパー関数
   const isValidDate = (dateStr: string | null): boolean => {
@@ -443,9 +548,10 @@ export default function AllSalesPage() {
     })
     const listedCount = listedItems.length
 
-    // 単品とまとめの内訳
+    // 単品とまとめと手入力の内訳
     const singleSales = filteredSales.filter(s => s.type === 'single')
     const bulkSalesFiltered = filteredSales.filter(s => s.type === 'bulk')
+    const manualSalesFiltered = filteredSales.filter(s => s.type === 'manual')
 
     const singleCount = singleSales.length
     const singleTotal = singleSales.reduce((sum, s) => sum + s.sale_price, 0)
@@ -454,6 +560,10 @@ export default function AllSalesPage() {
     const bulkCount = bulkSalesFiltered.reduce((sum, s) => sum + s.quantity, 0)
     const bulkTotal = bulkSalesFiltered.reduce((sum, s) => sum + s.sale_price, 0)
     const bulkProfit = bulkSalesFiltered.reduce((sum, s) => sum + s.profit, 0)
+
+    const manualCount = manualSalesFiltered.length
+    const manualTotal = manualSalesFiltered.reduce((sum, s) => sum + s.sale_price, 0)
+    const manualProfit = manualSalesFiltered.reduce((sum, s) => sum + s.profit, 0)
 
     return {
       soldCount,
@@ -474,6 +584,9 @@ export default function AllSalesPage() {
       bulkCount,
       bulkTotal,
       bulkProfit,
+      manualCount,
+      manualTotal,
+      manualProfit,
     }
   }, [filteredSales, selectedYear, selectedMonth, inventory])
 
@@ -526,8 +639,8 @@ export default function AllSalesPage() {
 
     const monthList = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
-    // 月末在庫を計算するためのヘルパー関数
-    const getEndOfMonthStock = (year: string, month: string) => {
+    // 月末在庫を計算するためのヘルパー関数（単品のみ）
+    const getEndOfMonthSingleStock = (year: string, month: string) => {
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
       const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
 
@@ -537,12 +650,64 @@ export default function AllSalesPage() {
         if (!isValidDate(purchaseDate)) return false
         const normalizedPurchase = normalizeDate(purchaseDate!)
         if (normalizedPurchase > endDate) return false
+        // 返品は在庫から除外
+        if (item.sale_destination === '返品') return false
+        // 売却日が空（未販売）ならカウント
+        if (!saleDate) return true
+        // 有効な日付形式の売却日がある場合
         if (isValidDate(saleDate)) {
           const normalizedSale = normalizeDate(saleDate!)
-          if (normalizedSale <= endDate) return false
+          // 月末より後に売却されたなら、その時点では在庫としてカウント
+          return normalizedSale > endDate
         }
-        return true
+        // 売却日に「返品」などの非日付テキストが入っている場合は在庫から除外
+        return false
       })
+    }
+
+    // まとめ仕入れの月末在庫を計算（数量と金額を返す）
+    const getBulkEndOfMonthStock = (year: string, month: string) => {
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+      const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+
+      let totalCount = 0
+      let totalValue = 0
+
+      bulkPurchases.forEach(bp => {
+        // 仕入日が月末以前のもののみ
+        if (!bp.purchase_date || normalizeDate(bp.purchase_date) > endDate) return
+
+        // このまとめ仕入れの売上数量を計算（月末以前に売れた分）
+        const soldQuantity = bulkSales
+          .filter(sale =>
+            sale.bulk_purchase_id === bp.id &&
+            sale.sale_date &&
+            normalizeDate(sale.sale_date) <= endDate
+          )
+          .reduce((sum, sale) => sum + sale.quantity, 0)
+
+        // 残在庫数
+        const remainingQuantity = bp.total_quantity - soldQuantity
+        if (remainingQuantity > 0) {
+          totalCount += remainingQuantity
+          // 単価 × 残数量
+          const unitCost = bp.total_quantity > 0 ? bp.total_amount / bp.total_quantity : 0
+          totalValue += unitCost * remainingQuantity
+        }
+      })
+
+      return { count: totalCount, value: Math.round(totalValue) }
+    }
+
+    // 月末在庫（単品＋まとめ）
+    const getEndOfMonthStock = (year: string, month: string) => {
+      const singleStock = getEndOfMonthSingleStock(year, month)
+      const bulkStock = getBulkEndOfMonthStock(year, month)
+      return {
+        singleItems: singleStock,
+        count: singleStock.length + bulkStock.count,
+        value: singleStock.reduce((sum, item) => sum + (item.purchase_total || 0), 0) + bulkStock.value
+      }
     }
 
     const getPrevMonthEndStock = (year: string, month: string) => {
@@ -591,13 +756,13 @@ export default function AllSalesPage() {
         return normalizeYearMonth(item.listing_date!) === yearMonth
       })
 
-      const prevMonthEndStockItems = getPrevMonthEndStock(selectedYear, month)
-      const currentMonthEndStockItems = getEndOfMonthStock(selectedYear, month)
+      const prevMonthEndStock = getPrevMonthEndStock(selectedYear, month)
+      const currentMonthEndStock = getEndOfMonthStock(selectedYear, month)
 
-      const prevMonthEndStockCount = prevMonthEndStockItems.length
-      const currentMonthEndStockCount = currentMonthEndStockItems.length
-      const beginningStockValue = prevMonthEndStockItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
-      const endingStockValue = currentMonthEndStockItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+      const prevMonthEndStockCount = prevMonthEndStock.count
+      const currentMonthEndStockCount = currentMonthEndStock.count
+      const beginningStockValue = prevMonthEndStock.value
+      const endingStockValue = currentMonthEndStock.value
 
       const purchasedCount = purchasedItems.length
       const purchaseValue = purchasedItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
@@ -636,7 +801,7 @@ export default function AllSalesPage() {
         overallProfitability,
       }
     })
-  }, [unifiedSales, inventory, selectedYear, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms])
+  }, [unifiedSales, inventory, bulkPurchases, bulkSales, selectedYear, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms])
 
   // 年間合計
   const yearlyTotal = useMemo(() => {
@@ -747,6 +912,28 @@ export default function AllSalesPage() {
         {/* 年月選択・フィルター */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex flex-wrap items-center gap-4">
+            {/* 検索入力欄 */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="商品名・ブランド・販路で検索"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600">年:</label>
               <select
@@ -789,12 +976,13 @@ export default function AllSalesPage() {
               <label className="text-sm text-gray-600">仕入種別:</label>
               <select
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value as 'all' | 'single' | 'bulk')}
+                onChange={(e) => setFilterType(e.target.value as 'all' | 'single' | 'bulk' | 'manual')}
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">すべて</option>
                 <option value="single">単品仕入れ</option>
                 <option value="bulk">まとめ仕入れ</option>
+                <option value="manual">手入力売上</option>
               </select>
             </div>
             <div className="ml-auto relative">
@@ -853,7 +1041,7 @@ export default function AllSalesPage() {
                     <h2 className="text-base font-semibold text-white">
                       {selectedYear}年{selectedMonth === 'all' ? '間' : `${parseInt(selectedMonth)}月`}の売上
                       {salesTypeFilter !== 'all' && ` [${salesTypeFilter === 'toC' ? '小売' : '業販'}]`}
-                      {filterType !== 'all' && ` (${filterType === 'single' ? '単品' : 'まとめ'})`}
+                      {filterType !== 'all' && ` (${filterType === 'single' ? '単品' : filterType === 'bulk' ? 'まとめ' : '手入力'})`}
                     </h2>
                   </div>
                   <table className="w-full text-sm">
@@ -912,11 +1100,11 @@ export default function AllSalesPage() {
 
                 {/* 単品・まとめ内訳 & 販路別 */}
                 <div className="space-y-6">
-                  {/* 単品・まとめ内訳 */}
+                  {/* 単品・まとめ・手入力内訳 */}
                   {filterType === 'all' && (
                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                       <div className="px-6 py-4 bg-slate-600">
-                        <h2 className="text-base font-semibold text-white">単品・まとめ内訳</h2>
+                        <h2 className="text-base font-semibold text-white">種別内訳</h2>
                       </div>
                       <table className="w-full text-sm">
                         <thead>
@@ -939,6 +1127,12 @@ export default function AllSalesPage() {
                             <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{summary.bulkCount}点</td>
                             <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatCurrency(summary.bulkTotal)}</td>
                             <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatCurrency(summary.bulkProfit)}</td>
+                          </tr>
+                          <tr className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-4 py-3 text-gray-900 font-medium">手入力売上</td>
+                            <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{summary.manualCount}点</td>
+                            <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatCurrency(summary.manualTotal)}</td>
+                            <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatCurrency(summary.manualProfit)}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -995,7 +1189,7 @@ export default function AllSalesPage() {
                   <h2 className="text-base font-semibold text-white">
                     {selectedYear}年 月別レポート
                     {salesTypeFilter !== 'all' && ` [${salesTypeFilter === 'toC' ? '小売' : '業販'}]`}
-                    {filterType !== 'all' && ` (${filterType === 'single' ? '単品' : 'まとめ'})`}
+                    {filterType !== 'all' && ` (${filterType === 'single' ? '単品' : filterType === 'bulk' ? 'まとめ' : '手入力'})`}
                   </h2>
                 </div>
                 <div className="overflow-x-auto">

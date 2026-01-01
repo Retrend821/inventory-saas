@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import json
+import math
 import openpyxl
 from pathlib import Path
 
@@ -24,10 +25,10 @@ def generate_starbuyers_bag(items, template_path, output_path):
     # 新しいデータを書き込み
     for i, item in enumerate(items):
         row = 13 + i
-        # 指値 = 仕入値 + 1万円
-        sashi_ne = item.get('purchase_price')
+        # 指値 = 仕入総額 + 1万円（千円単位で切り上げ）
+        sashi_ne = item.get('purchase_total')
         if sashi_ne:
-            sashi_ne = sashi_ne + 10000
+            sashi_ne = math.ceil((sashi_ne + 10000) / 1000) * 1000
 
         # 商品名 = ブランド名 + 商品名
         brand_name = item.get('brand_name', '')
@@ -43,7 +44,7 @@ def generate_starbuyers_bag(items, template_path, output_path):
         ws.cell(row=row, column=2, value=full_product_name)  # 商品名
         ws.cell(row=row, column=3, value=item.get('condition_rank', 'B'))  # ランク
         ws.cell(row=row, column=4, value=item.get('accessories', ''))  # 付属品
-        ws.cell(row=row, column=5, value=item.get('notes', ''))  # 備考
+        ws.cell(row=row, column=5, value='')  # 備考（空）
         ws.cell(row=row, column=6, value=sashi_ne)  # 指値
         ws.cell(row=row, column=7, value='')  # ロット番号
         ws.cell(row=row, column=8, value=item.get('management_number', ''))  # 管理番号
@@ -75,9 +76,10 @@ def generate_starbuyers_accessory(items, template_path, output_path):
     # 新しいデータを書き込み
     for i, item in enumerate(items):
         row = 13 + i
-        sashi_ne = item.get('purchase_price')
+        # 指値 = 仕入総額 + 1万円（千円単位で切り上げ）
+        sashi_ne = item.get('purchase_total')
         if sashi_ne:
-            sashi_ne = sashi_ne + 10000
+            sashi_ne = math.ceil((sashi_ne + 10000) / 1000) * 1000
 
         # 商品名 = ブランド名 + 商品名
         brand_name = item.get('brand_name', '')
@@ -93,7 +95,7 @@ def generate_starbuyers_accessory(items, template_path, output_path):
         ws.cell(row=row, column=2, value=full_product_name)
         ws.cell(row=row, column=3, value=item.get('condition_rank', 'B'))
         ws.cell(row=row, column=4, value=item.get('accessories', ''))
-        ws.cell(row=row, column=5, value=item.get('notes', ''))
+        ws.cell(row=row, column=5, value='')  # 備考（空）
         ws.cell(row=row, column=6, value=sashi_ne)
         ws.cell(row=row, column=7, value='')
         ws.cell(row=row, column=8, value=item.get('management_number', ''))
@@ -116,10 +118,10 @@ def generate_ecoring_brand(items, template_path, output_path):
         for i, item in enumerate(items):
             row = 16 + i
 
-            # 指値 = 仕入値 + 1万円
-            sashi_ne = item.get('purchase_price')
+            # 指値 = 仕入総額 + 1万円（千円単位で切り上げ）
+            sashi_ne = item.get('purchase_total')
             if sashi_ne:
-                sashi_ne = sashi_ne + 10000
+                sashi_ne = math.ceil((sashi_ne + 10000) / 1000) * 1000
 
             # 商品名 = ブランド名 + 商品名
             brand_name = item.get('brand_name', '')
@@ -134,7 +136,7 @@ def generate_ecoring_brand(items, template_path, output_path):
             ws.range(f'A{row}').value = i + 1  # 商品NO
             ws.range(f'B{row}').value = full_product_name  # 商品名
             ws.range(f'C{row}').value = sashi_ne  # 指値
-            ws.range(f'D{row}').value = item.get('notes', '')  # ダメージ・備考
+            ws.range(f'D{row}').value = ''  # ダメージ・備考（空）
             ws.range(f'E{row}').value = item.get('management_number', '')  # メモ欄
 
         wb.save(output_path)
@@ -159,10 +161,10 @@ def generate_ecoring_dougu(items, template_path, output_path):
         for i, item in enumerate(items):
             row = 16 + i
 
-            # 指値 = 仕入値 + 1万円
-            sashi_ne = item.get('purchase_price')
+            # 指値 = 仕入総額 + 1万円（千円単位で切り上げ）
+            sashi_ne = item.get('purchase_total')
             if sashi_ne:
-                sashi_ne = sashi_ne + 10000
+                sashi_ne = math.ceil((sashi_ne + 10000) / 1000) * 1000
 
             # 商品名 = ブランド名 + 商品名
             brand_name = item.get('brand_name', '')
@@ -177,7 +179,7 @@ def generate_ecoring_dougu(items, template_path, output_path):
             ws.range(f'A{row}').value = i + 1  # 商品NO
             ws.range(f'B{row}').value = full_product_name  # 商品名
             ws.range(f'C{row}').value = sashi_ne  # 指値
-            ws.range(f'D{row}').value = item.get('notes', '')  # ダメージ・備考
+            ws.range(f'D{row}').value = ''  # ダメージ・備考（空）
             ws.range(f'E{row}').value = item.get('management_number', '')  # メモ欄
 
         wb.save(output_path)
@@ -202,10 +204,10 @@ def generate_appre_brand(items, template_path, output_path):
         for i, item in enumerate(items):
             row = 6 + i
 
-            # 指値 = 仕入値 + 1万円
-            sashi_ne = item.get('purchase_price')
+            # 指値 = 仕入総額 + 1万円（千円単位で切り上げ）
+            sashi_ne = item.get('purchase_total')
             if sashi_ne:
-                sashi_ne = sashi_ne + 10000
+                sashi_ne = math.ceil((sashi_ne + 10000) / 1000) * 1000
 
             # ブランド名と商品名は別々の列
             brand_name = item.get('brand_name', '')
@@ -214,7 +216,7 @@ def generate_appre_brand(items, template_path, output_path):
             ws.range(f'E{row}').value = brand_name  # ブランド名（列5）
             ws.range(f'G{row}').value = product_name  # 商品名（列7）
             ws.range(f'K{row}').value = item.get('condition_rank', 'B')  # ランク（列11）
-            ws.range(f'L{row}').value = item.get('accessories', '')  # 付属品・備考（列12）
+            ws.range(f'L{row}').value = ''  # 付属品・備考（空）
             ws.range(f'N{row}').value = sashi_ne  # 指値（税抜）（列14）
             ws.range(f'T{row}').value = item.get('management_number', '')  # 管理番号（列20）
 

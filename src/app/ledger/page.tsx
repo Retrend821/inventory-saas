@@ -115,6 +115,17 @@ export default function LedgerPage() {
     return platforms.find(p => p.name === name) || null
   }
 
+  // 画像URLを取得（外部URLはプロキシ経由）
+  const getImageUrl = (url: string | null): string | null => {
+    if (!url) return null
+    // Supabase Storage URLはそのまま使用
+    if (url.includes('supabase.co/storage')) {
+      return url
+    }
+    // 外部URLはプロキシ経由
+    return `/api/image-proxy?url=${encodeURIComponent(url)}`
+  }
+
   // 有効な日付形式かどうかをチェック
   const isValidDate = (dateStr: string | null): boolean => {
     if (!dateStr) return false
@@ -335,7 +346,8 @@ export default function LedgerPage() {
                   ledgerData.map((item) => {
                     const sInfo = item.supplierInfo
                     const pInfo = item.platformInfo
-                    const imageUrl = item.image_url || item.saved_image_url
+                    const rawImageUrl = item.image_url || item.saved_image_url
+                    const imageUrl = getImageUrl(rawImageUrl)
                     return (
                       <tr key={item.id} className="hover:bg-gray-100">
                         <td className="border border-gray-300 px-2 py-1 text-center text-black font-medium">{item.no}</td>

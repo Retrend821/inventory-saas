@@ -49,7 +49,7 @@ export default function Navigation() {
             href="/dashboard"
             className={pathname === '/dashboard' ? activeLinkStyle : baseLinkStyle}
           >
-            TOP
+            ダッシュボード
           </Link>
           <div className="relative" ref={inventoryDropdownRef}>
             <button
@@ -59,7 +59,7 @@ export default function Navigation() {
                 setAnalysisOpen(false)
                 setSettingsOpen(false)
               }}
-              className={pathname === '/' || pathname.startsWith('/inventory') || pathname.startsWith('/returns') ? activeLinkStyle : baseLinkStyle}
+              className={pathname === '/' || pathname.startsWith('/inventory') ? activeLinkStyle : baseLinkStyle}
             >
               在庫管理
             </button>
@@ -67,7 +67,6 @@ export default function Navigation() {
               <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
                 <Link href="/" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>単品仕入在庫一覧</Link>
                 <Link href="/inventory/bulk" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>まとめ仕入れ在庫一覧</Link>
-                <Link href="/returns" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>返品在庫一覧</Link>
               </div>
             )}
           </div>
@@ -114,6 +113,12 @@ export default function Navigation() {
             className={pathname === '/ledger' ? activeLinkStyle : baseLinkStyle}
           >
             古物台帳
+          </Link>
+          <Link
+            href="/calculator"
+            className={pathname === '/calculator' ? activeLinkStyle : baseLinkStyle}
+          >
+            計算ツール
           </Link>
           <div className="relative" ref={dropdownRef}>
             <button

@@ -1,3 +1,28 @@
+/**
+ * 手入力売上表 インポートAPI
+ *
+ * ★★★ 外部連携情報 ★★★
+ *
+ * 【Shopify売上の自動取り込み】
+ * 呼び出し元: shopify-automation/spreadsheet.js の writeToInventoryApp()
+ * 場所: Google Drive > 開発バックアップ > shopify-automation
+ *
+ * 処理フロー:
+ * 1. fetch-orders.js がShopifyから未発送注文を取得
+ * 2. クリックポストでラベル発行
+ * 3. spreadsheet.js の writeToInventoryApp() がこのAPIを呼び出し
+ *
+ * 送信データ:
+ * - product_name: 商品名
+ * - sale_price: 売価（order.subtotal_price = 割引適用後の金額）
+ * - brand_name: ブランド名
+ * - inventory_number: 管理番号
+ * - shipping_cost: 送料（クリックポスト185円）
+ * - commission: 決済手数料
+ * - sale_destination: 'shopify'
+ * - sale_date: 売却日
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -22,6 +47,7 @@ type ManualSaleInput = {
   category?: string
   inventory_number?: string
   external_id?: string
+  shipping_cost?: number
 }
 
 export async function POST(request: NextRequest) {
@@ -60,6 +86,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // 販売先の正規化: '自社サイト' → 'shopify'
+      let saleDestination = item.sale_destination || null
+      if (saleDestination === '自社サイト') {
+        saleDestination = 'shopify'
+      }
+
+      // shopifyの場合、送料が未設定なら185円をデフォルトにする
+      let shippingCost = item.shipping_cost || null
+      if (saleDestination?.toLowerCase() === 'shopify' && !shippingCost) {
+        shippingCost = 185
+      }
+
       const salePrice = item.sale_price || 0
       const commission = item.commission || 0
       const profit = salePrice - commission
@@ -69,13 +107,14 @@ export async function POST(request: NextRequest) {
         .from('manual_sales')
         .insert({
           product_name: item.product_name,
-          sale_destination: item.sale_destination || null,
+          sale_destination: saleDestination,
           sale_price: item.sale_price || null,
           commission: item.commission || null,
           sale_date: item.sale_date || null,
           brand_name: item.brand_name || null,
           category: item.category || null,
           inventory_number: item.inventory_number || null,
+          shipping_cost: shippingCost,
           profit,
           profit_rate: profitRate,
           sale_type: 'main',
