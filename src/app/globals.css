@@ -16,6 +16,7 @@ body {
   overflow-x: auto;
   direction: rtl;
   overflow-y: scroll; /* 常にスクロールバーを表示 */
+  background: linear-gradient(to bottom, #334155 41px, transparent 41px);
 }
 
 .table-scroll-container > * {
