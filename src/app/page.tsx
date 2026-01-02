@@ -307,8 +307,16 @@ const getProxiedImageUrl = (url: string | null): string | null => {
     return url
   }
 
+  // 2ndstreetのサムネイルURLをCDNのフルサイズURLに変換
+  let finalUrl = url
+  if (url.includes('www.2ndstreet.jp')) {
+    finalUrl = url
+      .replace('www.2ndstreet.jp', 'cdn2.2ndstreet.jp')
+      .replace(/_tn\.(jpg|jpeg|png|gif|webp)/i, '.$1')
+  }
+
   // 外部画像はプロキシ経由
-  return `/api/image-proxy?url=${encodeURIComponent(url)}`
+  return `/api/image-proxy?url=${encodeURIComponent(finalUrl)}`
 }
 
 // メモ化されたチェックボックスコンポーネント（パフォーマンス最適化）
