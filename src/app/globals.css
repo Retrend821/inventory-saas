@@ -31,7 +31,19 @@ body {
 }
 
 .table-scroll-container::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+
+/* スクロールバーのヘッダー部分 */
+.table-scroll-container::-webkit-scrollbar-track-piece:start {
   background: #334155;
+  margin-top: 0;
+}
+
+.table-scroll-container::-webkit-scrollbar-button:start {
+  height: 36px;
+  background: #334155;
+  display: block;
 }
 
 .table-scroll-container::-webkit-scrollbar-thumb {
