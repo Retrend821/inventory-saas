@@ -11,17 +11,10 @@ body {
   color: var(--foreground);
 }
 
-/* テーブルスクロールコンテナ（縦スクロールバーを左側に配置） */
+/* テーブルスクロールコンテナ */
 .table-scroll-container {
   overflow-x: auto;
   overflow-y: scroll;
-  direction: rtl;
-}
-
-.table-scroll-container > table {
-  direction: ltr;
-  position: relative;
-  left: -14px;
 }
 
 /* 縦スクロールバーのスタイル（常時表示） */
