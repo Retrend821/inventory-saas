@@ -10,7 +10,30 @@ export async function GET(request: NextRequest) {
   console.log('Image proxy request for:', url)
 
   try {
-    // 2ndstreet/trefacの場合は外部プロキシサービス（weserv.nl）を使用
+    // cdn2.2ndstreet.jpはCDNなので直接取得可能
+    if (url.includes('cdn2.2ndstreet.jp')) {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://www.2ndstreet.jp/',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        },
+      })
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || 'image/jpeg'
+        const imageBuffer = await response.arrayBuffer()
+
+        return new NextResponse(imageBuffer, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400',
+          },
+        })
+      }
+    }
+
+    // www.2ndstreet.jp/trefacの場合は外部プロキシサービス（weserv.nl）を使用
     if (url.includes('2ndstreet.jp') || url.includes('trefac.jp')) {
       const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&default=${encodeURIComponent('https://via.placeholder.com/100?text=No+Image')}`
       const response = await fetch(weservUrl)
