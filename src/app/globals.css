@@ -20,7 +20,8 @@ body {
 
 .table-scroll-container > table {
   direction: ltr;
-  margin-left: -14px; /* スクロールバー分の空白を解消 */
+  position: relative;
+  left: -14px;
 }
 
 /* 縦スクロールバーのスタイル（常時表示） */
