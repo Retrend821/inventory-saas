@@ -4584,7 +4584,7 @@ export default function Home() {
                     <col key={visibleColumns[index]?.key || index} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} />
                   ))}
                 </colgroup>
-                <thead className="sticky top-0 z-20" style={{ backgroundColor: '#334155' }}>
+                <thead className="sticky top-0 z-20" style={{ backgroundColor: '#334155', marginLeft: '-14px', paddingLeft: '14px' }}>
                   <tr>
                     {visibleColumns.map((col, colIndex) => {
                       const colWidth = columnWidths[colIndex]
