@@ -11,12 +11,16 @@ body {
   color: var(--foreground);
 }
 
-/* テーブルスクロールコンテナ */
+/* テーブルスクロールコンテナ（縦スクロールバーを左側に配置） */
 .table-scroll-container {
   overflow-x: auto;
-  overflow-y: scroll; /* 常にスクロールバーを表示 */
-  margin-right: -14px; /* ページスクロールバーとの被り防止 */
-  padding-right: 14px;
+  overflow-y: scroll;
+  direction: rtl;
+}
+
+.table-scroll-container > table {
+  direction: ltr;
+  margin-left: -14px; /* スクロールバー分の空白を解消 */
 }
 
 /* 縦スクロールバーのスタイル（常時表示） */
