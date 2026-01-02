@@ -4577,14 +4577,13 @@ export default function Home() {
             </div>
           ) : (
             <div ref={tableContainerRef} className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] table-scroll-container" style={{ direction: 'rtl' }}>
-              <div style={{ direction: 'ltr', paddingLeft: '14px' }}>
-              <table className="divide-y divide-gray-200 select-none" style={{ tableLayout: 'fixed', width: `${tableWidth}px`, minWidth: `${tableWidth}px` }}>
+              <table className="divide-y divide-gray-200 select-none" style={{ tableLayout: 'fixed', width: `${tableWidth}px`, minWidth: `${tableWidth}px`, direction: 'ltr' }}>
                 <colgroup>
                   {columnWidths.map((width, index) => (
                     <col key={visibleColumns[index]?.key || index} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} />
                   ))}
                 </colgroup>
-                <thead className="sticky top-0 z-20" style={{ backgroundColor: '#334155', marginLeft: '-14px', paddingLeft: '14px' }}>
+                <thead className="sticky top-0 z-20" style={{ backgroundColor: '#334155' }}>
                   <tr>
                     {visibleColumns.map((col, colIndex) => {
                       const colWidth = columnWidths[colIndex]
@@ -6264,7 +6263,6 @@ export default function Home() {
                   )}
                 </tbody>
               </table>
-              </div>
             </div>
           )}
 
