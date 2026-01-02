@@ -4577,7 +4577,8 @@ export default function Home() {
             </div>
           ) : (
             <div ref={tableContainerRef} className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] table-scroll-container" style={{ direction: 'rtl' }}>
-              <table className="divide-y divide-gray-200 select-none" style={{ tableLayout: 'fixed', width: `${tableWidth}px`, minWidth: `${tableWidth}px`, direction: 'ltr', marginLeft: '12px' }}>
+              <div style={{ direction: 'ltr', paddingLeft: '14px' }}>
+              <table className="divide-y divide-gray-200 select-none" style={{ tableLayout: 'fixed', width: `${tableWidth}px`, minWidth: `${tableWidth}px` }}>
                 <colgroup>
                   {columnWidths.map((width, index) => (
                     <col key={visibleColumns[index]?.key || index} style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }} />
@@ -6263,6 +6264,7 @@ export default function Home() {
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
