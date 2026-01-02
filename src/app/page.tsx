@@ -1789,7 +1789,13 @@ export default function Home() {
               const csvBrand = row['ブランド名']
               const brandName = csvBrand ? (detectBrand(csvBrand) || csvBrand) : detectBrand(row['商品名'])
               // 画像URLで仕入先を判別
-              const imageUrl = row['画像URL'] || ''
+              let imageUrl = (row['画像URL'] || '').trim()
+              // 2ndstreetのサムネイルURLをCDNのフルサイズURLに変換
+              if (imageUrl.includes('www.2ndstreet.jp')) {
+                imageUrl = imageUrl
+                  .replace('www.2ndstreet.jp', 'cdn2.2ndstreet.jp')
+                  .replace(/_tn\.(jpg|jpeg|png|gif|webp)/i, '.$1')
+              }
               const purchaseSource = imageUrl.includes('trefac.jp') ? 'トレファク' : 'セカスト'
 
               return {
