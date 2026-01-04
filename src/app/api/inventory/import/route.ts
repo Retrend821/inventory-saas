@@ -99,7 +99,8 @@ export async function POST(request: NextRequest) {
         listingDate = listingDate.replace(/\//g, '-')
       }
 
-      // 管理番号の自動採番（最大値 + 1）
+      // 管理番号の自動採番（最大値 + 1）+ 仕入価格
+      // 形式: "番号）仕入価格" 例: "3415）33660"
       let inventoryNumber = item.inventory_number || null
       if (!inventoryNumber) {
         const { data: maxData } = await supabase
@@ -112,13 +113,19 @@ export async function POST(request: NextRequest) {
         let maxNum = 0
         if (maxData) {
           for (const row of maxData) {
-            const num = parseInt(row.inventory_number, 10)
-            if (!isNaN(num) && num > maxNum) {
-              maxNum = num
+            // "3415）33660" の形式から番号部分を抽出
+            const match = row.inventory_number.match(/^(\d+)/)
+            if (match) {
+              const num = parseInt(match[1], 10)
+              if (!isNaN(num) && num > maxNum) {
+                maxNum = num
+              }
             }
           }
         }
-        inventoryNumber = String(maxNum + 1)
+        const nextNum = maxNum + 1
+        const price = item.purchase_price || 0
+        inventoryNumber = `${nextNum}）${price}`
       }
 
       const { data, error } = await supabase
