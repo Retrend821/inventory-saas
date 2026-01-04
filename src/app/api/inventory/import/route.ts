@@ -103,14 +103,21 @@ export async function POST(request: NextRequest) {
       let inventoryNumber = item.inventory_number || null
       let memoText = item.memo || null
       if (!inventoryNumber) {
-        const { data: maxData } = await supabase
-          .from('inventory')
-          .select('inventory_number')
-          .not('inventory_number', 'is', null)
-
+        // 全件取得して最大値を探す（range指定で1000件制限を回避）
         let maxNum = 0
-        if (maxData) {
-          for (const row of maxData) {
+        let offset = 0
+        const batchSize = 1000
+
+        while (true) {
+          const { data: batchData } = await supabase
+            .from('inventory')
+            .select('inventory_number')
+            .not('inventory_number', 'is', null)
+            .range(offset, offset + batchSize - 1)
+
+          if (!batchData || batchData.length === 0) break
+
+          for (const row of batchData) {
             const invNum = String(row.inventory_number || '')
             const match = invNum.match(/^(\d+)/)
             if (match) {
@@ -120,7 +127,11 @@ export async function POST(request: NextRequest) {
               }
             }
           }
+
+          if (batchData.length < batchSize) break
+          offset += batchSize
         }
+
         const nextNum = maxNum + 1
         const price = item.purchase_price || 0
         inventoryNumber = String(nextNum)
