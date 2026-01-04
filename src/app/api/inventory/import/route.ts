@@ -40,7 +40,7 @@ type InventoryInput = {
   product_name: string
   brand_name?: string
   category?: string
-  supplier?: string
+  supplier?: string  // APIではsupplierで受け取り、DBのpurchase_sourceに保存
   purchase_date?: string
   purchase_price?: number
   other_cost?: number
@@ -49,7 +49,6 @@ type InventoryInput = {
   status?: string
   memo?: string
   listing_date?: string
-  listing_price?: number
   external_id?: string
   external_source?: string
 }
@@ -106,7 +105,7 @@ export async function POST(request: NextRequest) {
           product_name: item.product_name,
           brand_name: item.brand_name || null,
           category: item.category || null,
-          supplier: item.supplier || null,
+          purchase_source: item.supplier || null,
           purchase_date: purchaseDate,
           purchase_price: item.purchase_price || null,
           other_cost: item.other_cost || 0,
@@ -115,7 +114,6 @@ export async function POST(request: NextRequest) {
           status: item.status || 'in_stock',
           memo: item.memo || null,
           listing_date: listingDate,
-          listing_price: item.listing_price || null,
           external_id: item.external_id || null,
           external_source: item.external_source || null,
         })
