@@ -3145,6 +3145,11 @@ export default function Home() {
       } else if (sortConfig.key === 'profit_rate') {
         aVal = calcProfitRate(a)
         bVal = calcProfitRate(b)
+      } else if (sortConfig.key === 'inventory_number') {
+        // 管理番号は数値としてソート
+        const aNum = parseInt(String(a.inventory_number || '').match(/^(\d+)/)?.[1] || '0', 10)
+        const bNum = parseInt(String(b.inventory_number || '').match(/^(\d+)/)?.[1] || '0', 10)
+        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum
       } else {
         aVal = a[sortConfig.key as keyof InventoryItem] as string | number | null
         bVal = b[sortConfig.key as keyof InventoryItem] as string | number | null
