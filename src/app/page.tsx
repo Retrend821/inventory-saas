@@ -3183,8 +3183,11 @@ export default function Home() {
     count: paginatedInventory.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => 41, // 行の高さ（px）
-    overscan: 10, // 画面外に余分にレンダリングする行数
+    overscan: 20, // 画面外に余分にレンダリングする行数（増やして安定化）
   })
+
+  // 仮想アイテムをキャッシュ（複数回呼び出し防止）
+  const virtualItems = rowVirtualizer.getVirtualItems()
 
   // フィルター変更時にページをリセット（初回ロード時は除く）
   const isInitialMount = useRef(true)
@@ -5172,12 +5175,12 @@ export default function Home() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {/* 上部のスペーサー */}
-                  {rowVirtualizer.getVirtualItems().length > 0 && rowVirtualizer.getVirtualItems()[0].start > 0 && (
-                    <tr style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }}>
+                  {virtualItems.length > 0 && virtualItems[0].start > 0 && (
+                    <tr style={{ height: `${virtualItems[0].start}px` }}>
                       <td colSpan={visibleColumns.length}></td>
                     </tr>
                   )}
-                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  {virtualItems.map((virtualRow) => {
                     const index = virtualRow.index
                     const item = paginatedInventory[index]
                     const globalIndex = (currentPage - 1) * itemsPerPage + index
@@ -6255,11 +6258,10 @@ export default function Home() {
                   })}
                   {/* 下部のスペーサー */}
                   {(() => {
-                    const virtualItems = rowVirtualizer.getVirtualItems()
                     if (virtualItems.length === 0) return null
                     const lastItem = virtualItems[virtualItems.length - 1]
                     const bottomSpacerHeight = rowVirtualizer.getTotalSize() - (lastItem?.end || 0)
-                    if (bottomSpacerHeight <= 0) return null
+                    if (bottomSpacerHeight <= 1) return null
                     return (
                       <tr style={{ height: `${bottomSpacerHeight}px` }}>
                         <td colSpan={visibleColumns.length}></td>
