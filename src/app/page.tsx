@@ -5196,7 +5196,7 @@ export default function Home() {
 
                     const inputClass = "w-full h-full px-0 py-0 text-sm border-none outline-none bg-transparent text-black font-medium"
                     const numInputClass = "w-full h-full px-0 py-0 text-sm border-none outline-none bg-transparent text-black font-medium text-right"
-                    const cellClass = "px-3 py-2 cursor-pointer hover:bg-blue-50 overflow-visible whitespace-nowrap"
+                    const cellClass = "px-3 py-2 cursor-pointer hover:bg-blue-50 overflow-hidden whitespace-nowrap"
 
                     const isEditingCell = (field: keyof InventoryItem) =>
                       editingCell?.id === item.id && editingCell?.field === field
