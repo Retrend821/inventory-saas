@@ -1168,14 +1168,31 @@ export default function Home() {
           return
         }
 
-        // 既存の最大管理番号を取得
-        const { data: maxData } = await supabase
-          .from('inventory')
-          .select('inventory_number')
-          .order('inventory_number', { ascending: false })
-          .limit(1)
-          .single()
-        let nextNumber = (maxData?.inventory_number || 0) + 1
+        // 既存の最大管理番号を取得（全件から数値で最大値を探す）
+        let maxNum = 0
+        let offset = 0
+        const batchSize = 1000
+        while (true) {
+          const { data: batchData } = await supabase
+            .from('inventory')
+            .select('inventory_number')
+            .not('inventory_number', 'is', null)
+            .range(offset, offset + batchSize - 1)
+          if (!batchData || batchData.length === 0) break
+          for (const row of batchData) {
+            const invNum = String(row.inventory_number || '')
+            const match = invNum.match(/^(\d+)/)
+            if (match) {
+              const num = parseInt(match[1], 10)
+              if (!isNaN(num) && num > maxNum) {
+                maxNum = num
+              }
+            }
+          }
+          if (batchData.length < batchSize) break
+          offset += batchSize
+        }
+        let nextNumber = maxNum + 1
 
         // マッピング: ジャンル→category, ブランド名→brand_name, 商品名→product_name, 請求商品代→purchase_price, 支払/請求税込合計→purchase_total
         const records = valid.map(row => {
