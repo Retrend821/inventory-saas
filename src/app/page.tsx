@@ -6254,13 +6254,18 @@ export default function Home() {
                     )
                   })}
                   {/* 下部のスペーサー */}
-                  {rowVirtualizer.getVirtualItems().length > 0 && (
-                    <tr style={{
-                      height: `${rowVirtualizer.getTotalSize() - (rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1]?.end || 0)}px`
-                    }}>
-                      <td colSpan={visibleColumns.length}></td>
-                    </tr>
-                  )}
+                  {(() => {
+                    const virtualItems = rowVirtualizer.getVirtualItems()
+                    if (virtualItems.length === 0) return null
+                    const lastItem = virtualItems[virtualItems.length - 1]
+                    const bottomSpacerHeight = rowVirtualizer.getTotalSize() - (lastItem?.end || 0)
+                    if (bottomSpacerHeight <= 0) return null
+                    return (
+                      <tr style={{ height: `${bottomSpacerHeight}px` }}>
+                        <td colSpan={visibleColumns.length}></td>
+                      </tr>
+                    )
+                  })()}
                 </tbody>
               </table>
             </div>
