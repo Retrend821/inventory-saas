@@ -555,7 +555,7 @@ export default function Home() {
   const defaultColumns = [
     { key: 'checkbox', label: '', draggable: false, width: 'w-8' },
     { key: 'index', label: 'No.', draggable: false, width: 'w-14' },
-    { key: 'inventory_number', label: '管理\n番号', draggable: true, width: 'w-[68px]' },
+    { key: 'inventory_number', label: '管理番号', draggable: true, width: 'w-[68px]' },
     { key: 'refund_status', label: '返金\n完了', draggable: false, width: 'w-14' },
     { key: 'image', label: '画像', draggable: true, width: 'w-16' },
     { key: 'category', label: 'ジャンル', draggable: true, width: 'w-20' },
