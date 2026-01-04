@@ -107,8 +107,6 @@ export async function POST(request: NextRequest) {
           .from('inventory')
           .select('inventory_number')
           .not('inventory_number', 'is', null)
-          .order('inventory_number', { ascending: false })
-          .limit(100)
 
         let maxNum = 0
         if (maxData) {
