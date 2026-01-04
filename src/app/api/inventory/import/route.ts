@@ -114,7 +114,8 @@ export async function POST(request: NextRequest) {
         if (maxData) {
           for (const row of maxData) {
             // "3415）33660" の形式から番号部分を抽出
-            const match = row.inventory_number.match(/^(\d+)/)
+            const invNum = String(row.inventory_number || '')
+            const match = invNum.match(/^(\d+)/)
             if (match) {
               const num = parseInt(match[1], 10)
               if (!isNaN(num) && num > maxNum) {
