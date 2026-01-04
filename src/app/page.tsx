@@ -5582,7 +5582,7 @@ export default function Home() {
                             </td>
                           )
                         case 'category':
-                          return renderCell('category', <span className="text-sm text-gray-900 block text-center">{item.category || '-'}</span>, 'datalist', categoryOptions, colIndex)
+                          return renderCell('category', <span className="text-sm text-gray-900 block text-center truncate" title={item.category || ''}>{item.category || '-'}</span>, 'datalist', categoryOptions, colIndex)
                         case 'brand_name':
                           const isBrandOpen = editingCell?.id === item.id && editingCell?.field === 'brand_name' && dropdownPosition
                           const isBrandSelected = isSelectedCell('brand_name') && !isBrandOpen && !selectionRange
