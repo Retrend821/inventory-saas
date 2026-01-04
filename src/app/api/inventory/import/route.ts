@@ -128,6 +128,10 @@ export async function POST(request: NextRequest) {
         inventoryNumber = `${nextNum}）${price}`
       }
 
+      // 税込→税抜計算（10%）
+      const priceWithTax = item.purchase_price || 0
+      const priceWithoutTax = Math.round(priceWithTax / 1.1)
+
       const { data, error } = await supabase
         .from('inventory')
         .insert({
@@ -136,7 +140,8 @@ export async function POST(request: NextRequest) {
           category: item.category || null,
           purchase_source: item.supplier || null,
           purchase_date: purchaseDate,
-          purchase_price: item.purchase_price || null,
+          purchase_price: priceWithoutTax,      // 税抜金額
+          purchase_total: priceWithTax,          // 税込金額
           other_cost: item.other_cost || 0,
           inventory_number: inventoryNumber,
           image_url: item.image_url || null,
