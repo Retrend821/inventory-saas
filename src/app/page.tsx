@@ -5272,40 +5272,64 @@ export default function Home() {
                               <input
                                 type="date"
                                 value={editValue}
-                                onChange={async (e) => {
-                                  const val = e.target.value || null
-
-                                  // Build update data
+                                onChange={(e) => {
+                                  // 月移動で確定されないよう、値の更新のみ行う
+                                  setEditValue(e.target.value)
+                                }}
+                                onKeyDown={async (e) => {
+                                  if (e.key === 'Enter') {
+                                    const val = editValue || null
+                                    let updateData: Record<string, string | number | null> = { [field]: val }
+                                    if (field === 'sale_date') {
+                                      if (val && val !== '返品') {
+                                        updateData.status = '売却済み'
+                                        const newCommission = calculateCommission(item.sale_destination, item.sale_price, val)
+                                        updateData.commission = newCommission
+                                        if (item.sale_price !== null) {
+                                          updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0)
+                                        }
+                                      } else if (!val) {
+                                        updateData.status = '在庫あり'
+                                      }
+                                    }
+                                    const { error } = await supabase.from('inventory').update(updateData).eq('id', item.id)
+                                    if (!error) {
+                                      setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...updateData } : inv))
+                                    }
+                                    setEditingCell(null)
+                                    setEditValue('')
+                                  } else if (e.key === 'Escape') {
+                                    setEditingCell(null)
+                                    setEditValue('')
+                                  }
+                                }}
+                                onBlur={async () => {
+                                  // フォーカスが外れた時に保存
+                                  const val = editValue || null
+                                  const originalVal = item[field] || null
+                                  // 値が変わっていない場合は保存しない
+                                  if (val === originalVal) {
+                                    setEditingCell(null)
+                                    setEditValue('')
+                                    return
+                                  }
                                   let updateData: Record<string, string | number | null> = { [field]: val }
-
-                                  // If it's sale_date, update status and recalculate commission
                                   if (field === 'sale_date') {
                                     if (val && val !== '返品') {
                                       updateData.status = '売却済み'
-                                      // Recalculate commission
                                       const newCommission = calculateCommission(item.sale_destination, item.sale_price, val)
                                       updateData.commission = newCommission
-                                      // Recalculate deposit amount
                                       if (item.sale_price !== null) {
                                         updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0)
                                       }
                                     } else if (!val) {
-                                      // Clear sale_date - always revert to unsold status
                                       updateData.status = '在庫あり'
                                     }
                                   }
-
-                                  // Save to database
                                   const { error } = await supabase.from('inventory').update(updateData).eq('id', item.id)
                                   if (!error) {
                                     setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...updateData } : inv))
                                   }
-
-                                  setEditingCell(null)
-                                  setEditValue('')
-                                }}
-                                onKeyDown={handleKeyDown}
-                                onBlur={() => {
                                   setEditingCell(null)
                                   setEditValue('')
                                 }}
