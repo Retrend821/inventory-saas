@@ -385,7 +385,7 @@ export default function Home() {
   const [csvPurchaseDate, setCsvPurchaseDate] = useState<string>('')
   const [starBuyersImageCSV, setStarBuyersImageCSV] = useState<File | null>(null)
   const [aucnetImageFile, setAucnetImageFile] = useState<File | null>(null)
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'inventory_number', direction: 'desc' })
   // URLパラメータから検索キーワードの初期値を取得
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '')
   // 検索キーワード変更時にURLパラメータを更新
