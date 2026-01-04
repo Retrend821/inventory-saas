@@ -99,6 +99,28 @@ export async function POST(request: NextRequest) {
         listingDate = listingDate.replace(/\//g, '-')
       }
 
+      // 管理番号の自動採番（最大値 + 1）
+      let inventoryNumber = item.inventory_number || null
+      if (!inventoryNumber) {
+        const { data: maxData } = await supabase
+          .from('inventory')
+          .select('inventory_number')
+          .not('inventory_number', 'is', null)
+          .order('inventory_number', { ascending: false })
+          .limit(100)
+
+        let maxNum = 0
+        if (maxData) {
+          for (const row of maxData) {
+            const num = parseInt(row.inventory_number, 10)
+            if (!isNaN(num) && num > maxNum) {
+              maxNum = num
+            }
+          }
+        }
+        inventoryNumber = String(maxNum + 1)
+      }
+
       const { data, error } = await supabase
         .from('inventory')
         .insert({
@@ -109,7 +131,7 @@ export async function POST(request: NextRequest) {
           purchase_date: purchaseDate,
           purchase_price: item.purchase_price || null,
           other_cost: item.other_cost || 0,
-          inventory_number: item.inventory_number || null,
+          inventory_number: inventoryNumber,
           image_url: item.image_url || null,
           status: item.status || 'in_stock',
           memo: item.memo || null,
