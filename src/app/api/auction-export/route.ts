@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ExcelJS from 'exceljs'
 import { join } from 'path'
 import { readFileSync } from 'fs'
+// @ts-expect-error xlsx-populate has no types
+import XlsxPopulate from 'xlsx-populate'
 
 // テンプレートファイルのパス
 const TEMPLATE_DIR = join(process.cwd(), 'public', 'templates')
@@ -37,19 +38,17 @@ async function generateStarbuyersBag(items: ExportItem[]): Promise<Buffer> {
   const templatePath = join(TEMPLATE_DIR, 'starbuyers_bag_template.xlsx')
   const templateBuffer = readFileSync(templatePath)
 
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
+  const workbook = await XlsxPopulate.fromDataAsync(templateBuffer)
+  const sheet = workbook.sheet('出品リスト (バッグ)')
 
-  const worksheet = workbook.getWorksheet('出品リスト (バッグ)')
-  if (!worksheet) {
+  if (!sheet) {
     throw new Error('シート「出品リスト (バッグ)」が見つかりません')
   }
 
   // 既存データをクリア（13行目以降）
-  for (let row = 13; row <= Math.max(worksheet.rowCount, 200); row++) {
+  for (let row = 13; row <= 212; row++) {
     for (let col = 1; col <= 8; col++) {
-      const cell = worksheet.getCell(row, col)
-      cell.value = null
+      sheet.cell(row, col).value(undefined)
     }
   }
 
@@ -59,18 +58,17 @@ async function generateStarbuyersBag(items: ExportItem[]): Promise<Buffer> {
     const sashiNe = calculateSashiNe(item.purchase_total)
     const fullProductName = getFullProductName(item.brand_name || '', item.product_name || '')
 
-    worksheet.getCell(row, 1).value = i + 1  // No
-    worksheet.getCell(row, 2).value = fullProductName  // 商品名
-    worksheet.getCell(row, 3).value = item.condition_rank || 'B'  // ランク
-    worksheet.getCell(row, 4).value = item.accessories || ''  // 付属品
-    worksheet.getCell(row, 5).value = ''  // 備考（空）
-    worksheet.getCell(row, 6).value = sashiNe  // 指値
-    worksheet.getCell(row, 7).value = ''  // ロット番号
-    worksheet.getCell(row, 8).value = item.management_number || ''  // 管理番号
+    sheet.cell(row, 1).value(i + 1)  // No
+    sheet.cell(row, 2).value(fullProductName)  // 商品名
+    sheet.cell(row, 3).value(item.condition_rank || 'B')  // ランク
+    sheet.cell(row, 4).value(item.accessories || '')  // 付属品
+    sheet.cell(row, 5).value('')  // 備考（空）
+    sheet.cell(row, 6).value(sashiNe)  // 指値
+    sheet.cell(row, 7).value('')  // ロット番号
+    sheet.cell(row, 8).value(item.management_number || '')  // 管理番号
   })
 
-  const buffer = await workbook.xlsx.writeBuffer()
-  return Buffer.from(buffer)
+  return await workbook.outputAsync()
 }
 
 // スターバイヤーズ アクセサリー出品リスト生成
@@ -78,23 +76,19 @@ async function generateStarbuyersAccessory(items: ExportItem[]): Promise<Buffer>
   const templatePath = join(TEMPLATE_DIR, 'starbuyers_accessory_template.xlsx')
   const templateBuffer = readFileSync(templatePath)
 
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
+  const workbook = await XlsxPopulate.fromDataAsync(templateBuffer)
 
   // 出品リストを含むシートを探す
-  let worksheet = workbook.worksheets.find(ws => ws.name.includes('出品リスト'))
-  if (!worksheet) {
-    worksheet = workbook.worksheets[workbook.worksheets.length - 1]
-  }
-  if (!worksheet) {
-    throw new Error('出品リストシートが見つかりません')
+  let sheet = workbook.sheets().find((s: { name: () => string }) => s.name().includes('出品リスト'))
+  if (!sheet) {
+    const sheets = workbook.sheets()
+    sheet = sheets[sheets.length - 1]
   }
 
   // 既存データをクリア（13行目以降）
-  for (let row = 13; row <= Math.max(worksheet.rowCount, 200); row++) {
+  for (let row = 13; row <= 212; row++) {
     for (let col = 1; col <= 8; col++) {
-      const cell = worksheet.getCell(row, col)
-      cell.value = null
+      sheet.cell(row, col).value(undefined)
     }
   }
 
@@ -104,18 +98,17 @@ async function generateStarbuyersAccessory(items: ExportItem[]): Promise<Buffer>
     const sashiNe = calculateSashiNe(item.purchase_total)
     const fullProductName = getFullProductName(item.brand_name || '', item.product_name || '')
 
-    worksheet.getCell(row, 1).value = i + 1
-    worksheet.getCell(row, 2).value = fullProductName
-    worksheet.getCell(row, 3).value = item.condition_rank || 'B'
-    worksheet.getCell(row, 4).value = item.accessories || ''
-    worksheet.getCell(row, 5).value = ''  // 備考（空）
-    worksheet.getCell(row, 6).value = sashiNe
-    worksheet.getCell(row, 7).value = ''
-    worksheet.getCell(row, 8).value = item.management_number || ''
+    sheet.cell(row, 1).value(i + 1)
+    sheet.cell(row, 2).value(fullProductName)
+    sheet.cell(row, 3).value(item.condition_rank || 'B')
+    sheet.cell(row, 4).value(item.accessories || '')
+    sheet.cell(row, 5).value('')
+    sheet.cell(row, 6).value(sashiNe)
+    sheet.cell(row, 7).value('')
+    sheet.cell(row, 8).value(item.management_number || '')
   })
 
-  const buffer = await workbook.xlsx.writeBuffer()
-  return Buffer.from(buffer)
+  return await workbook.outputAsync()
 }
 
 // エコリング ブランド出品リスト生成
@@ -123,11 +116,10 @@ async function generateEcoringBrand(items: ExportItem[]): Promise<Buffer> {
   const templatePath = join(TEMPLATE_DIR, 'ecoring_brand_template.xlsx')
   const templateBuffer = readFileSync(templatePath)
 
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
+  const workbook = await XlsxPopulate.fromDataAsync(templateBuffer)
+  const sheet = workbook.sheet('委託者入力シート')
 
-  const worksheet = workbook.getWorksheet('委託者入力シート')
-  if (!worksheet) {
+  if (!sheet) {
     throw new Error('シート「委託者入力シート」が見つかりません')
   }
 
@@ -137,15 +129,14 @@ async function generateEcoringBrand(items: ExportItem[]): Promise<Buffer> {
     const sashiNe = calculateSashiNe(item.purchase_total)
     const fullProductName = getFullProductName(item.brand_name || '', item.product_name || '')
 
-    worksheet.getCell(row, 1).value = i + 1  // 商品NO
-    worksheet.getCell(row, 2).value = fullProductName  // 商品名
-    worksheet.getCell(row, 3).value = sashiNe  // 指値
-    worksheet.getCell(row, 4).value = ''  // ダメージ・備考（空）
-    worksheet.getCell(row, 5).value = item.management_number || ''  // メモ欄
+    sheet.cell(row, 1).value(i + 1)  // 商品NO
+    sheet.cell(row, 2).value(fullProductName)  // 商品名
+    sheet.cell(row, 3).value(sashiNe)  // 指値
+    sheet.cell(row, 4).value('')  // ダメージ・備考（空）
+    sheet.cell(row, 5).value(item.management_number || '')  // メモ欄
   })
 
-  const buffer = await workbook.xlsx.writeBuffer()
-  return Buffer.from(buffer)
+  return await workbook.outputAsync()
 }
 
 // エコリング 道具出品リスト生成
@@ -153,11 +144,10 @@ async function generateEcoringDougu(items: ExportItem[]): Promise<Buffer> {
   const templatePath = join(TEMPLATE_DIR, 'ecoring_dougu_template.xlsx')
   const templateBuffer = readFileSync(templatePath)
 
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
+  const workbook = await XlsxPopulate.fromDataAsync(templateBuffer)
+  const sheet = workbook.sheet('委託者入力シート')
 
-  const worksheet = workbook.getWorksheet('委託者入力シート')
-  if (!worksheet) {
+  if (!sheet) {
     throw new Error('シート「委託者入力シート」が見つかりません')
   }
 
@@ -167,15 +157,14 @@ async function generateEcoringDougu(items: ExportItem[]): Promise<Buffer> {
     const sashiNe = calculateSashiNe(item.purchase_total)
     const fullProductName = getFullProductName(item.brand_name || '', item.product_name || '')
 
-    worksheet.getCell(row, 1).value = i + 1  // 商品NO
-    worksheet.getCell(row, 2).value = fullProductName  // 商品名
-    worksheet.getCell(row, 3).value = sashiNe  // 指値
-    worksheet.getCell(row, 4).value = ''  // ダメージ・備考（空）
-    worksheet.getCell(row, 5).value = item.management_number || ''  // メモ欄
+    sheet.cell(row, 1).value(i + 1)  // 商品NO
+    sheet.cell(row, 2).value(fullProductName)  // 商品名
+    sheet.cell(row, 3).value(sashiNe)  // 指値
+    sheet.cell(row, 4).value('')  // ダメージ・備考（空）
+    sheet.cell(row, 5).value(item.management_number || '')  // メモ欄
   })
 
-  const buffer = await workbook.xlsx.writeBuffer()
-  return Buffer.from(buffer)
+  return await workbook.outputAsync()
 }
 
 // アプレ ブランド出品リスト生成
@@ -183,11 +172,10 @@ async function generateAppreBrand(items: ExportItem[]): Promise<Buffer> {
   const templatePath = join(TEMPLATE_DIR, 'appre_brand_template.xlsm')
   const templateBuffer = readFileSync(templatePath)
 
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
+  const workbook = await XlsxPopulate.fromDataAsync(templateBuffer)
+  const sheet = workbook.sheet('入力欄')
 
-  const worksheet = workbook.getWorksheet('入力欄')
-  if (!worksheet) {
+  if (!sheet) {
     throw new Error('シート「入力欄」が見つかりません')
   }
 
@@ -196,19 +184,18 @@ async function generateAppreBrand(items: ExportItem[]): Promise<Buffer> {
     const row = 6 + i
     const sashiNe = calculateSashiNe(item.purchase_total)
 
-    worksheet.getCell(row, 5).value = item.brand_name || ''  // ブランド名（E列）
-    worksheet.getCell(row, 7).value = item.product_name || ''  // 商品名（G列）
-    worksheet.getCell(row, 11).value = item.condition_rank || 'B'  // ランク（K列）
-    worksheet.getCell(row, 12).value = ''  // 付属品・備考（L列）
-    worksheet.getCell(row, 14).value = sashiNe  // 指値（税抜）（N列）
-    worksheet.getCell(row, 20).value = item.management_number || ''  // 管理番号（T列）
+    sheet.cell(row, 5).value(item.brand_name || '')  // ブランド名（E列）
+    sheet.cell(row, 7).value(item.product_name || '')  // 商品名（G列）
+    sheet.cell(row, 11).value(item.condition_rank || 'B')  // ランク（K列）
+    sheet.cell(row, 12).value('')  // 付属品・備考（L列）
+    sheet.cell(row, 14).value(sashiNe)  // 指値（税抜）（N列）
+    sheet.cell(row, 20).value(item.management_number || '')  // 管理番号（T列）
   })
 
-  const buffer = await workbook.xlsx.writeBuffer()
-  return Buffer.from(buffer)
+  return await workbook.outputAsync()
 }
 
-// スターバイヤーズ出品リスト生成
+// オークション出品リスト生成
 export async function POST(request: NextRequest) {
   try {
     const { items, auctionType = 'starbuyers-bag' } = await request.json()

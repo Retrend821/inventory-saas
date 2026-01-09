@@ -186,6 +186,7 @@ export default function BulkInventoryPage() {
       totalSales: number
       totalCommission: number
       totalShipping: number
+      totalDeposit: number
     }>()
 
     bulkSales.forEach(sale => {
@@ -193,14 +194,19 @@ export default function BulkInventoryPage() {
         soldQuantity: 0,
         totalSales: 0,
         totalCommission: 0,
-        totalShipping: 0
+        totalShipping: 0,
+        totalDeposit: 0
       }
+
+      // 入金額は登録されていれば使用、なければ売値-手数料-送料
+      const depositAmount = sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)
 
       stats.set(sale.bulk_purchase_id, {
         soldQuantity: current.soldQuantity + sale.quantity,
         totalSales: current.totalSales + sale.sale_amount,
         totalCommission: current.totalCommission + sale.commission,
-        totalShipping: current.totalShipping + sale.shipping_cost
+        totalShipping: current.totalShipping + sale.shipping_cost,
+        totalDeposit: current.totalDeposit + depositAmount
       })
     })
 
@@ -242,6 +248,7 @@ export default function BulkInventoryPage() {
     let totalSales = 0
     let totalCommission = 0
     let totalShipping = 0
+    let totalDeposit = 0
 
     targetPurchases.forEach(purchase => {
       totalPurchaseAmount += purchase.total_amount
@@ -253,13 +260,15 @@ export default function BulkInventoryPage() {
         totalSales += stats.totalSales
         totalCommission += stats.totalCommission
         totalShipping += stats.totalShipping
+        totalDeposit += stats.totalDeposit
       }
     })
 
     const remainingQuantity = totalQuantity - soldQuantity
-    const netProfit = totalSales - totalCommission - totalShipping - totalPurchaseAmount
+    // 利益は入金額から仕入額を引いた値
+    const netProfit = totalDeposit - totalPurchaseAmount
     const profitRate = totalPurchaseAmount > 0 ? Math.round((netProfit / totalPurchaseAmount) * 100) : 0
-    const recoveryRate = totalPurchaseAmount > 0 ? Math.round(((totalSales - totalCommission - totalShipping) / totalPurchaseAmount) * 100) : 0
+    const recoveryRate = totalPurchaseAmount > 0 ? Math.round((totalDeposit / totalPurchaseAmount) * 100) : 0
 
     return {
       totalPurchaseAmount,
@@ -269,6 +278,7 @@ export default function BulkInventoryPage() {
       totalSales,
       totalCommission,
       totalShipping,
+      totalDeposit,
       netProfit,
       profitRate,
       recoveryRate
@@ -471,6 +481,14 @@ export default function BulkInventoryPage() {
       return
     }
 
+    const saleAmount = parseInt(newSale.sale_amount)
+    const commission = parseInt(newSale.commission) || 0
+    const shippingCost = parseInt(newSale.shipping_cost) || 0
+    // 入金額が入力されていなければ自動計算（売上 - 手数料 - 送料）
+    const depositAmount = newSale.deposit_amount
+      ? parseInt(newSale.deposit_amount)
+      : saleAmount - commission - shippingCost
+
     const { error } = await supabase
       .from('bulk_sales')
       .insert({
@@ -478,9 +496,9 @@ export default function BulkInventoryPage() {
         sale_date: newSale.sale_date,
         sale_destination: newSale.sale_destination || null,
         quantity: parseInt(newSale.quantity),
-        sale_amount: parseInt(newSale.sale_amount),
-        commission: parseInt(newSale.commission) || 0,
-        shipping_cost: parseInt(newSale.shipping_cost) || 0,
+        sale_amount: saleAmount,
+        commission: commission,
+        shipping_cost: shippingCost,
         memo: newSale.memo || null,
         // 商品詳細
         product_name: newSale.product_name || null,
@@ -489,7 +507,7 @@ export default function BulkInventoryPage() {
         image_url: newSale.image_url || null,
         purchase_price: newSale.purchase_price ? parseInt(newSale.purchase_price) : null,
         other_cost: newSale.other_cost ? parseInt(newSale.other_cost) : 0,
-        deposit_amount: newSale.deposit_amount ? parseInt(newSale.deposit_amount) : null,
+        deposit_amount: depositAmount,
         listing_date: newSale.listing_date || null,
         user_id: user?.id
       })
@@ -704,7 +722,16 @@ export default function BulkInventoryPage() {
         const newCommission = calculateCommission(sale.sale_destination, newValue, sale.sale_date)
         if (newCommission !== null) {
           updateData.commission = newCommission
+          // 入金額も再計算
+          updateData.deposit_amount = newValue - newCommission - sale.shipping_cost
         }
+      }
+      // 売上・手数料・送料が変更された場合は入金額を再計算
+      if (['sale_amount', 'commission', 'shipping_cost'].includes(field)) {
+        const saleAmount = field === 'sale_amount' ? (newValue as number) : sale.sale_amount
+        const commission = field === 'commission' ? (newValue as number) : (updateData.commission as number ?? sale.commission)
+        const shippingCost = field === 'shipping_cost' ? (newValue as number) : sale.shipping_cost
+        updateData.deposit_amount = saleAmount - commission - shippingCost
       }
 
       console.log('Updating sale:', id, 'field:', field, 'updateData:', updateData)
@@ -1230,8 +1257,8 @@ export default function BulkInventoryPage() {
                 <div className="font-bold text-gray-900">¥{genreSummary.totalSales.toLocaleString()}</div>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">手数料+送料</div>
-                <div className="font-bold text-gray-600">¥{(genreSummary.totalCommission + genreSummary.totalShipping).toLocaleString()}</div>
+                <div className="text-gray-500 text-xs">入金総額</div>
+                <div className="font-bold text-blue-600">¥{genreSummary.totalDeposit.toLocaleString()}</div>
               </div>
               <div className="bg-gray-50 rounded-lg p-3">
                 <div className="text-gray-500 text-xs">純利益</div>
@@ -1805,14 +1832,18 @@ export default function BulkInventoryPage() {
                 soldQuantity: 0,
                 totalSales: 0,
                 totalCommission: 0,
-                totalShipping: 0
+                totalShipping: 0,
+                totalDeposit: 0
               }
               const unitCost = purchase.total_quantity > 0 ? Math.round(purchase.total_amount / purchase.total_quantity) : 0
               const costRecovered = stats.soldQuantity * unitCost
-              const remainingCost = Math.max(0, purchase.total_amount - costRecovered)
-              const netProfit = stats.totalSales - stats.totalCommission - stats.totalShipping - Math.min(costRecovered, purchase.total_amount)
+              // 残り金額は仕入額から入金額を引いた値
+              const remainingCost = Math.max(0, purchase.total_amount - stats.totalDeposit)
+              // 利益は入金額から回収済みコストを引いた値
+              const netProfit = stats.totalDeposit - Math.min(costRecovered, purchase.total_amount)
               const remainingQuantity = purchase.total_quantity - stats.soldQuantity
-              const isFullyRecovered = costRecovered >= purchase.total_amount
+              // 回収完了は入金額が仕入額を超えたかで判定
+              const isFullyRecovered = stats.totalDeposit >= purchase.total_amount
               const isExpanded = expandedId === purchase.id
 
               return (

@@ -52,8 +52,8 @@ export default function LedgerPage() {
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedYear, setSelectedYear] = useState<number | 'all'>(new Date().getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState<number | 'all'>(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>('all')
+  const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all')
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -143,6 +143,8 @@ export default function LedgerPage() {
   // 利用可能な年のリスト
   const availableYears = useMemo(() => {
     const years = new Set<number>()
+    // 現在の年を必ず追加
+    years.add(new Date().getFullYear())
     inventory.forEach(item => {
       const purchaseYear = extractYear(item.purchase_date)
       if (purchaseYear) years.add(purchaseYear)
@@ -169,7 +171,8 @@ export default function LedgerPage() {
       .map((item, index) => {
         const supplierInfo = getSupplierInfo(item.purchase_source)
         const platformInfo = getPlatformInfo(item.sale_destination)
-        const isSold = item.status === '売却済' && item.sale_date
+        // 売却日または販売先があれば払出済みとみなす
+        const isSold = !!(item.sale_date || item.sale_destination)
 
         return {
           ...item,

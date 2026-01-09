@@ -360,6 +360,8 @@ export default function ManualSalesPage() {
   // 利用可能な年のリスト
   const availableYears = useMemo(() => {
     const years = new Set<number>()
+    // 現在の年を必ず追加
+    years.add(new Date().getFullYear())
     sales.forEach(sale => {
       const year = extractYear(sale.sale_date)
       if (year) years.add(year)
