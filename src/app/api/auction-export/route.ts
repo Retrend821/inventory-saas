@@ -129,11 +129,12 @@ async function generateEcoringBrand(items: ExportItem[]): Promise<Buffer> {
     const sashiNe = calculateSashiNe(item.purchase_total)
     const fullProductName = getFullProductName(item.brand_name || '', item.product_name || '')
 
-    sheet.cell(row, 1).value(i + 1)  // 商品NO
-    sheet.cell(row, 2).value(fullProductName)  // 商品名
-    sheet.cell(row, 3).value(sashiNe)  // 指値
-    sheet.cell(row, 4).value('')  // ダメージ・備考（空）
-    sheet.cell(row, 5).value(item.management_number || '')  // メモ欄
+    // 値を設定し、スタイルをリセット（斜体・取り消し線をオフ）
+    sheet.cell(row, 1).value(i + 1).style({ italic: false, strikethrough: false })
+    sheet.cell(row, 2).value(fullProductName).style({ italic: false, strikethrough: false })
+    sheet.cell(row, 3).value(sashiNe).style({ italic: false, strikethrough: false })
+    sheet.cell(row, 4).value('').style({ italic: false, strikethrough: false })
+    sheet.cell(row, 5).value(item.management_number || '').style({ italic: false, strikethrough: false })
   })
 
   return await workbook.outputAsync()
@@ -157,11 +158,12 @@ async function generateEcoringDougu(items: ExportItem[]): Promise<Buffer> {
     const sashiNe = calculateSashiNe(item.purchase_total)
     const fullProductName = getFullProductName(item.brand_name || '', item.product_name || '')
 
-    sheet.cell(row, 1).value(i + 1)  // 商品NO
-    sheet.cell(row, 2).value(fullProductName)  // 商品名
-    sheet.cell(row, 3).value(sashiNe)  // 指値
-    sheet.cell(row, 4).value('')  // ダメージ・備考（空）
-    sheet.cell(row, 5).value(item.management_number || '')  // メモ欄
+    // 値を設定し、スタイルをリセット（斜体・取り消し線をオフ）
+    sheet.cell(row, 1).value(i + 1).style({ italic: false, strikethrough: false })
+    sheet.cell(row, 2).value(fullProductName).style({ italic: false, strikethrough: false })
+    sheet.cell(row, 3).value(sashiNe).style({ italic: false, strikethrough: false })
+    sheet.cell(row, 4).value('').style({ italic: false, strikethrough: false })
+    sheet.cell(row, 5).value(item.management_number || '').style({ italic: false, strikethrough: false })
   })
 
   return await workbook.outputAsync()
