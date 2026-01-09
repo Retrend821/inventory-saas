@@ -111,6 +111,14 @@ async function generateStarbuyersAccessory(items: ExportItem[]): Promise<Buffer>
   return await workbook.outputAsync()
 }
 
+// 日付を「YYYY年MM月DD日」形式に変換
+function formatJapaneseDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}年${month}月${day}日`
+}
+
 // エコリング ブランド出品リスト生成
 async function generateEcoringBrand(items: ExportItem[]): Promise<Buffer> {
   const templatePath = join(TEMPLATE_DIR, 'ecoring_brand_template.xlsx')
@@ -122,6 +130,9 @@ async function generateEcoringBrand(items: ExportItem[]): Promise<Buffer> {
   if (!sheet) {
     throw new Error('シート「委託者入力シート」が見つかりません')
   }
+
+  // C9に出力時点の日付を設定
+  sheet.cell('C9').value(formatJapaneseDate(new Date()))
 
   // 新しいデータを書き込み（16行目から）
   items.forEach((item, i) => {
@@ -151,6 +162,9 @@ async function generateEcoringDougu(items: ExportItem[]): Promise<Buffer> {
   if (!sheet) {
     throw new Error('シート「委託者入力シート」が見つかりません')
   }
+
+  // C9に出力時点の日付を設定
+  sheet.cell('C9').value(formatJapaneseDate(new Date()))
 
   // 新しいデータを書き込み（16行目から）
   items.forEach((item, i) => {
