@@ -412,6 +412,8 @@ export default function Home() {
     return 'all'
   }
   const [quickFilter, setQuickFilter] = useState<'all' | 'unsold' | 'unlisted' | 'stale30' | 'stale90' | 'returns'>(initialQuickFilter)
+  // セッション中に編集されたアイテムID（フィルタから除外しない）
+  const [editedInSessionIds, setEditedInSessionIds] = useState<Set<string>>(new Set())
   // チェック済みのみ表示
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   // ドロップダウン検索用
@@ -428,7 +430,23 @@ export default function Home() {
     url.searchParams.delete('status') // 古いパラメータを削除
     window.history.replaceState({}, '', url.toString())
   }, [])
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('selectedInventoryIds')
+      if (saved) {
+        try {
+          return new Set(JSON.parse(saved))
+        } catch {
+          return new Set()
+        }
+      }
+    }
+    return new Set()
+  })
+  // 選択状態をlocalStorageに保存
+  useEffect(() => {
+    localStorage.setItem('selectedInventoryIds', JSON.stringify(Array.from(selectedIds)))
+  }, [selectedIds])
   // 選択がなくなったらフィルターを自動オフ
   useEffect(() => {
     if (selectedIds.size === 0 && showSelectedOnly) {
@@ -880,6 +898,17 @@ export default function Home() {
       const newSalePrice = field === 'sale_price' ? (value as number) : currentItem.sale_price
       const newCommission = calculateCommission(newDestination || null, newSalePrice || null, currentItem.sale_date)
       updateData.commission = newCommission
+
+      // 売上金額がクリアされた場合、手数料と入金額もリセット
+      if (field === 'sale_price' && (value === null || value === 0)) {
+        updateData.commission = null
+        updateData.deposit_amount = null
+      }
+      // 販売先がクリアされた場合も手数料と入金額をリセット
+      if (field === 'sale_destination' && !value) {
+        updateData.commission = null
+        updateData.deposit_amount = null
+      }
     }
 
     // 販売先または売却日が入力されたらステータスを売却済みに自動変更
@@ -3085,17 +3114,19 @@ export default function Home() {
     }
 
     // クイックフィルター（未販売・未出品・滞留）
+    // セッション中に編集されたアイテムは常に表示（リロードまで）
     if (quickFilter === 'unsold') {
-      // 未販売：売却済みでないもの、かつ返品でないもの
-      result = result.filter(item => item.status !== '売却済み' && item.sale_destination !== '返品')
+      // 未販売：売却済みでないもの、かつ返品でないもの（編集済みは除外しない）
+      result = result.filter(item => editedInSessionIds.has(item.id) || (item.status !== '売却済み' && item.sale_destination !== '返品'))
     } else if (quickFilter === 'unlisted') {
-      // 未出品：出品日が空欄のもの
-      result = result.filter(item => !item.listing_date)
+      // 未出品：出品日が空欄のもの（編集済みは除外しない）
+      result = result.filter(item => editedInSessionIds.has(item.id) || !item.listing_date)
     } else if (quickFilter === 'stale30' || quickFilter === 'stale90') {
-      // 滞留在庫：出品から指定日数以上経過、かつ未販売
+      // 滞留在庫：出品から指定日数以上経過、かつ未販売（編集済みは除外しない）
       const now = new Date()
       const threshold = quickFilter === 'stale30' ? 30 : 90
       result = result.filter(item => {
+        if (editedInSessionIds.has(item.id)) return true
         if (item.status === '売却済み') return false
         if (!item.listing_date) return false
         const listingDate = new Date(item.listing_date)
@@ -3103,8 +3134,8 @@ export default function Home() {
         return days >= threshold
       })
     } else if (quickFilter === 'returns') {
-      // 返品：販売先が「返品」のもの
-      result = result.filter(item => item.sale_destination === '返品')
+      // 返品：販売先が「返品」のもの（編集済みは除外しない）
+      result = result.filter(item => editedInSessionIds.has(item.id) || item.sale_destination === '返品')
     }
 
     // チェック済みのみ表示
@@ -3397,6 +3428,90 @@ export default function Home() {
       console.error('Copy failed:', err)
     })
   }, [selectionRange, sortedInventory, visibleColumns])
+
+  // 選択範囲の集計計算（スプレッドシート風）
+  const selectionStats = useMemo(() => {
+    if (!selectionRange) return null
+
+    const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
+    const maxRow = Math.max(selectionRange.startRow, selectionRange.endRow)
+    const minCol = Math.min(selectionRange.startCol, selectionRange.endCol)
+    const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
+
+    const numericFields = ['purchase_price', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount', 'purchase_total', 'inventory_number']
+    const calculatedFields = ['profit', 'profit_rate', 'turnover_days']
+    const values: number[] = []
+
+    // 利益計算ヘルパー（ローカル）
+    const getProfit = (item: InventoryItem): number | null => {
+      if (!item.sale_date || item.sale_date === '返品') return null
+      return item.deposit_amount !== null
+        ? Number(item.deposit_amount) - (item.purchase_total || 0) - (item.other_cost || 0)
+        : null
+    }
+
+    // 利益率計算ヘルパー（ローカル）
+    const getProfitRate = (item: InventoryItem): number | null => {
+      const profit = getProfit(item)
+      return (profit !== null && item.sale_price)
+        ? Math.round((profit / Number(item.sale_price)) * 100)
+        : null
+    }
+
+    // 回転日数計算ヘルパー（ローカル）
+    const getTurnoverDays = (item: InventoryItem): number | null => {
+      if (item.turnover_days !== null && item.turnover_days !== undefined) {
+        return item.turnover_days
+      }
+      if (item.purchase_date && item.sale_date) {
+        return Math.ceil((new Date(item.sale_date).getTime() - new Date(item.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
+      }
+      return null
+    }
+
+    for (let row = minRow; row <= maxRow; row++) {
+      // paginatedInventoryを使用（ページネーション対応）
+      const item = paginatedInventory[row]
+      if (!item) continue
+
+      for (let col = minCol; col <= maxCol; col++) {
+        const column = visibleColumns[col]
+        if (!column) continue
+
+        const field = column.key as string
+
+        // 計算フィールド（利益・利益率・回転日数）
+        if (calculatedFields.includes(field)) {
+          let val: number | null = null
+          if (field === 'profit') val = getProfit(item)
+          else if (field === 'profit_rate') val = getProfitRate(item)
+          else if (field === 'turnover_days') val = getTurnoverDays(item)
+
+          if (val !== null) values.push(val)
+        }
+        // 通常の数値フィールド
+        else if (numericFields.includes(field)) {
+          const val = item[field as keyof InventoryItem]
+          if (val !== null && val !== undefined && typeof val === 'number') {
+            values.push(val)
+          } else if (val !== null && val !== undefined && typeof val === 'string') {
+            const num = parseFloat(val)
+            if (!isNaN(num)) values.push(num)
+          }
+        }
+      }
+    }
+
+    if (values.length === 0) return null
+
+    const sum = values.reduce((a, b) => a + b, 0)
+    const avg = sum / values.length
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const count = values.length
+
+    return { sum, avg, min, max, count }
+  }, [selectionRange, paginatedInventory, visibleColumns])
 
   // Ctrl+C でコピー
   useEffect(() => {
@@ -4374,6 +4489,26 @@ export default function Home() {
                     滞留在庫額: <span className="font-semibold text-red-600">¥{inventoryStats.stale90StockValue.toLocaleString()}</span>
                   </span>
                 )}
+                {/* 選択範囲の集計表示（スプレッドシート風） */}
+                {selectionStats && (
+                  <div className="flex items-center gap-3 pl-3 border-l border-gray-300 text-xs">
+                    <span className="text-gray-500">
+                      件数: <span className="font-semibold text-gray-700">{selectionStats.count}</span>
+                    </span>
+                    <span className="text-gray-500">
+                      合計: <span className="font-semibold text-blue-600">¥{Math.round(selectionStats.sum).toLocaleString()}</span>
+                    </span>
+                    <span className="text-gray-500">
+                      平均: <span className="font-semibold text-green-600">¥{Math.round(selectionStats.avg).toLocaleString()}</span>
+                    </span>
+                    <span className="text-gray-500">
+                      最小: <span className="font-semibold text-gray-600">¥{Math.round(selectionStats.min).toLocaleString()}</span>
+                    </span>
+                    <span className="text-gray-500">
+                      最大: <span className="font-semibold text-gray-600">¥{Math.round(selectionStats.max).toLocaleString()}</span>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -5272,9 +5407,31 @@ export default function Home() {
                               <input
                                 type="date"
                                 value={editValue}
-                                onChange={(e) => {
-                                  // 月移動で確定されないよう、値の更新のみ行う
+                                onChange={async (e) => {
+                                  const val = e.target.value || null
                                   setEditValue(e.target.value)
+                                  // 日付が選択されたら直接保存
+                                  if (val) {
+                                    let updateData: Record<string, string | number | null> = { [field]: val }
+                                    if (field === 'sale_date') {
+                                      if (val !== '返品') {
+                                        updateData.status = '売却済み'
+                                        const newCommission = calculateCommission(item.sale_destination, item.sale_price, val)
+                                        updateData.commission = newCommission
+                                        if (item.sale_price !== null) {
+                                          updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0)
+                                        }
+                                      }
+                                      // セッション中に編集されたアイテムとして記録（フィルタから除外されない）
+                                      setEditedInSessionIds(prev => new Set(prev).add(item.id))
+                                    }
+                                    const { error } = await supabase.from('inventory').update(updateData).eq('id', item.id)
+                                    if (!error) {
+                                      setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...updateData } : inv))
+                                    }
+                                    setEditingCell(null)
+                                    setEditValue('')
+                                  }
                                 }}
                                 onKeyDown={async (e) => {
                                   if (e.key === 'Enter') {
@@ -5291,6 +5448,8 @@ export default function Home() {
                                       } else if (!val) {
                                         updateData.status = '在庫あり'
                                       }
+                                      // セッション中に編集されたアイテムとして記録
+                                      setEditedInSessionIds(prev => new Set(prev).add(item.id))
                                     }
                                     const { error } = await supabase.from('inventory').update(updateData).eq('id', item.id)
                                     if (!error) {
@@ -5325,6 +5484,8 @@ export default function Home() {
                                     } else if (!val) {
                                       updateData.status = '在庫あり'
                                     }
+                                    // セッション中に編集されたアイテムとして記録
+                                    setEditedInSessionIds(prev => new Set(prev).add(item.id))
                                   }
                                   const { error } = await supabase.from('inventory').update(updateData).eq('id', item.id)
                                   if (!error) {
@@ -5625,125 +5786,7 @@ export default function Home() {
                         case 'category':
                           return renderCell('category', <span className="text-sm text-gray-900 block text-center truncate" title={item.category || ''}>{item.category || '-'}</span>, 'datalist', categoryOptions, colIndex)
                         case 'brand_name':
-                          const isBrandOpen = editingCell?.id === item.id && editingCell?.field === 'brand_name' && dropdownPosition
-                          const isBrandSelected = isSelectedCell('brand_name') && !isBrandOpen && !selectionRange
-                          const brandInRange = colIndex !== undefined && isCellInRange(index, colIndex)
-                          const brandAutoFillRange = colIndex !== undefined && isCellInAutoFillRange(index, colIndex)
-                          return (
-                            <td
-                              key={colKey}
-                              className={`${cellClass} ${isBrandSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50' : ''} ${brandInRange ? 'bg-blue-100 ring-1 ring-blue-500 ring-inset' : ''} ${brandAutoFillRange ? 'bg-green-100 ring-1 ring-green-500 ring-inset' : ''} ${groupEndColumns.has('brand_name') ? 'border-r border-gray-300' : ''} select-none relative cursor-pointer`}
-                              onClick={(e) => {
-                                if (selectedCell?.id === item.id && selectedCell?.field === 'brand_name' && !selectionRange) {
-                                  const rect = e.currentTarget.getBoundingClientRect()
-                                  const dropdownHeight = 300
-                                  const spaceBelow = window.innerHeight - rect.bottom
-                                  const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
-                                  setDropdownPosition({ top, left: rect.left })
-                                  startEditCell(item, 'brand_name')
-                                } else {
-                                  setSelectedCell({ id: item.id, field: 'brand_name' })
-                                  setSelectionRange(null)
-                                  if (editingCell) {
-                                    saveEditingCell()
-                                    setDropdownPosition(null)
-                                  }
-                                }
-                              }}
-                              onDoubleClick={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                const dropdownHeight = 300
-                                const spaceBelow = window.innerHeight - rect.bottom
-                                const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
-                                setDropdownPosition({ top, left: rect.left })
-                                setSelectedCell({ id: item.id, field: 'brand_name' })
-                                setSelectionRange(null)
-                                startEditCell(item, 'brand_name')
-                              }}
-                              onMouseDown={(e) => colIndex !== undefined && handleCellMouseDown(index, colIndex, e)}
-                              onMouseEnter={() => {
-                                if (colIndex !== undefined) {
-                                  handleCellMouseEnter(index, colIndex)
-                                  handleAutoFillMouseEnter(index, colIndex)
-                                }
-                              }}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                <span className="text-sm text-gray-900 truncate" title={item.brand_name || ''}>{item.brand_name || '-'}</span>
-                                <span
-                                  className="cursor-pointer hover:opacity-70 flex-shrink-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    const rect = e.currentTarget.closest('td')!.getBoundingClientRect()
-                                    const dropdownHeight = 300
-                                    const spaceBelow = window.innerHeight - rect.bottom
-                                    const top = spaceBelow < dropdownHeight ? rect.top - dropdownHeight : rect.bottom + 4
-                                    setDropdownPosition({ top, left: rect.left })
-                                    setSelectedCell({ id: item.id, field: 'brand_name' })
-                                    setSelectionRange(null)
-                                    startEditCell(item, 'brand_name')
-                                  }}
-                                >
-                                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className="text-gray-400">
-                                    <path d="M2 3.5L5 7L8 3.5H2Z" />
-                                  </svg>
-                                </span>
-                              </div>
-                              {isBrandOpen && createPortal(
-                                <>
-                                  <div className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); setEditingCell(null); setEditValue(''); setDropdownPosition(null) }} />
-                                  <div
-                                    className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto"
-                                    style={{ top: dropdownPosition.top, left: dropdownPosition.left, minWidth: '150px' }}
-                                  >
-                                    <input
-                                      type="text"
-                                      value={editValue}
-                                      onChange={(e) => setEditValue(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          e.preventDefault()
-                                          const val = editValue || null
-                                          supabase.from('inventory').update({ brand_name: val }).eq('id', item.id).then(({ error }) => {
-                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, brand_name: val } : inv))
-                                          })
-                                          setEditingCell(null)
-                                          setEditValue('')
-                                          setDropdownPosition(null)
-                                        } else if (e.key === 'Escape') {
-                                          setEditingCell(null)
-                                          setEditValue('')
-                                          setDropdownPosition(null)
-                                        }
-                                      }}
-                                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded mb-1"
-                                      placeholder="ブランド名を入力..."
-                                      autoFocus
-                                    />
-                                    {uniqueBrands
-                                      .filter(brand => !editValue || brand.toLowerCase().includes(editValue.toLowerCase()))
-                                      .slice(0, 20)
-                                      .map((brand) => (
-                                        <div
-                                          key={brand}
-                                          className="px-2 py-1 text-sm hover:bg-gray-100 rounded cursor-pointer"
-                                          onClick={async () => {
-                                            const { error } = await supabase.from('inventory').update({ brand_name: brand }).eq('id', item.id)
-                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, brand_name: brand } : inv))
-                                            setEditingCell(null)
-                                            setEditValue('')
-                                            setDropdownPosition(null)
-                                          }}
-                                        >
-                                          {brand}
-                                        </div>
-                                      ))}
-                                  </div>
-                                </>,
-                                document.body
-                              )}
-                            </td>
-                          )
+                          return renderCell('brand_name', <span className="text-sm text-gray-900 block text-center truncate" title={item.brand_name || ''}>{item.brand_name || '-'}</span>, 'datalist', uniqueBrands, colIndex)
                         case 'product_name':
                           const isProductEditing = isEditingCell('product_name')
                           const isProductSelected = isSelectedCell('product_name') && !isProductEditing && !selectionRange
