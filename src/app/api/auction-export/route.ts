@@ -13,8 +13,8 @@ interface ExportItem {
   condition_rank?: string
   accessories?: string
   notes?: string
-  purchase_price?: number
-  purchase_total?: number
+  purchase_price?: number | null
+  purchase_total?: number | null
   management_number?: string
 }
 
@@ -38,7 +38,7 @@ async function generateStarbuyersBag(items: ExportItem[]): Promise<Buffer> {
   const templateBuffer = readFileSync(templatePath)
 
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(templateBuffer)
+  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
 
   const worksheet = workbook.getWorksheet('出品リスト (バッグ)')
   if (!worksheet) {
@@ -79,7 +79,7 @@ async function generateStarbuyersAccessory(items: ExportItem[]): Promise<Buffer>
   const templateBuffer = readFileSync(templatePath)
 
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(templateBuffer)
+  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
 
   // 出品リストを含むシートを探す
   let worksheet = workbook.worksheets.find(ws => ws.name.includes('出品リスト'))
@@ -124,7 +124,7 @@ async function generateEcoringBrand(items: ExportItem[]): Promise<Buffer> {
   const templateBuffer = readFileSync(templatePath)
 
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(templateBuffer)
+  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
 
   const worksheet = workbook.getWorksheet('委託者入力シート')
   if (!worksheet) {
@@ -154,7 +154,7 @@ async function generateEcoringDougu(items: ExportItem[]): Promise<Buffer> {
   const templateBuffer = readFileSync(templatePath)
 
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(templateBuffer)
+  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
 
   const worksheet = workbook.getWorksheet('委託者入力シート')
   if (!worksheet) {
@@ -184,7 +184,7 @@ async function generateAppreBrand(items: ExportItem[]): Promise<Buffer> {
   const templateBuffer = readFileSync(templatePath)
 
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(templateBuffer)
+  await workbook.xlsx.load(new Uint8Array(templateBuffer).buffer)
 
   const worksheet = workbook.getWorksheet('入力欄')
   if (!worksheet) {
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
     }
 
     // レスポンスを返す
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${downloadFileName}"`,
