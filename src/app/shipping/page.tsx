@@ -101,7 +101,7 @@ export default function ShippingPage() {
                     <td className="px-4 py-3 text-white">ゆうパケットポスト</td>
                     <td className="px-4 py-3 text-gray-300">3辺合計60cm以内（長辺34cm以内・郵便ポスト投函可能）</td>
                     <td className="px-4 py-3 text-gray-300">2kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">200円 <span className="text-xs text-gray-400">+シール5円</span></td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">215円 <span className="text-xs text-gray-400">+シール5円</span></td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">ゆうパケット</td>
