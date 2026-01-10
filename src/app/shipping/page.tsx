@@ -288,13 +288,25 @@ export default function ShippingPage() {
                     <td className="px-4 py-3 text-white">ゆうパック 100サイズ</td>
                     <td className="px-4 py-3 text-gray-300">100cm以内</td>
                     <td className="px-4 py-3 text-gray-300">25kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,000円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,150円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">ゆうパック 120サイズ</td>
                     <td className="px-4 py-3 text-gray-300">120cm以内</td>
                     <td className="px-4 py-3 text-gray-300">25kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,100円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,350円</td>
+                  </tr>
+                  <tr className="hover:bg-slate-700">
+                    <td className="px-4 py-3 text-white">ゆうパック 140サイズ</td>
+                    <td className="px-4 py-3 text-gray-300">140cm以内</td>
+                    <td className="px-4 py-3 text-gray-300">25kg以内</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,500円</td>
+                  </tr>
+                  <tr className="hover:bg-slate-700">
+                    <td className="px-4 py-3 text-white">ゆうパック 160サイズ</td>
+                    <td className="px-4 py-3 text-gray-300">160cm以内</td>
+                    <td className="px-4 py-3 text-gray-300">25kg以内</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,500円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">ゆうパック 170サイズ</td>
