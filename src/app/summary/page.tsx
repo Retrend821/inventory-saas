@@ -13,6 +13,11 @@ type MonthlyGoal = {
   sold_count_goal: number
   purchase_count_goal: number
   listed_count_goal: number
+  purchase_total_goal: number
+  profit_rate_goal: number
+  avg_sale_price_goal: number
+  avg_profit_goal: number
+  avg_purchase_price_goal: number
 }
 
 type InventoryItem = {
@@ -79,6 +84,11 @@ export default function SummaryPage() {
     sold_count_goal: 0,
     purchase_count_goal: 0,
     listed_count_goal: 0,
+    purchase_total_goal: 0,
+    profit_rate_goal: 0,
+    avg_sale_price_goal: 0,
+    avg_profit_goal: 0,
+    avg_purchase_price_goal: 0,
   })
 
   // 目標値を取得
@@ -113,6 +123,11 @@ export default function SummaryPage() {
         sold_count_goal: 0,
         purchase_count_goal: 0,
         listed_count_goal: 0,
+        purchase_total_goal: 0,
+        profit_rate_goal: 0,
+        avg_sale_price_goal: 0,
+        avg_profit_goal: 0,
+        avg_purchase_price_goal: 0,
       })
     }
   }, [])
@@ -131,6 +146,11 @@ export default function SummaryPage() {
       sold_count_goal: goalForm.sold_count_goal,
       purchase_count_goal: goalForm.purchase_count_goal,
       listed_count_goal: goalForm.listed_count_goal,
+      purchase_total_goal: goalForm.purchase_total_goal,
+      profit_rate_goal: goalForm.profit_rate_goal,
+      avg_sale_price_goal: goalForm.avg_sale_price_goal,
+      avg_profit_goal: goalForm.avg_profit_goal,
+      avg_purchase_price_goal: goalForm.avg_purchase_price_goal,
     }
 
     const { data, error } = await supabase
@@ -404,11 +424,13 @@ export default function SummaryPage() {
     let projectedSoldCount = soldCount
     let projectedPurchasedCount = purchasedCount
     let projectedListedCount = listedCount
+    let progressRatio = 1 // 目標ペース計算用（経過日数 / 月の日数）
 
     if (isCurrentMonth) {
       const today = now.getDate()
       const daysInMonth = new Date(currentYear, currentMonth, 0).getDate()
       const ratio = daysInMonth / today
+      progressRatio = today / daysInMonth
 
       projectedSales = Math.round(totalSales * ratio)
       projectedProfit = Math.round(totalProfit * ratio)
@@ -429,6 +451,7 @@ export default function SummaryPage() {
       avgProfit,
       avgPurchasePrice,
       isCurrentMonth,
+      progressRatio,
       projectedSales,
       projectedProfit,
       projectedSoldCount,
@@ -766,6 +789,9 @@ export default function SummaryPage() {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">項目</th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600">実績</th>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-orange-600">目標ペース</th>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <th className="px-6 py-3 text-right text-xs font-semibold text-blue-600">着地ペース</th>
                   )}
                   {selectedMonth !== 'all' && (
@@ -779,6 +805,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">売上（税込）</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalSales.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.sales_goal ? (summary.totalSales >= Math.round(monthlyGoal.sales_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.sales_goal ? `¥${Math.round(monthlyGoal.sales_goal * summary.progressRatio).toLocaleString()}` : '-'}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">¥{summary.projectedSales.toLocaleString()}</td>
                   )}
@@ -804,6 +835,11 @@ export default function SummaryPage() {
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売利益（税込）</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalProfit.toLocaleString()}</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.profit_goal ? (summary.totalProfit >= Math.round(monthlyGoal.profit_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.profit_goal ? `¥${Math.round(monthlyGoal.profit_goal * summary.progressRatio).toLocaleString()}` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">¥{summary.projectedProfit.toLocaleString()}</td>
                   )}
                   {selectedMonth !== 'all' && (
@@ -828,55 +864,155 @@ export default function SummaryPage() {
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入（税込）</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalPurchase.toLocaleString()}</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.purchase_total_goal ? (summary.totalPurchase <= Math.round(monthlyGoal.purchase_total_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.purchase_total_goal ? `¥${Math.round(monthlyGoal.purchase_total_goal * summary.progressRatio).toLocaleString()}` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          value={goalForm.purchase_total_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, purchase_total_goal: parseInt(e.target.value) || 0 })}
+                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.purchase_total_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.purchase_total_goal ? `¥${monthlyGoal.purchase_total_goal.toLocaleString()}` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売利益率</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.profitRate}%</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.profit_rate_goal ? (summary.profitRate >= monthlyGoal.profit_rate_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.profit_rate_goal ? `${monthlyGoal.profit_rate_goal}%` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          value={goalForm.profit_rate_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, profit_rate_goal: parseInt(e.target.value) || 0 })}
+                          className="w-20 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.profit_rate_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.profit_rate_goal ? `${monthlyGoal.profit_rate_goal}%` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売単価</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgSalePrice.toLocaleString()}</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_sale_price_goal ? (summary.avgSalePrice >= monthlyGoal.avg_sale_price_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.avg_sale_price_goal ? `¥${monthlyGoal.avg_sale_price_goal.toLocaleString()}` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          value={goalForm.avg_sale_price_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, avg_sale_price_goal: parseInt(e.target.value) || 0 })}
+                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.avg_sale_price_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.avg_sale_price_goal ? `¥${monthlyGoal.avg_sale_price_goal.toLocaleString()}` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">利益単価</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgProfit.toLocaleString()}</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_profit_goal ? (summary.avgProfit >= monthlyGoal.avg_profit_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.avg_profit_goal ? `¥${monthlyGoal.avg_profit_goal.toLocaleString()}` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          value={goalForm.avg_profit_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, avg_profit_goal: parseInt(e.target.value) || 0 })}
+                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.avg_profit_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.avg_profit_goal ? `¥${monthlyGoal.avg_profit_goal.toLocaleString()}` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入単価</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgPurchasePrice.toLocaleString()}</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_purchase_price_goal ? (summary.avgPurchasePrice <= monthlyGoal.avg_purchase_price_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.avg_purchase_price_goal ? `¥${monthlyGoal.avg_purchase_price_goal.toLocaleString()}` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          value={goalForm.avg_purchase_price_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, avg_purchase_price_goal: parseInt(e.target.value) || 0 })}
+                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.avg_purchase_price_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.avg_purchase_price_goal ? `¥${monthlyGoal.avg_purchase_price_goal.toLocaleString()}` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入件数</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.purchasedCount}件</td>
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.purchase_count_goal ? (summary.purchasedCount >= Math.round(monthlyGoal.purchase_count_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.purchase_count_goal ? `${Math.round(monthlyGoal.purchase_count_goal * summary.progressRatio)}件` : '-'}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.projectedPurchasedCount}件</td>
                   )}
@@ -902,6 +1038,11 @@ export default function SummaryPage() {
                   <td className="px-6 py-3.5 text-gray-600 font-medium">出品件数</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.listedCount}件</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.listed_count_goal ? (summary.listedCount >= Math.round(monthlyGoal.listed_count_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.listed_count_goal ? `${Math.round(monthlyGoal.listed_count_goal * summary.progressRatio)}件` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.projectedListedCount}件</td>
                   )}
                   {selectedMonth !== 'all' && (
@@ -925,6 +1066,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売件数</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.soldCount}件</td>
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.sold_count_goal ? (summary.soldCount >= Math.round(monthlyGoal.sold_count_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.sold_count_goal ? `${Math.round(monthlyGoal.sold_count_goal * summary.progressRatio)}件` : '-'}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.projectedSoldCount}件</td>
                   )}

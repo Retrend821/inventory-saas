@@ -80,7 +80,7 @@ export default function Navigation() {
               }}
               className={pathname === '/summary' || pathname.startsWith('/sales') ? activeLinkStyle : baseLinkStyle}
             >
-              集計
+              売上
             </button>
             {summaryOpen && (
               <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
