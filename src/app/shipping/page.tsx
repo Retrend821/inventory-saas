@@ -197,31 +197,31 @@ export default function ShippingPage() {
                     <td className="px-4 py-3 text-white">宅急便 100サイズ</td>
                     <td className="px-4 py-3 text-gray-300">100cm以内</td>
                     <td className="px-4 py-3 text-gray-300">10kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">950円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,050円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 120サイズ</td>
                     <td className="px-4 py-3 text-gray-300">120cm以内</td>
                     <td className="px-4 py-3 text-gray-300">15kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,150円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,200円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 140サイズ</td>
                     <td className="px-4 py-3 text-gray-300">140cm以内</td>
                     <td className="px-4 py-3 text-gray-300">20kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,350円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,400円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 160サイズ</td>
                     <td className="px-4 py-3 text-gray-300">160cm以内</td>
                     <td className="px-4 py-3 text-gray-300">25kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,550円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,500円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 180サイズ</td>
                     <td className="px-4 py-3 text-gray-300">180cm以内</td>
                     <td className="px-4 py-3 text-gray-300">30kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">2,150円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">2,800円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 200サイズ</td>
