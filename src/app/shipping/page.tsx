@@ -208,16 +208,16 @@ export default function ShippingPage() {
         {showMercari && (
           <section className="mb-10">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-1.5 h-8 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></div>
+              <div className="w-1.5 h-8 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
               <h2 className="text-2xl font-bold text-gray-800">メルカリ便</h2>
-              <span className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-medium rounded-full">Mercari</span>
+              <span className="px-3 py-1 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-medium rounded-full">Mercari</span>
             </div>
 
             {/* らくらくメルカリ便 */}
             {showMercariYamato && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="px-3 py-1.5 bg-orange-100 text-orange-700 text-sm font-semibold rounded-lg border border-orange-200">らくらくメルカリ便</span>
+                  <span className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200">らくらくメルカリ便</span>
                   <span className="text-gray-500 text-sm">ヤマト運輸</span>
                 </div>
                 <ShippingTable data={mercariYamatoData} selectedCategory={selectedCategory} />
@@ -228,7 +228,7 @@ export default function ShippingPage() {
             {showMercariYubin && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="px-3 py-1.5 bg-orange-100 text-orange-700 text-sm font-semibold rounded-lg border border-orange-200">ゆうゆうメルカリ便</span>
+                  <span className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200">ゆうゆうメルカリ便</span>
                   <span className="text-gray-500 text-sm">日本郵便</span>
                 </div>
                 <ShippingTable data={mercariYubinData} selectedCategory={selectedCategory} />
@@ -272,16 +272,16 @@ export default function ShippingPage() {
         {showYahoo && (
           <section className="mb-10">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-1.5 h-8 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
+              <div className="w-1.5 h-8 bg-gradient-to-b from-yellow-400 to-amber-500 rounded-full"></div>
               <h2 className="text-2xl font-bold text-gray-800">おてがる配送</h2>
-              <span className="px-3 py-1 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-medium rounded-full">Yahoo!</span>
+              <span className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-xs font-medium rounded-full">Yahoo!</span>
             </div>
 
             {/* ヤマト運輸 */}
             {showYahooYamato && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200">ヤマト運輸</span>
+                  <span className="px-3 py-1.5 bg-yellow-100 text-yellow-700 text-sm font-semibold rounded-lg border border-yellow-200">ヤマト運輸</span>
                 </div>
                 <ShippingTable data={yahooYamatoData} selectedCategory={selectedCategory} />
               </div>
@@ -291,7 +291,7 @@ export default function ShippingPage() {
             {showYahooYubin && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200">日本郵便</span>
+                  <span className="px-3 py-1.5 bg-yellow-100 text-yellow-700 text-sm font-semibold rounded-lg border border-yellow-200">日本郵便</span>
                 </div>
                 <ShippingTable data={yahooYubinData} selectedCategory={selectedCategory} />
               </div>
