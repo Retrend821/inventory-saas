@@ -171,51 +171,63 @@ export default function ShippingPage() {
                 <tbody className="divide-y divide-slate-600">
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">ネコポス</td>
-                    <td className="px-4 py-3 text-gray-300">A4サイズ（31.2×22.8cm・厚さ2.5cm以内）</td>
+                    <td className="px-4 py-3 text-gray-300">A4サイズ（31.2×22.8cm・厚さ3cm以内）</td>
                     <td className="px-4 py-3 text-gray-300">1kg以内</td>
                     <td className="px-4 py-3 text-right text-green-400 font-semibold">200円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便コンパクト</td>
-                    <td className="px-4 py-3 text-gray-300">専用BOX（薄型/箱型）</td>
+                    <td className="px-4 py-3 text-gray-300">専用BOX（25×20×5cm以内）</td>
                     <td className="px-4 py-3 text-gray-300">-</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">590円 <span className="text-xs text-gray-400">+BOX70円</span></td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">430円 <span className="text-xs text-gray-400">+BOX70円</span></td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 60サイズ</td>
                     <td className="px-4 py-3 text-gray-300">60cm以内</td>
                     <td className="px-4 py-3 text-gray-300">2kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">800円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">650円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 80サイズ</td>
                     <td className="px-4 py-3 text-gray-300">80cm以内</td>
                     <td className="px-4 py-3 text-gray-300">5kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">900円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">750円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 100サイズ</td>
                     <td className="px-4 py-3 text-gray-300">100cm以内</td>
                     <td className="px-4 py-3 text-gray-300">10kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,150円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">950円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 120サイズ</td>
                     <td className="px-4 py-3 text-gray-300">120cm以内</td>
                     <td className="px-4 py-3 text-gray-300">15kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,350円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,150円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 140サイズ</td>
                     <td className="px-4 py-3 text-gray-300">140cm以内</td>
                     <td className="px-4 py-3 text-gray-300">20kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,550円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,350円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">宅急便 160サイズ</td>
                     <td className="px-4 py-3 text-gray-300">160cm以内</td>
                     <td className="px-4 py-3 text-gray-300">25kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,800円</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">1,550円</td>
+                  </tr>
+                  <tr className="hover:bg-slate-700">
+                    <td className="px-4 py-3 text-white">宅急便 180サイズ</td>
+                    <td className="px-4 py-3 text-gray-300">180cm以内</td>
+                    <td className="px-4 py-3 text-gray-300">30kg以内</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">2,150円</td>
+                  </tr>
+                  <tr className="hover:bg-slate-700">
+                    <td className="px-4 py-3 text-white">宅急便 200サイズ</td>
+                    <td className="px-4 py-3 text-gray-300">200cm以内</td>
+                    <td className="px-4 py-3 text-gray-300">30kg以内</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">3,350円</td>
                   </tr>
                 </tbody>
               </table>
@@ -237,16 +249,22 @@ export default function ShippingPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-600">
                   <tr className="hover:bg-slate-700">
-                    <td className="px-4 py-3 text-white">ゆうパケット</td>
-                    <td className="px-4 py-3 text-gray-300">3辺合計60cm以内（長辺34cm・厚さ3cm以内）</td>
-                    <td className="px-4 py-3 text-gray-300">1kg以内</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-semibold">180円</td>
+                    <td className="px-4 py-3 text-white">ゆうパケットポストmini</td>
+                    <td className="px-4 py-3 text-gray-300">郵便ポスト投函可能サイズ</td>
+                    <td className="px-4 py-3 text-gray-300">2kg以内</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">150円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">ゆうパケットポスト</td>
-                    <td className="px-4 py-3 text-gray-300">専用箱または発送用シール使用</td>
+                    <td className="px-4 py-3 text-gray-300">郵便ポスト投函可能サイズ</td>
                     <td className="px-4 py-3 text-gray-300">2kg以内</td>
                     <td className="px-4 py-3 text-right text-green-400 font-semibold">175円</td>
+                  </tr>
+                  <tr className="hover:bg-slate-700">
+                    <td className="px-4 py-3 text-white">ゆうパケット</td>
+                    <td className="px-4 py-3 text-gray-300">3辺合計60cm以内（長辺34cm・厚さ3cm以内）</td>
+                    <td className="px-4 py-3 text-gray-300">1kg以内</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-semibold">200円</td>
                   </tr>
                   <tr className="hover:bg-slate-700">
                     <td className="px-4 py-3 text-white">ゆうパケットプラス</td>
