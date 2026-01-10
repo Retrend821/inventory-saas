@@ -156,6 +156,7 @@ export default function AllSalesPage() {
   const [itemSortBy, setItemSortBy] = useState<'sales' | 'profit' | 'profitPerUnit' | 'profitRate'>('profit')
   const [destinationSortBy, setDestinationSortBy] = useState<'sales' | 'profit' | 'profitPerUnit' | 'profitRate'>('sales')
   const [categorySortBy, setCategorySortBy] = useState<'sales' | 'profit' | 'profitPerUnit' | 'profitRate'>('sales')
+  const [sourceSortBy, setSourceSortBy] = useState<'sales' | 'profit' | 'profitPerUnit' | 'profitRate'>('profit')
   const [historySortBy, setHistorySortBy] = useState<'date' | 'sales' | 'profit' | 'profitRate'>('date')
   const [historyPage, setHistoryPage] = useState(1)
   const historyPageSize = 100
@@ -1895,6 +1896,113 @@ export default function AllSalesPage() {
                             <td className="px-3 py-2 text-gray-900 truncate">{cat}</td>
                             <td className="px-3 py-2 text-right tabular-nums">{stats.count}点</td>
                             <td className="px-3 py-2 text-right tabular-nums font-semibold text-orange-600">¥{stats.sales.toLocaleString()}</td>
+                            <td className={`px-3 py-2 text-right tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.profit.toLocaleString()}</td>
+                            <td className={`px-3 py-2 text-right tabular-nums ${stats.sales > 0 && Math.round((stats.profit / stats.sales) * 100) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{stats.sales > 0 ? Math.round((stats.profit / stats.sales) * 100) : 0}%</td>
+                            <td className={`px-3 py-2 text-right tabular-nums ${stats.count > 0 && Math.round(stats.profit / stats.count) >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.count > 0 ? Math.round(stats.profit / stats.count).toLocaleString() : 0}</td>
+                          </tr>
+                        ))
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 仕入先別売上ランキング */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                  <span className="text-xl">🏭</span> 仕入先別ランキング
+                </h2>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setSourceSortBy('sales')}
+                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      sourceSortBy === 'sales'
+                        ? 'bg-white text-teal-600'
+                        : 'bg-teal-400 text-white hover:bg-teal-300'
+                    }`}
+                  >
+                    売上順
+                  </button>
+                  <button
+                    onClick={() => setSourceSortBy('profit')}
+                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      sourceSortBy === 'profit'
+                        ? 'bg-white text-teal-600'
+                        : 'bg-teal-400 text-white hover:bg-teal-300'
+                    }`}
+                  >
+                    利益順
+                  </button>
+                  <button
+                    onClick={() => setSourceSortBy('profitPerUnit')}
+                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      sourceSortBy === 'profitPerUnit'
+                        ? 'bg-white text-teal-600'
+                        : 'bg-teal-400 text-white hover:bg-teal-300'
+                    }`}
+                  >
+                    単価順
+                  </button>
+                  <button
+                    onClick={() => setSourceSortBy('profitRate')}
+                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      sourceSortBy === 'profitRate'
+                        ? 'bg-white text-teal-600'
+                        : 'bg-teal-400 text-white hover:bg-teal-300'
+                    }`}
+                  >
+                    利益率順
+                  </button>
+                </div>
+              </div>
+              <div className="p-4">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">仕入先</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">点数</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">売上</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">利益</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">利益率</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-20">利益単価</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const sourceStats = new Map<string, { count: number; sales: number; profit: number }>()
+                      filteredSales.forEach(sale => {
+                        const source = sale.purchase_source || '(未設定)'
+                        const current = sourceStats.get(source) || { count: 0, sales: 0, profit: 0 }
+                        sourceStats.set(source, {
+                          count: current.count + sale.quantity,
+                          sales: current.sales + (sale.sale_price || 0) * sale.quantity,
+                          profit: current.profit + (sale.profit || 0) * sale.quantity,
+                        })
+                      })
+                      return [...sourceStats.entries()]
+                        .sort((a, b) => {
+                          if (sourceSortBy === 'sales') return b[1].sales - a[1].sales
+                          if (sourceSortBy === 'profit') return b[1].profit - a[1].profit
+                          if (sourceSortBy === 'profitRate') {
+                            const aRate = a[1].sales > 0 ? a[1].profit / a[1].sales : 0
+                            const bRate = b[1].sales > 0 ? b[1].profit / b[1].sales : 0
+                            return bRate - aRate
+                          }
+                          const aPerUnit = a[1].count > 0 ? a[1].profit / a[1].count : 0
+                          const bPerUnit = b[1].count > 0 ? b[1].profit / b[1].count : 0
+                          return bPerUnit - aPerUnit
+                        })
+                        .slice(0, 10)
+                        .map(([source, stats], idx) => (
+                          <tr key={source} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-teal-50' : ''}`}>
+                            <td className="px-3 py-2 text-center font-bold">
+                              {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                            </td>
+                            <td className="px-3 py-2 text-gray-900 truncate">{source}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{stats.count}点</td>
+                            <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-600">¥{stats.sales.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.profit.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.sales > 0 && Math.round((stats.profit / stats.sales) * 100) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{stats.sales > 0 ? Math.round((stats.profit / stats.sales) * 100) : 0}%</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.count > 0 && Math.round(stats.profit / stats.count) >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.count > 0 ? Math.round(stats.profit / stats.count).toLocaleString() : 0}</td>
