@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 // 仕入先の手数料計算
 function calculateSupplierFee(supplier: string, price: number): number {
@@ -250,20 +251,73 @@ const buyers = [
 ]
 
 export default function CalculatorPage() {
-  // 利益計算の状態
-  const [supplierName, setSupplierName] = useState('')
-  const [bidPrice, setBidPrice] = useState('')
-  const [buyerName, setBuyerName] = useState('')
-  const [sellingPrice, setSellingPrice] = useState('')
-  const [shippingCost, setShippingCost] = useState('')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  // URLパラメータから初期値を取得
+  const [supplierName, setSupplierName] = useState(searchParams.get('supplier') || '')
+  const [bidPrice, setBidPrice] = useState(searchParams.get('bid') || '')
+  const [buyerName, setBuyerName] = useState(searchParams.get('buyer') || '')
+  const [sellingPrice, setSellingPrice] = useState(searchParams.get('sell') || '')
+  const [shippingCost, setShippingCost] = useState(searchParams.get('ship') || '')
 
   // 仕入れ限界値の状態
-  const [limitSupplier, setLimitSupplier] = useState('')
-  const [limitSellingPrice, setLimitSellingPrice] = useState('')
+  const [limitSupplier, setLimitSupplier] = useState(searchParams.get('lsupplier') || '')
+  const [limitSellingPrice, setLimitSellingPrice] = useState(searchParams.get('lsell') || '')
 
   // 送料表の状態
   const [shippingFilter, setShippingFilter] = useState('すべて')
   const [showShippingTable, setShowShippingTable] = useState(false)
+
+  // URLパラメータを更新する関数
+  const updateURL = (updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value)
+      } else {
+        params.delete(key)
+      }
+    })
+    const queryString = params.toString()
+    router.replace(`/calculator${queryString ? '?' + queryString : ''}`, { scroll: false })
+  }
+
+  // 各入力のハンドラー
+  const handleSupplierChange = (value: string) => {
+    setSupplierName(value)
+    updateURL({ supplier: value })
+  }
+
+  const handleBidPriceChange = (value: string) => {
+    setBidPrice(value)
+    updateURL({ bid: value })
+  }
+
+  const handleBuyerChange = (value: string) => {
+    setBuyerName(value)
+    updateURL({ buyer: value })
+  }
+
+  const handleSellingPriceChange = (value: string) => {
+    setSellingPrice(value)
+    updateURL({ sell: value })
+  }
+
+  const handleShippingCostChange = (value: string) => {
+    setShippingCost(value)
+    updateURL({ ship: value })
+  }
+
+  const handleLimitSupplierChange = (value: string) => {
+    setLimitSupplier(value)
+    updateURL({ lsupplier: value })
+  }
+
+  const handleLimitSellingPriceChange = (value: string) => {
+    setLimitSellingPrice(value)
+    updateURL({ lsell: value })
+  }
 
   // 利益計算の結果
   const bidPriceNum = parseFloat(bidPrice) || 0
@@ -327,7 +381,9 @@ export default function CalculatorPage() {
 
   // 送料選択時のハンドラー
   const handleSelectShipping = (price: number) => {
-    setShippingCost(price.toString())
+    const priceStr = price.toString()
+    setShippingCost(priceStr)
+    updateURL({ ship: priceStr })
     setShowShippingTable(false)
   }
 
@@ -361,7 +417,7 @@ export default function CalculatorPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">仕入先</label>
                   <select
                     value={supplierName}
-                    onChange={(e) => setSupplierName(e.target.value)}
+                    onChange={(e) => handleSupplierChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">選択してください</option>
@@ -373,7 +429,7 @@ export default function CalculatorPage() {
                   <input
                     type="number"
                     value={bidPrice}
-                    onChange={(e) => setBidPrice(e.target.value)}
+                    onChange={(e) => handleBidPriceChange(e.target.value)}
                     placeholder="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
@@ -407,7 +463,7 @@ export default function CalculatorPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">売り先</label>
                   <select
                     value={buyerName}
-                    onChange={(e) => setBuyerName(e.target.value)}
+                    onChange={(e) => handleBuyerChange(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">選択してください</option>
@@ -419,7 +475,7 @@ export default function CalculatorPage() {
                   <input
                     type="number"
                     value={sellingPrice}
-                    onChange={(e) => setSellingPrice(e.target.value)}
+                    onChange={(e) => handleSellingPriceChange(e.target.value)}
                     placeholder="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
@@ -446,7 +502,7 @@ export default function CalculatorPage() {
                   <input
                     type="number"
                     value={shippingCost}
-                    onChange={(e) => setShippingCost(e.target.value)}
+                    onChange={(e) => handleShippingCostChange(e.target.value)}
                     placeholder="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
@@ -475,7 +531,7 @@ export default function CalculatorPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">仕入先</label>
                 <select
                   value={limitSupplier}
-                  onChange={(e) => setLimitSupplier(e.target.value)}
+                  onChange={(e) => handleLimitSupplierChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">選択してください</option>
@@ -487,7 +543,7 @@ export default function CalculatorPage() {
                 <input
                   type="number"
                   value={limitSellingPrice}
-                  onChange={(e) => setLimitSellingPrice(e.target.value)}
+                  onChange={(e) => handleLimitSellingPriceChange(e.target.value)}
                   placeholder="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
