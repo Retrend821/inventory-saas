@@ -181,12 +181,19 @@ export default function ShippingPage() {
         {/* メルカリ便 */}
         {showMercari && (
           <section className="mb-10">
-            <h2 className="text-2xl font-bold text-orange-600 mb-4">メルカリ便</h2>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-1.5 h-8 bg-gradient-to-b from-orange-500 to-red-500 rounded-full"></div>
+              <h2 className="text-2xl font-bold text-gray-800">メルカリ便</h2>
+              <span className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-medium rounded-full">Mercari</span>
+            </div>
 
             {/* らくらくメルカリ便 */}
             {showMercariYamato && (
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">らくらくメルカリ便（ヤマト運輸）</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1.5 bg-orange-100 text-orange-700 text-sm font-semibold rounded-lg border border-orange-200">らくらくメルカリ便</span>
+                  <span className="text-gray-500 text-sm">ヤマト運輸</span>
+                </div>
                 <ShippingTable data={mercariYamatoData} selectedCategory={selectedCategory} />
               </div>
             )}
@@ -194,7 +201,10 @@ export default function ShippingPage() {
             {/* ゆうゆうメルカリ便 */}
             {showMercariYubin && (
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">ゆうゆうメルカリ便（日本郵便）</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1.5 bg-orange-100 text-orange-700 text-sm font-semibold rounded-lg border border-orange-200">ゆうゆうメルカリ便</span>
+                  <span className="text-gray-500 text-sm">日本郵便</span>
+                </div>
                 <ShippingTable data={mercariYubinData} selectedCategory={selectedCategory} />
               </div>
             )}
@@ -204,12 +214,18 @@ export default function ShippingPage() {
         {/* ラクマ */}
         {showRakuma && (
           <section className="mb-10">
-            <h2 className="text-2xl font-bold text-pink-600 mb-4">かんたんラクマパック</h2>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-1.5 h-8 bg-gradient-to-b from-pink-500 to-rose-500 rounded-full"></div>
+              <h2 className="text-2xl font-bold text-gray-800">かんたんラクマパック</h2>
+              <span className="px-3 py-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs font-medium rounded-full">Rakuma</span>
+            </div>
 
             {/* ヤマト運輸 */}
             {showRakumaYamato && (
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">かんたんラクマパック（ヤマト運輸）</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1.5 bg-pink-100 text-pink-700 text-sm font-semibold rounded-lg border border-pink-200">ヤマト運輸</span>
+                </div>
                 <ShippingTable data={rakumaYamatoData} selectedCategory={selectedCategory} />
               </div>
             )}
@@ -217,7 +233,9 @@ export default function ShippingPage() {
             {/* 日本郵便 */}
             {showRakumaYubin && (
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">かんたんラクマパック（日本郵便）</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1.5 bg-pink-100 text-pink-700 text-sm font-semibold rounded-lg border border-pink-200">日本郵便</span>
+                </div>
                 <ShippingTable data={rakumaYubinData} selectedCategory={selectedCategory} />
               </div>
             )}
@@ -227,12 +245,18 @@ export default function ShippingPage() {
         {/* ヤフオク */}
         {showYahoo && (
           <section className="mb-10">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">おてがる配送（ヤフオク/Yahoo!フリマ）</h2>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-1.5 h-8 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
+              <h2 className="text-2xl font-bold text-gray-800">おてがる配送</h2>
+              <span className="px-3 py-1 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-medium rounded-full">Yahoo!</span>
+            </div>
 
             {/* ヤマト運輸 */}
             {showYahooYamato && (
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">おてがる配送（ヤマト運輸）</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200">ヤマト運輸</span>
+                </div>
                 <ShippingTable data={yahooYamatoData} selectedCategory={selectedCategory} />
               </div>
             )}
@@ -240,7 +264,9 @@ export default function ShippingPage() {
             {/* 日本郵便 */}
             {showYahooYubin && (
               <div className="mb-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">おてがる配送（日本郵便）</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200">日本郵便</span>
+                </div>
                 <ShippingTable data={yahooYubinData} selectedCategory={selectedCategory} />
               </div>
             )}
