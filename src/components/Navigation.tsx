@@ -120,6 +120,12 @@ export default function Navigation() {
           >
             計算ツール
           </Link>
+          <Link
+            href="/shipping"
+            className={pathname === '/shipping' ? activeLinkStyle : baseLinkStyle}
+          >
+            送料表
+          </Link>
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => {
