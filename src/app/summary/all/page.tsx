@@ -1975,7 +1975,9 @@ export default function AllSalesPage() {
                     {(() => {
                       const sourceStats = new Map<string, { count: number; sales: number; profit: number }>()
                       filteredSales.forEach(sale => {
-                        const source = sale.purchase_source || '(未設定)'
+                        // 仕入先が未設定の場合はスキップ
+                        if (!sale.purchase_source) return
+                        const source = sale.purchase_source
                         const current = sourceStats.get(source) || { count: 0, sales: 0, profit: 0 }
                         sourceStats.set(source, {
                           count: current.count + sale.quantity,
