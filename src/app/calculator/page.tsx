@@ -585,13 +585,13 @@ export default function CalculatorPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
+                  <div className={`rounded-lg p-3 text-center border ${limitResult.actualProfit >= limitRequiredProfit ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                     <span className="text-xs text-gray-600">実際の利益</span>
-                    <p className="text-lg font-bold text-green-600">{formatCurrency(limitResult.actualProfit)}</p>
+                    <p className={`text-lg font-bold ${limitResult.actualProfit >= limitRequiredProfit ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(limitResult.actualProfit)}</p>
                   </div>
-                  <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
+                  <div className={`rounded-lg p-3 text-center border ${parseFloat(limitResult.actualRate) >= limitRequiredRate ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                     <span className="text-xs text-gray-600">実際の利益率</span>
-                    <p className="text-lg font-bold text-green-600">{limitResult.actualRate}%</p>
+                    <p className={`text-lg font-bold ${parseFloat(limitResult.actualRate) >= limitRequiredRate ? 'text-green-600' : 'text-red-600'}`}>{limitResult.actualRate}%</p>
                   </div>
                 </div>
               </div>

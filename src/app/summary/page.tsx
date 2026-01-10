@@ -864,12 +864,12 @@ export default function SummaryPage() {
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入（税込）</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalPurchase.toLocaleString()}</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.purchase_total_goal ? (summary.totalPurchase <= Math.round(monthlyGoal.purchase_total_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.purchase_total_goal ? (summary.totalPurchase >= Math.round(monthlyGoal.purchase_total_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.purchase_total_goal ? `¥${Math.round(monthlyGoal.purchase_total_goal * summary.progressRatio).toLocaleString()}` : '-'}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">¥{summary.totalPurchase.toLocaleString()}</td>
                   )}
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right">
@@ -898,7 +898,7 @@ export default function SummaryPage() {
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.profitRate}%</td>
                   )}
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right">
@@ -927,7 +927,7 @@ export default function SummaryPage() {
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">¥{summary.avgSalePrice.toLocaleString()}</td>
                   )}
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right">
@@ -956,7 +956,7 @@ export default function SummaryPage() {
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">¥{summary.avgProfit.toLocaleString()}</td>
                   )}
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right">
@@ -980,12 +980,12 @@ export default function SummaryPage() {
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入単価</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgPurchasePrice.toLocaleString()}</td>
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_purchase_price_goal ? (summary.avgPurchasePrice <= monthlyGoal.avg_purchase_price_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_purchase_price_goal ? (summary.avgPurchasePrice >= monthlyGoal.avg_purchase_price_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.avg_purchase_price_goal ? `¥${monthlyGoal.avg_purchase_price_goal.toLocaleString()}` : '-'}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400 tabular-nums">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">¥{summary.avgPurchasePrice.toLocaleString()}</td>
                   )}
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right">
