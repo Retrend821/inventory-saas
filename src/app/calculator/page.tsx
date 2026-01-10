@@ -435,19 +435,22 @@ export default function CalculatorPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">送料</label>
-                  <div className="flex gap-2">
+                  <div className="relative">
                     <input
                       type="number"
                       value={shippingCost}
                       onChange={(e) => setShippingCost(e.target.value)}
                       placeholder="0"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 pr-20 border border-gray-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <button
                       onClick={() => setShowShippingTable(!showShippingTable)}
-                      className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm whitespace-nowrap"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-700 text-white rounded text-xs font-medium hover:bg-slate-800 transition-colors flex items-center gap-1"
                     >
-                      送料表
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      表
                     </button>
                   </div>
                 </div>
