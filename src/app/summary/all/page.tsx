@@ -1637,7 +1637,7 @@ export default function AllSalesPage() {
                       <tr className="bg-gray-50">
                         <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">ブランド</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">点数</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-20 whitespace-nowrap">点数</th>
                         <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">売上</th>
                         <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">利益</th>
                         <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">利益率</th>
@@ -1679,7 +1679,7 @@ export default function AllSalesPage() {
                                 {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                               </td>
                               <td className="px-3 py-2 text-gray-900 truncate">{brand}</td>
-                              <td className="px-3 py-2 text-right tabular-nums">{stats.count}点</td>
+                              <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{stats.count}点</td>
                               <td className="px-3 py-2 text-right tabular-nums font-semibold text-purple-600">¥{stats.sales.toLocaleString()}</td>
                               <td className={`px-3 py-2 text-right tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.profit.toLocaleString()}</td>
                               <td className={`px-3 py-2 text-right tabular-nums ${stats.sales > 0 && Math.round((stats.profit / stats.sales) * 100) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{stats.sales > 0 ? Math.round((stats.profit / stats.sales) * 100) : 0}%</td>
@@ -1747,7 +1747,7 @@ export default function AllSalesPage() {
                       <tr className="bg-gray-50">
                         <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">販路</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">点数</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-20 whitespace-nowrap">点数</th>
                         <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">売上</th>
                         <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">利益</th>
                         <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">利益率</th>
@@ -1786,7 +1786,7 @@ export default function AllSalesPage() {
                                 {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                               </td>
                               <td className="px-3 py-2 text-gray-900 truncate">{dest}</td>
-                              <td className="px-3 py-2 text-right tabular-nums">{stats.count}点</td>
+                              <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{stats.count}点</td>
                               <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-600">¥{stats.sales.toLocaleString()}</td>
                               <td className={`px-3 py-2 text-right tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.profit.toLocaleString()}</td>
                               <td className={`px-3 py-2 text-right tabular-nums ${stats.sales > 0 && Math.round((stats.profit / stats.sales) * 100) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{stats.sales > 0 ? Math.round((stats.profit / stats.sales) * 100) : 0}%</td>
@@ -1857,7 +1857,7 @@ export default function AllSalesPage() {
                     <tr className="bg-gray-50">
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">カテゴリ</th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">点数</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-20 whitespace-nowrap">点数</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">売上</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">利益</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">利益率</th>
@@ -1896,7 +1896,7 @@ export default function AllSalesPage() {
                               {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                             </td>
                             <td className="px-3 py-2 text-gray-900 truncate">{cat}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{stats.count}点</td>
+                            <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{stats.count}点</td>
                             <td className="px-3 py-2 text-right tabular-nums font-semibold text-orange-600">¥{stats.sales.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.profit.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.sales > 0 && Math.round((stats.profit / stats.sales) * 100) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{stats.sales > 0 ? Math.round((stats.profit / stats.sales) * 100) : 0}%</td>
@@ -1964,7 +1964,7 @@ export default function AllSalesPage() {
                     <tr className="bg-gray-50">
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">仕入先</th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">点数</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-20 whitespace-nowrap">点数</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">売上</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">利益</th>
                       <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">利益率</th>
@@ -2005,7 +2005,7 @@ export default function AllSalesPage() {
                               {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                             </td>
                             <td className="px-3 py-2 text-gray-900 truncate">{source}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{stats.count}点</td>
+                            <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{stats.count}点</td>
                             <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-600">¥{stats.sales.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.profit.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.sales > 0 && Math.round((stats.profit / stats.sales) * 100) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{stats.sales > 0 ? Math.round((stats.profit / stats.sales) * 100) : 0}%</td>
