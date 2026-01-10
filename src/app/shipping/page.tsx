@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 type ShippingMethod = {
   name: string
@@ -145,7 +146,32 @@ function ShippingTable({ data, selectedCategory }: { data: ShippingMethod[], sel
 }
 
 export default function ShippingPage() {
-  const [selectedCategory, setSelectedCategory] = useState('すべて')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  // URLパラメータから初期値を取得
+  const initialCategory = searchParams.get('filter') || 'すべて'
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory)
+
+  // フィルター変更時にURLを更新
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category)
+    const params = new URLSearchParams(searchParams.toString())
+    if (category === 'すべて') {
+      params.delete('filter')
+    } else {
+      params.set('filter', category)
+    }
+    router.replace(`/shipping${params.toString() ? '?' + params.toString() : ''}`, { scroll: false })
+  }
+
+  // URLパラメータが変更された場合に状態を同期
+  useEffect(() => {
+    const filterParam = searchParams.get('filter') || 'すべて'
+    if (filterParam !== selectedCategory) {
+      setSelectedCategory(filterParam)
+    }
+  }, [searchParams])
 
   // 各セクションの表示可否を判定
   const showMercariYamato = selectedCategory === 'すべて' || mercariYamatoData.some(d => d.category === selectedCategory)
@@ -169,7 +195,7 @@ export default function ShippingPage() {
           <label className="block text-sm font-medium text-gray-700 mb-2">配送方法で絞り込み</label>
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             className="block w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           >
             {shippingCategories.map(cat => (
