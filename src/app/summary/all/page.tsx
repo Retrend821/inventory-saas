@@ -1800,9 +1800,11 @@ export default function AllSalesPage() {
               </div>
             </div>
 
-            {/* カテゴリ別売上ランキング */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-between">
+            {/* カテゴリ別・仕入先別ランキング（横並び） */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* カテゴリ別売上ランキング */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-white flex items-center gap-2">
                   <span className="text-xl">📦</span> カテゴリ別ランキング
                 </h2>
@@ -1907,55 +1909,55 @@ export default function AllSalesPage() {
               </div>
             </div>
 
-            {/* 仕入先別売上ランキング */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                  <span className="text-xl">🏭</span> 仕入先別ランキング
-                </h2>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setSourceSortBy('sales')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                      sourceSortBy === 'sales'
-                        ? 'bg-white text-teal-600'
-                        : 'bg-teal-400 text-white hover:bg-teal-300'
-                    }`}
-                  >
-                    売上順
-                  </button>
-                  <button
-                    onClick={() => setSourceSortBy('profit')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                      sourceSortBy === 'profit'
-                        ? 'bg-white text-teal-600'
-                        : 'bg-teal-400 text-white hover:bg-teal-300'
-                    }`}
-                  >
-                    利益順
-                  </button>
-                  <button
-                    onClick={() => setSourceSortBy('profitPerUnit')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                      sourceSortBy === 'profitPerUnit'
-                        ? 'bg-white text-teal-600'
-                        : 'bg-teal-400 text-white hover:bg-teal-300'
-                    }`}
-                  >
-                    単価順
-                  </button>
-                  <button
-                    onClick={() => setSourceSortBy('profitRate')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                      sourceSortBy === 'profitRate'
-                        ? 'bg-white text-teal-600'
-                        : 'bg-teal-400 text-white hover:bg-teal-300'
-                    }`}
-                  >
-                    利益率順
-                  </button>
+              {/* 仕入先別売上ランキング */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 bg-gradient-to-r from-emerald-500 to-green-500 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                    <span className="text-xl">🏭</span> 仕入先別ランキング
+                  </h2>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setSourceSortBy('sales')}
+                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                        sourceSortBy === 'sales'
+                          ? 'bg-white text-emerald-600'
+                          : 'bg-emerald-400 text-white hover:bg-emerald-300'
+                      }`}
+                    >
+                      売上順
+                    </button>
+                    <button
+                      onClick={() => setSourceSortBy('profit')}
+                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                        sourceSortBy === 'profit'
+                          ? 'bg-white text-emerald-600'
+                          : 'bg-emerald-400 text-white hover:bg-emerald-300'
+                      }`}
+                    >
+                      利益順
+                    </button>
+                    <button
+                      onClick={() => setSourceSortBy('profitPerUnit')}
+                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                        sourceSortBy === 'profitPerUnit'
+                          ? 'bg-white text-emerald-600'
+                          : 'bg-emerald-400 text-white hover:bg-emerald-300'
+                      }`}
+                    >
+                      単価順
+                    </button>
+                    <button
+                      onClick={() => setSourceSortBy('profitRate')}
+                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                        sourceSortBy === 'profitRate'
+                          ? 'bg-white text-emerald-600'
+                          : 'bg-emerald-400 text-white hover:bg-emerald-300'
+                      }`}
+                    >
+                      利益率順
+                    </button>
+                  </div>
                 </div>
-              </div>
               <div className="p-4">
                 <table className="w-full text-sm">
                   <thead>
@@ -1996,13 +1998,13 @@ export default function AllSalesPage() {
                         })
                         .slice(0, 10)
                         .map(([source, stats], idx) => (
-                          <tr key={source} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-teal-50' : ''}`}>
+                          <tr key={source} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-emerald-50' : ''}`}>
                             <td className="px-3 py-2 text-center font-bold">
                               {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                             </td>
                             <td className="px-3 py-2 text-gray-900 truncate">{source}</td>
                             <td className="px-3 py-2 text-right tabular-nums">{stats.count}点</td>
-                            <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-600">¥{stats.sales.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-600">¥{stats.sales.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.profit.toLocaleString()}</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.sales > 0 && Math.round((stats.profit / stats.sales) * 100) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{stats.sales > 0 ? Math.round((stats.profit / stats.sales) * 100) : 0}%</td>
                             <td className={`px-3 py-2 text-right tabular-nums ${stats.count > 0 && Math.round(stats.profit / stats.count) >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{stats.count > 0 ? Math.round(stats.profit / stats.count).toLocaleString() : 0}</td>
@@ -2012,6 +2014,7 @@ export default function AllSalesPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           </div>
         ) : (
