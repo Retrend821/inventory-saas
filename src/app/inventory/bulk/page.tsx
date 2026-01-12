@@ -65,19 +65,9 @@ export default function BulkInventoryPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<BulkPurchase | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
-  const [selectedGenre, setSelectedGenre] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('bulk_selectedGenre') || 'all'
-    }
-    return 'all'
-  })
-  const [viewMode, setViewMode] = useState<'purchases' | 'sales'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bulk_viewMode')
-      return (saved === 'purchases' || saved === 'sales') ? saved : 'sales'
-    }
-    return 'sales'
-  })
+  const [selectedGenre, setSelectedGenre] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'purchases' | 'sales'>('sales')
+  const [isInitialized, setIsInitialized] = useState(false)
   const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
 
   // 編集機能用ステート
@@ -125,18 +115,35 @@ export default function BulkInventoryPage() {
     listing_date: ''
   })
 
+  // localStorageから状態を復元
+  useEffect(() => {
+    const savedGenre = localStorage.getItem('bulk_selectedGenre')
+    const savedViewMode = localStorage.getItem('bulk_viewMode')
+    if (savedGenre) {
+      setSelectedGenre(savedGenre)
+    }
+    if (savedViewMode === 'purchases' || savedViewMode === 'sales') {
+      setViewMode(savedViewMode)
+    }
+    setIsInitialized(true)
+  }, [])
+
   useEffect(() => {
     fetchData()
   }, [])
 
-  // 状態をlocalStorageに保存
+  // 状態をlocalStorageに保存（初期化完了後のみ）
   useEffect(() => {
-    localStorage.setItem('bulk_selectedGenre', selectedGenre)
-  }, [selectedGenre])
+    if (isInitialized) {
+      localStorage.setItem('bulk_selectedGenre', selectedGenre)
+    }
+  }, [selectedGenre, isInitialized])
 
   useEffect(() => {
-    localStorage.setItem('bulk_viewMode', viewMode)
-  }, [viewMode])
+    if (isInitialized) {
+      localStorage.setItem('bulk_viewMode', viewMode)
+    }
+  }, [viewMode, isInitialized])
 
   const fetchData = async () => {
     setLoading(true)
@@ -162,12 +169,12 @@ export default function BulkInventoryPage() {
     if (salesError) {
       console.error('Error fetching bulk sales:', salesError)
     } else {
-      // deposit_amountがnullのデータを自動計算して更新
-      const salesWithNullDeposit = (salesData || []).filter(
-        (sale: BulkSale) => sale.deposit_amount === null
+      // deposit_amountがnullまたは0で、かつsale_amountが0より大きいデータを自動計算して更新
+      const salesNeedingUpdate = (salesData || []).filter(
+        (sale: BulkSale) => (sale.deposit_amount === null || sale.deposit_amount === 0) && sale.sale_amount > 0
       )
-      if (salesWithNullDeposit.length > 0) {
-        const updates = salesWithNullDeposit.map((sale: BulkSale) => ({
+      if (salesNeedingUpdate.length > 0) {
+        const updates = salesNeedingUpdate.map((sale: BulkSale) => ({
           id: sale.id,
           deposit_amount: sale.sale_amount - sale.commission - sale.shipping_cost
         }))
@@ -180,7 +187,7 @@ export default function BulkInventoryPage() {
         }
         // 更新後のデータで状態を更新
         const updatedSales = (salesData || []).map((sale: BulkSale) => {
-          if (sale.deposit_amount === null) {
+          if ((sale.deposit_amount === null || sale.deposit_amount === 0) && sale.sale_amount > 0) {
             return {
               ...sale,
               deposit_amount: sale.sale_amount - sale.commission - sale.shipping_cost
