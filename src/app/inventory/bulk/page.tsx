@@ -65,8 +65,19 @@ export default function BulkInventoryPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<BulkPurchase | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
-  const [selectedGenre, setSelectedGenre] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<'purchases' | 'sales'>('sales')
+  const [selectedGenre, setSelectedGenre] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('bulk_selectedGenre') || 'all'
+    }
+    return 'all'
+  })
+  const [viewMode, setViewMode] = useState<'purchases' | 'sales'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('bulk_viewMode')
+      return (saved === 'purchases' || saved === 'sales') ? saved : 'sales'
+    }
+    return 'sales'
+  })
   const [rakumaCommissionSettings, setRakumaCommissionSettings] = useState<Record<string, number>>({})
 
   // 編集機能用ステート
@@ -117,6 +128,15 @@ export default function BulkInventoryPage() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // 状態をlocalStorageに保存
+  useEffect(() => {
+    localStorage.setItem('bulk_selectedGenre', selectedGenre)
+  }, [selectedGenre])
+
+  useEffect(() => {
+    localStorage.setItem('bulk_viewMode', viewMode)
+  }, [viewMode])
 
   const fetchData = async () => {
     setLoading(true)
