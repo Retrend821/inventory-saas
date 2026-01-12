@@ -2072,14 +2072,14 @@ export default function AllSalesPage() {
                 </button>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50">
                     {visibleColumns.map(col => (
                       <th
                         key={col.key}
-                        className={`px-2 py-3 text-xs font-semibold text-gray-600 ${
+                        className={`px-2 py-3 text-xs font-semibold text-gray-600 bg-gray-50 ${
                           ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'turnover_days'].includes(col.key)
                             ? 'text-right'
                             : ['purchase_date', 'listing_date', 'sale_date'].includes(col.key)
