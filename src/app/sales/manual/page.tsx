@@ -284,6 +284,30 @@ export default function ManualSalesPage() {
           hasMore = false
         }
       }
+
+      // deposit_amountがnullまたは0で、かつsale_priceが0より大きいデータを自動計算して更新
+      const salesNeedingUpdate = allSales.filter(
+        (sale: ManualSale) => (sale.deposit_amount === null || sale.deposit_amount === 0) && (sale.sale_price || 0) > 0
+      )
+      if (salesNeedingUpdate.length > 0) {
+        for (const sale of salesNeedingUpdate) {
+          const calculatedDeposit = (sale.sale_price || 0) - (sale.commission || 0) - (sale.shipping_cost || 0) - (sale.other_cost || 0)
+          await supabase
+            .from('manual_sales')
+            .update({ deposit_amount: calculatedDeposit })
+            .eq('id', sale.id)
+        }
+        // 更新後のデータで状態を更新
+        allSales = allSales.map((sale: ManualSale) => {
+          if ((sale.deposit_amount === null || sale.deposit_amount === 0) && (sale.sale_price || 0) > 0) {
+            return {
+              ...sale,
+              deposit_amount: (sale.sale_price || 0) - (sale.commission || 0) - (sale.shipping_cost || 0) - (sale.other_cost || 0)
+            }
+          }
+          return sale
+        })
+      }
       setSales(allSales)
 
       // プラットフォーム（販路）取得
