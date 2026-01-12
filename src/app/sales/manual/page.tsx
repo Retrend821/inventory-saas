@@ -1196,7 +1196,7 @@ export default function ManualSalesPage() {
       commission: sale.commission || 0,
       shipping_cost: sale.shipping_cost || 0,
       other_cost: sale.other_cost || 0,
-      deposit_amount: sale.deposit_amount,
+      deposit_amount: depositAmount,
       listing_date: sale.listing_date,
       memo: `手入力売上から転記 (ID: ${sale.id})`,
     }

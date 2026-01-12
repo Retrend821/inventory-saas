@@ -142,7 +142,36 @@ export default function BulkInventoryPage() {
     if (salesError) {
       console.error('Error fetching bulk sales:', salesError)
     } else {
-      setBulkSales(salesData || [])
+      // deposit_amountがnullのデータを自動計算して更新
+      const salesWithNullDeposit = (salesData || []).filter(
+        (sale: BulkSale) => sale.deposit_amount === null
+      )
+      if (salesWithNullDeposit.length > 0) {
+        const updates = salesWithNullDeposit.map((sale: BulkSale) => ({
+          id: sale.id,
+          deposit_amount: sale.sale_amount - sale.commission - sale.shipping_cost
+        }))
+        // バッチ更新
+        for (const update of updates) {
+          await supabase
+            .from('bulk_sales')
+            .update({ deposit_amount: update.deposit_amount })
+            .eq('id', update.id)
+        }
+        // 更新後のデータで状態を更新
+        const updatedSales = (salesData || []).map((sale: BulkSale) => {
+          if (sale.deposit_amount === null) {
+            return {
+              ...sale,
+              deposit_amount: sale.sale_amount - sale.commission - sale.shipping_cost
+            }
+          }
+          return sale
+        })
+        setBulkSales(updatedSales)
+      } else {
+        setBulkSales(salesData || [])
+      }
     }
 
     // 仕入先マスタ取得
@@ -424,7 +453,7 @@ export default function BulkInventoryPage() {
         image_url: null,
         purchase_price: null,
         other_cost: 0,
-        deposit_amount: null,
+        deposit_amount: 0,
         listing_date: null,
         user_id: user?.id
       })
@@ -800,6 +829,8 @@ export default function BulkInventoryPage() {
       const newCommission = calculateCommission(newValue, sale.sale_amount, sale.sale_date)
       if (newCommission !== null) {
         updateData.commission = newCommission
+        // 入金額も再計算
+        updateData.deposit_amount = sale.sale_amount - newCommission - sale.shipping_cost
       }
     }
 
