@@ -169,36 +169,7 @@ export default function BulkInventoryPage() {
     if (salesError) {
       console.error('Error fetching bulk sales:', salesError)
     } else {
-      // deposit_amountがnullまたは0で、かつsale_amountが0より大きいデータを自動計算して更新
-      const salesNeedingUpdate = (salesData || []).filter(
-        (sale: BulkSale) => (sale.deposit_amount === null || sale.deposit_amount === 0) && sale.sale_amount > 0
-      )
-      if (salesNeedingUpdate.length > 0) {
-        const updates = salesNeedingUpdate.map((sale: BulkSale) => ({
-          id: sale.id,
-          deposit_amount: sale.sale_amount - sale.commission - sale.shipping_cost
-        }))
-        // バッチ更新
-        for (const update of updates) {
-          await supabase
-            .from('bulk_sales')
-            .update({ deposit_amount: update.deposit_amount })
-            .eq('id', update.id)
-        }
-        // 更新後のデータで状態を更新
-        const updatedSales = (salesData || []).map((sale: BulkSale) => {
-          if ((sale.deposit_amount === null || sale.deposit_amount === 0) && sale.sale_amount > 0) {
-            return {
-              ...sale,
-              deposit_amount: sale.sale_amount - sale.commission - sale.shipping_cost
-            }
-          }
-          return sale
-        })
-        setBulkSales(updatedSales)
-      } else {
-        setBulkSales(salesData || [])
-      }
+      setBulkSales(salesData || [])
     }
 
     // 仕入先マスタ取得
