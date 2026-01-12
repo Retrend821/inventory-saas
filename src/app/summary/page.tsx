@@ -318,6 +318,113 @@ export default function SummaryPage() {
     return dateStr.substring(0, 10).replace(/\//g, '-')
   }
 
+  // 指定年月の集計を計算するヘルパー関数
+  const calculateSummaryForMonth = useCallback((year: string, month: string) => {
+    const isYearly = month === 'all'
+    const yearMonth = `${year}-${month}`
+
+    // 売却日が選択年月のアイテム（売上日に日付が入っているもの、返品を除く）
+    const soldItems = inventory.filter(item => {
+      if (!isValidDate(item.sale_date)) return false
+      if (item.sale_destination === '返品') return false
+      const normalized = normalizeYearMonth(item.sale_date!)
+      return isYearly
+        ? normalized.startsWith(year)
+        : normalized === yearMonth
+    })
+
+    // 手入力売上の売却日が選択年月のアイテム
+    const manualSoldItems = manualSales.filter(item => {
+      if (!isValidDate(item.sale_date)) return false
+      const normalized = normalizeYearMonth(item.sale_date!)
+      return isYearly
+        ? normalized.startsWith(year)
+        : normalized === yearMonth
+    })
+
+    // 仕入日が選択年月のアイテム
+    const purchasedItems = inventory.filter(item => {
+      if (!isValidDate(item.purchase_date)) return false
+      const normalized = normalizeYearMonth(item.purchase_date!)
+      return isYearly
+        ? normalized.startsWith(year)
+        : normalized === yearMonth
+    })
+
+    // 出品日が選択年月のアイテム
+    const listedItems = inventory.filter(item => {
+      if (!isValidDate(item.listing_date)) return false
+      const normalized = normalizeYearMonth(item.listing_date!)
+      return isYearly
+        ? normalized.startsWith(year)
+        : normalized === yearMonth
+    })
+
+    // 販売件数（単品 + 手入力）
+    const soldCount = soldItems.length + manualSoldItems.length
+
+    // 仕入件数
+    const purchasedCount = purchasedItems.length
+
+    // 出品件数
+    const listedCount = listedItems.length
+
+    // 売上（税込）- 売値の合計（単品 + 手入力）
+    const totalSales = soldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+      + manualSoldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+
+    // 仕入（税込）- 売却商品の仕入総額（単品 + 手入力）
+    const totalPurchase = soldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+      + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+
+    // 販売利益
+    const invProfit = soldItems.reduce((sum, item) => {
+      const salePrice = item.sale_price || 0
+      const commission = item.commission || 0
+      const shipping = item.shipping_cost || 0
+      const otherCost = item.other_cost || 0
+      const purchaseTotal = item.purchase_total || 0
+      return sum + (salePrice - commission - shipping - otherCost - purchaseTotal)
+    }, 0)
+    const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
+    const totalProfit = invProfit + manualProfit
+
+    // 販売利益率
+    const profitRate = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0
+
+    // 販売単価（売上 / 販売件数）
+    const avgSalePrice = soldCount > 0 ? Math.round(totalSales / soldCount) : 0
+
+    // 利益単価（利益 / 販売件数）
+    const avgProfit = soldCount > 0 ? Math.round(totalProfit / soldCount) : 0
+
+    // 仕入単価（仕入総額 / 販売件数）
+    const avgPurchasePrice = soldCount > 0 ? Math.round(totalPurchase / soldCount) : 0
+
+    return {
+      soldCount,
+      purchasedCount,
+      listedCount,
+      totalSales,
+      totalPurchase,
+      totalProfit,
+      profitRate,
+      avgSalePrice,
+      avgProfit,
+      avgPurchasePrice,
+    }
+  }, [inventory, manualSales])
+
+  // 前月の年月を取得
+  const getPreviousMonth = (year: string, month: string): { year: string, month: string } => {
+    const monthNum = parseInt(month)
+    if (monthNum === 1) {
+      return { year: (parseInt(year) - 1).toString(), month: '12' }
+    } else {
+      return { year, month: (monthNum - 1).toString().padStart(2, '0') }
+    }
+  }
+
   // 選択された年月でフィルタリングした集計
   const summary = useMemo(() => {
     if (!selectedYear || !selectedMonth) return null
@@ -459,6 +566,14 @@ export default function SummaryPage() {
       projectedListedCount,
     }
   }, [inventory, manualSales, selectedYear, selectedMonth])
+
+  // 前月の集計データ（前月比較用）
+  const previousMonthSummary = useMemo(() => {
+    if (!selectedYear || !selectedMonth || selectedMonth === 'all') return null
+
+    const { year: prevYear, month: prevMonth } = getPreviousMonth(selectedYear, selectedMonth)
+    return calculateSummaryForMonth(prevYear, prevMonth)
+  }, [selectedYear, selectedMonth, calculateSummaryForMonth])
 
   // 月別集計データ（表形式用）
   const monthlyData = useMemo(() => {
@@ -726,6 +841,31 @@ export default function SummaryPage() {
     }
   }, [monthlyData])
 
+  // 前月比表示用のヘルパー関数
+  const formatDiff = (current: number, previous: number | undefined, isPercentage: boolean = false, isCurrency: boolean = true) => {
+    if (previous === undefined || previous === null) return null
+    const diff = current - previous
+    const percentChange = previous !== 0 ? Math.round((diff / previous) * 100) : (diff !== 0 ? 100 : 0)
+
+    const diffSign = diff >= 0 ? '+' : ''
+    const diffColor = diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-500'
+
+    if (isPercentage) {
+      return (
+        <span className={`${diffColor} text-xs`}>
+          {diffSign}{diff}pt
+        </span>
+      )
+    }
+
+    return (
+      <span className={`${diffColor} text-xs`}>
+        {isCurrency ? `${diff >= 0 ? '+' : '-'}¥${Math.abs(diff).toLocaleString()}` : `${diffSign}${diff}`}
+        <span className="ml-1 text-gray-400">({diffSign}{percentChange}%)</span>
+      </span>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto px-4 py-6">
@@ -788,6 +928,9 @@ export default function SummaryPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">項目</th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600">実績</th>
+                  {selectedMonth !== 'all' && (
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-purple-600">前月比</th>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <th className="px-6 py-3 text-right text-xs font-semibold text-orange-600">目標ペース</th>
                   )}
@@ -805,6 +948,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">売上（税込）</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalSales.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.totalSales, previousMonthSummary?.totalSales)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.sales_goal ? (summary.totalSales >= Math.round(monthlyGoal.sales_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.sales_goal ? `¥${Math.round(monthlyGoal.sales_goal * summary.progressRatio).toLocaleString()}` : '-'}
@@ -834,6 +982,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売利益（税込）</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalProfit.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.totalProfit, previousMonthSummary?.totalProfit)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.profit_goal ? (summary.totalProfit >= Math.round(monthlyGoal.profit_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.profit_goal ? `¥${Math.round(monthlyGoal.profit_goal * summary.progressRatio).toLocaleString()}` : '-'}
@@ -863,6 +1016,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入（税込）</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalPurchase.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.totalPurchase, previousMonthSummary?.totalPurchase)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.purchase_total_goal ? (summary.totalPurchase >= Math.round(monthlyGoal.purchase_total_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.purchase_total_goal ? `¥${Math.round(monthlyGoal.purchase_total_goal * summary.progressRatio).toLocaleString()}` : '-'}
@@ -892,6 +1050,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売利益率</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.profitRate}%</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.profitRate, previousMonthSummary?.profitRate, true)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.profit_rate_goal ? (summary.profitRate >= monthlyGoal.profit_rate_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.profit_rate_goal ? `${monthlyGoal.profit_rate_goal}%` : '-'}
@@ -921,6 +1084,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売単価</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgSalePrice.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.avgSalePrice, previousMonthSummary?.avgSalePrice)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_sale_price_goal ? (summary.avgSalePrice >= monthlyGoal.avg_sale_price_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.avg_sale_price_goal ? `¥${monthlyGoal.avg_sale_price_goal.toLocaleString()}` : '-'}
@@ -950,6 +1118,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">利益単価</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgProfit.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.avgProfit, previousMonthSummary?.avgProfit)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_profit_goal ? (summary.avgProfit >= monthlyGoal.avg_profit_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.avg_profit_goal ? `¥${monthlyGoal.avg_profit_goal.toLocaleString()}` : '-'}
@@ -979,6 +1152,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入単価</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgPurchasePrice.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.avgPurchasePrice, previousMonthSummary?.avgPurchasePrice)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.avg_purchase_price_goal ? (summary.avgPurchasePrice >= monthlyGoal.avg_purchase_price_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.avg_purchase_price_goal ? `¥${monthlyGoal.avg_purchase_price_goal.toLocaleString()}` : '-'}
@@ -1008,6 +1186,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">仕入件数</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.purchasedCount}件</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.purchasedCount, previousMonthSummary?.purchasedCount, false, false)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.purchase_count_goal ? (summary.purchasedCount >= Math.round(monthlyGoal.purchase_count_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.purchase_count_goal ? `${Math.round(monthlyGoal.purchase_count_goal * summary.progressRatio)}件` : '-'}
@@ -1037,6 +1220,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">出品件数</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.listedCount}件</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.listedCount, previousMonthSummary?.listedCount, false, false)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.listed_count_goal ? (summary.listedCount >= Math.round(monthlyGoal.listed_count_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.listed_count_goal ? `${Math.round(monthlyGoal.listed_count_goal * summary.progressRatio)}件` : '-'}
@@ -1066,6 +1254,11 @@ export default function SummaryPage() {
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売件数</td>
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.soldCount}件</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.soldCount, previousMonthSummary?.soldCount, false, false)}
+                    </td>
+                  )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.sold_count_goal ? (summary.soldCount >= Math.round(monthlyGoal.sold_count_goal * summary.progressRatio) ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
                       {monthlyGoal?.sold_count_goal ? `${Math.round(monthlyGoal.sold_count_goal * summary.progressRatio)}件` : '-'}
