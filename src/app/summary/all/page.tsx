@@ -1233,9 +1233,9 @@ export default function AllSalesPage() {
                     {filterType !== 'all' && ` (${filterType === 'single' ? '単品' : filterType === 'bulk' ? 'まとめ' : '手入力'})`}
                   </h2>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
                   <table className="w-full text-sm whitespace-nowrap">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                       {/* セクションラベル行 */}
                       <tr className="bg-slate-700">
                         <th className="px-4 py-2 w-16"></th>
