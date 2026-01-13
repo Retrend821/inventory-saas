@@ -3166,14 +3166,15 @@ export default function Home() {
   }
 
   // 回転日数計算ヘルパー関数（保存値優先、なければ計算）
+  // 回転日数 = 出品日から売却日までの日数
   const calcTurnoverDays = (item: InventoryItem): number | null => {
     if (item.turnover_days !== null && item.turnover_days !== undefined) {
       return item.turnover_days
     }
-    if (item.purchase_date && item.sale_date) {
-      const purchaseDate = new Date(item.purchase_date)
+    if (item.listing_date && item.sale_date) {
+      const listingDate = new Date(item.listing_date)
       const saleDate = new Date(item.sale_date)
-      const diffTime = saleDate.getTime() - purchaseDate.getTime()
+      const diffTime = saleDate.getTime() - listingDate.getTime()
       return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     }
     return null
@@ -3459,12 +3460,13 @@ export default function Home() {
     }
 
     // 回転日数計算ヘルパー（ローカル）
+    // 回転日数 = 出品日から売却日までの日数
     const getTurnoverDays = (item: InventoryItem): number | null => {
       if (item.turnover_days !== null && item.turnover_days !== undefined) {
         return item.turnover_days
       }
-      if (item.purchase_date && item.sale_date) {
-        return Math.ceil((new Date(item.sale_date).getTime() - new Date(item.purchase_date).getTime()) / (1000 * 60 * 60 * 24))
+      if (item.listing_date && item.sale_date) {
+        return Math.ceil((new Date(item.sale_date).getTime() - new Date(item.listing_date).getTime()) / (1000 * 60 * 60 * 24))
       }
       return null
     }

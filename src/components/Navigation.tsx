@@ -78,13 +78,14 @@ export default function Navigation() {
                 setInventoryOpen(false)
                 setAnalysisOpen(false)
               }}
-              className={pathname === '/summary' || pathname.startsWith('/sales') ? activeLinkStyle : baseLinkStyle}
+              className={pathname === '/summary' || pathname === '/summary/all' || pathname.startsWith('/sales') ? activeLinkStyle : baseLinkStyle}
             >
               売上
             </button>
             {summaryOpen && (
               <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>年間・月別</Link>
+                <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>集計表</Link>
+                <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>実売データ</Link>
                 <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>手入力売上表</Link>
               </div>
             )}
@@ -97,13 +98,12 @@ export default function Navigation() {
                 setInventoryOpen(false)
                 setSummaryOpen(false)
               }}
-              className={pathname === '/summary/retail' || pathname === '/summary/wholesale' || pathname === '/summary/all' || pathname === '/summary/purchase-source' ? activeLinkStyle : baseLinkStyle}
+              className={pathname === '/summary/retail' || pathname === '/summary/wholesale' || pathname === '/summary/purchase-source' ? activeLinkStyle : baseLinkStyle}
             >
               分析
             </button>
             {analysisOpen && (
               <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setAnalysisOpen(false)}>販売データ</Link>
                 <Link href="/summary/purchase-source" className={dropdownItemStyle} onClick={() => setAnalysisOpen(false)}>仕入先別データ</Link>
               </div>
             )}
