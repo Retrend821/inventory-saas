@@ -135,7 +135,7 @@ export default function LoginPage() {
               setError(null)
               setPassword('')
             }}
-            className="text-sm text-gray-500 hover:text-gray-700 block w-full"
+            className="text-sm text-green-600 hover:text-green-500 block w-full"
           >
             {isViewerLogin ? '通常ログインに戻る' : '閲覧専用アカウントでログイン'}
           </button>
