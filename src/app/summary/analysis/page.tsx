@@ -892,7 +892,7 @@ export default function SalesAnalysisPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-full mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">販売分析</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">売上分析</h1>
 
         {/* タブ */}
         <div className="flex gap-1 mb-6">
