@@ -194,21 +194,21 @@ export default function AllSalesPage() {
     { key: 'category', label: 'ジャンル', width: 'w-20' },
     { key: 'brand_name', label: 'ブランド', width: 'w-24' },
     { key: 'product_name', label: '商品名', width: 'w-36' },
-    { key: 'purchase_source', label: '仕入先', width: 'w-20' },
-    { key: 'sale_destination', label: '販売先', width: 'w-20' },
+    { key: 'purchase_source', label: '仕入先', width: 'w-24' },
+    { key: 'sale_destination', label: '販売先', width: 'w-24' },
     { key: 'sale_price', label: '売値', width: 'w-20' },
-    { key: 'commission', label: '手数料', width: 'w-16' },
+    { key: 'commission', label: '手数料', width: 'w-20' },
     { key: 'shipping_cost', label: '送料', width: 'w-16' },
     { key: 'other_cost', label: 'その他', width: 'w-16' },
-    { key: 'purchase_price', label: '正味仕入値', width: 'w-20' },
-    { key: 'purchase_total', label: '仕入総額', width: 'w-20' },
+    { key: 'purchase_price', label: '正味仕入値', width: 'w-24' },
+    { key: 'purchase_total', label: '仕入総額', width: 'w-24' },
     { key: 'deposit_amount', label: '入金額', width: 'w-20' },
     { key: 'profit', label: '利益', width: 'w-20' },
     { key: 'profit_rate', label: '利益率', width: 'w-16' },
-    { key: 'purchase_date', label: '仕入日', width: 'w-20' },
-    { key: 'listing_date', label: '出品日', width: 'w-20' },
-    { key: 'sale_date', label: '売却日', width: 'w-20' },
-    { key: 'turnover_days', label: '回転日数', width: 'w-16' },
+    { key: 'purchase_date', label: '仕入日', width: 'w-24' },
+    { key: 'listing_date', label: '出品日', width: 'w-24' },
+    { key: 'sale_date', label: '売却日', width: 'w-24' },
+    { key: 'turnover_days', label: '回転日数', width: 'w-20' },
     { key: 'memo', label: 'メモ', width: 'w-32' },
   ]
   const [columns] = useState(defaultColumns)
@@ -2105,7 +2105,7 @@ export default function AllSalesPage() {
                     {visibleColumns.map(col => (
                       <th
                         key={col.key}
-                        className={`px-2 py-3 text-xs font-semibold text-gray-600 bg-gray-50 ${
+                        className={`px-2 py-3 text-xs font-semibold text-gray-600 bg-gray-50 whitespace-nowrap ${
                           ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'turnover_days'].includes(col.key)
                             ? 'text-right'
                             : ['purchase_date', 'listing_date', 'sale_date'].includes(col.key)
