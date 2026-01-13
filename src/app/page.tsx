@@ -343,7 +343,9 @@ const MemoizedCheckbox = memo(function MemoizedCheckbox({
 })
 
 export default function Home() {
-  const { user, isViewerUser } = useAuth()
+  const { user, isViewerUser, loading: authLoading } = useAuth()
+  // 編集可能かどうか（認証読み込み中は編集不可）
+  const canEdit = !authLoading && !isViewerUser
   const searchParams = useSearchParams()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -2386,8 +2388,8 @@ export default function Home() {
 
   // 空の行を追加
   const handleAddRow = async () => {
-    // 閲覧専用ユーザーは追加不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     try {
       // 現在の最大管理番号を取得
       const maxInventoryNumber = inventory.reduce((max, item) => {
@@ -2425,8 +2427,8 @@ export default function Home() {
 
   // セルをクリックしたとき（1回目：選択、2回目：編集）
   const handleCellClick = (item: InventoryItem, field: keyof InventoryItem) => {
-    // 閲覧専用ユーザーは編集不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     // 既に編集中なら何もしない
     if (editingCell?.id === item.id && editingCell?.field === field) return
 
@@ -2455,8 +2457,8 @@ export default function Home() {
 
   // ダブルクリックで直接編集モードに入る
   const handleCellDoubleClick = (item: InventoryItem, field: keyof InventoryItem) => {
-    // 閲覧専用ユーザーは編集不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     if (editingCell?.id === item.id && editingCell?.field === field) return
     setSelectedCell({ id: item.id, field })
     setSelectionRange(null)
@@ -2748,8 +2750,8 @@ export default function Home() {
     e.stopPropagation()
     setDragActive(false)
 
-    // 閲覧専用ユーザーはアップロード不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.csv'))
@@ -2762,8 +2764,8 @@ export default function Home() {
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // 閲覧専用ユーザーはアップロード不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files)
       handleCSVFilesSelect(files)

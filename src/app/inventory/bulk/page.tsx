@@ -54,7 +54,9 @@ type Platform = {
 }
 
 export default function BulkInventoryPage() {
-  const { user, isViewerUser } = useAuth()
+  const { user, isViewerUser, loading: authLoading } = useAuth()
+  // 編集可能かどうか（認証読み込み中は編集不可）
+  const canEdit = !authLoading && !isViewerUser
   const [bulkPurchases, setBulkPurchases] = useState<BulkPurchase[]>([])
   const [bulkSales, setBulkSales] = useState<BulkSale[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -601,8 +603,8 @@ export default function BulkInventoryPage() {
 
   // セルクリックで編集開始（販売用）
   const handleSaleCellClick = (sale: BulkSale, field: keyof BulkSale) => {
-    // 閲覧専用ユーザーは編集不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     if (editingCell?.id === sale.id && editingCell?.field === field && editingCell?.type === 'sale') return
 
     // 先に現在の編集を保存
@@ -621,8 +623,8 @@ export default function BulkInventoryPage() {
 
   // セルクリックで編集開始（仕入れ用）
   const handlePurchaseCellClick = (purchase: BulkPurchase, field: keyof BulkPurchase) => {
-    // 閲覧専用ユーザーは編集不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     if (editingCell?.id === purchase.id && editingCell?.field === field && editingCell?.type === 'purchase') return
 
     // 先に現在の編集を保存

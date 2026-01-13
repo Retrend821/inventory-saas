@@ -88,6 +88,8 @@ const categoryColors: Record<string, string> = {
 
 export default function ManualSalesPage() {
   const { user, loading: authLoading, isViewerUser } = useAuth()
+  // 編集可能かどうか（認証読み込み中は編集不可）
+  const canEdit = !authLoading && !isViewerUser
   const [sales, setSales] = useState<ManualSale[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -557,8 +559,8 @@ export default function ManualSalesPage() {
 
   // セルクリックで選択 (ダブルクリックで編集開始)
   const handleCellClick = (sale: ManualSale, field: keyof ManualSale) => {
-    // 閲覧専用ユーザーは編集不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     // 編集不可のフィールドはスキップ
     const readonlyFields: (keyof ManualSale)[] = ['id', 'profit', 'profit_rate', 'turnover_days', 'created_at']
     if (readonlyFields.includes(field)) return
@@ -588,8 +590,8 @@ export default function ManualSalesPage() {
 
   // ダブルクリックで編集開始
   const handleCellDoubleClick = (sale: ManualSale, field: keyof ManualSale) => {
-    // 閲覧専用ユーザーは編集不可
-    if (isViewerUser) return
+    // 編集不可
+    if (!canEdit) return
     const readonlyFields: (keyof ManualSale)[] = ['id', 'profit', 'profit_rate', 'turnover_days', 'created_at']
     if (readonlyFields.includes(field)) return
 
