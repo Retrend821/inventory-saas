@@ -480,41 +480,41 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-100 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">ダッシュボード</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 md:mb-6">ダッシュボード</h1>
 
         {/* 今月のサマリー */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">{currentMonth.label}のサマリー</h2>
+        <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-4 md:mb-6">
+          <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-4">{currentMonth.label}のサマリー</h2>
 
           {/* メイン指標 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-sm text-green-600">販売件数</div>
-              <div className="text-2xl font-bold text-green-900">{monthlyStats.salesCount}件</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 md:gap-4 mb-4 md:mb-6">
+            <div className="bg-green-50 rounded-lg p-3 md:p-4">
+              <div className="text-xs md:text-sm text-green-600">販売件数</div>
+              <div className="text-lg md:text-2xl font-bold text-green-900">{monthlyStats.salesCount}件</div>
             </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-sm text-green-600">売上総額</div>
-              <div className="text-2xl font-bold text-green-900">¥{monthlyStats.salesTotal.toLocaleString()}</div>
+            <div className="bg-green-50 rounded-lg p-3 md:p-4">
+              <div className="text-xs md:text-sm text-green-600">売上総額</div>
+              <div className="text-lg md:text-2xl font-bold text-green-900">¥{monthlyStats.salesTotal.toLocaleString()}</div>
             </div>
-            <div className={`rounded-lg p-4 ${monthlyStats.profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-              <div className={`text-sm ${monthlyStats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>利益</div>
-              <div className={`text-2xl font-bold ${monthlyStats.profit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}>
+            <div className={`rounded-lg p-3 md:p-4 ${monthlyStats.profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              <div className={`text-xs md:text-sm ${monthlyStats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>利益</div>
+              <div className={`text-lg md:text-2xl font-bold ${monthlyStats.profit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}>
                 ¥{monthlyStats.profit.toLocaleString()}
               </div>
             </div>
-            <div className="bg-purple-50 rounded-lg p-4">
-              <div className="text-sm text-purple-600">ROI</div>
-              <div className="text-2xl font-bold text-purple-900">{monthlyStats.roi.toFixed(1)}%</div>
+            <div className="bg-purple-50 rounded-lg p-3 md:p-4">
+              <div className="text-xs md:text-sm text-purple-600">ROI</div>
+              <div className="text-lg md:text-2xl font-bold text-purple-900">{monthlyStats.roi.toFixed(1)}%</div>
             </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-sm text-blue-600">仕入件数</div>
-              <div className="text-2xl font-bold text-blue-900">{monthlyStats.purchaseCount}件</div>
+            <div className="bg-blue-50 rounded-lg p-3 md:p-4">
+              <div className="text-xs md:text-sm text-blue-600">仕入件数</div>
+              <div className="text-lg md:text-2xl font-bold text-blue-900">{monthlyStats.purchaseCount}件</div>
             </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-sm text-blue-600">仕入総額</div>
-              <div className="text-2xl font-bold text-blue-900">¥{monthlyStats.purchaseTotal.toLocaleString()}</div>
+            <div className="bg-blue-50 rounded-lg p-3 md:p-4">
+              <div className="text-xs md:text-sm text-blue-600">仕入総額</div>
+              <div className="text-lg md:text-2xl font-bold text-blue-900">¥{monthlyStats.purchaseTotal.toLocaleString()}</div>
             </div>
           </div>
 

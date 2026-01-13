@@ -189,7 +189,7 @@ export default function AllSalesPage() {
 
   // 列の設定
   const defaultColumns = [
-    { key: 'inventory_number', label: '管理番号', width: 'w-20' },
+    { key: 'inventory_number', label: '管理番号', width: 'w-16' },
     { key: 'image', label: '画像', width: 'w-14' },
     { key: 'category', label: 'ジャンル', width: 'w-20' },
     { key: 'brand_name', label: 'ブランド', width: 'w-24' },
@@ -2136,7 +2136,7 @@ export default function AllSalesPage() {
                       {visibleColumns.map(col => {
                         switch (col.key) {
                           case 'inventory_number':
-                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{sale.inventory_number || '-'}</td>
+                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs truncate max-w-[60px]" title={sale.inventory_number || '-'}>{sale.inventory_number || '-'}</td>
                           case 'image':
                             const imageUrl = sale.image_url
                               ? sale.image_url.startsWith('/api/') || sale.image_url.startsWith('data:')

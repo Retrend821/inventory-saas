@@ -4393,8 +4393,8 @@ export default function Home() {
         {/* 在庫テーブル */}
         <div className="rounded-lg shadow bg-white">
           {/* タブ */}
-          <div className="border-b border-gray-200">
-            <div className="flex">
+          <div className="border-b border-gray-200 overflow-x-auto">
+            <div className="flex min-w-max">
               <button
                 onClick={() => updateQuickFilter('all')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -4527,8 +4527,9 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <div className="px-4 py-3 border-b bg-gray-50 overflow-x-auto">
+            <div className="flex items-center justify-between gap-4 min-w-max">
+            <div className="flex items-center gap-3 flex-shrink-0">
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
@@ -4651,7 +4652,7 @@ export default function Home() {
               </div>
             </div>
             {/* アクションボタン */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleAddRow}
                 className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -4741,6 +4742,7 @@ export default function Home() {
                   </>
                 )}
               </div>
+            </div>
             </div>
           </div>
 
