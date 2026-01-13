@@ -143,6 +143,7 @@ export default function Navigation() {
                 <Link href="/settings/platforms" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>仕入先・販路マスタ設定</Link>
                 <Link href="/settings/ledger" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>古物台帳マスタ設定</Link>
                 <Link href="/settings/google-drive" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>Googleドライブ連携</Link>
+                <Link href="/settings/password" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>パスワード変更</Link>
               </div>
             )}
           </div>
