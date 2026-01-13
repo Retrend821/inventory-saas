@@ -62,7 +62,7 @@ export default function Navigation() {
                 <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上レポート</Link>
                 <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上明細</Link>
                 <Link href="/summary/analysis" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上分析</Link>
-                <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>手入力売上表</Link>
+                <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上入力</Link>
               </div>
             )}
           </div>
