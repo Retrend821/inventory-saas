@@ -12,6 +12,7 @@ type InventoryItem = {
   purchase_date: string | null
   listing_date: string | null
   sale_date: string | null
+  purchase_price: number | null
   purchase_total: number | null
   sale_price: number | null
   deposit_amount: number | null
@@ -266,6 +267,7 @@ export default function DashboardPage() {
     // 未販売：売却日が空のもの（= 在庫数）
     const unsold = validItems.filter(item => !item.sale_date)
     const unsoldValue = unsold.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+    const unsoldValueCost = unsold.reduce((sum, item) => sum + (item.purchase_price || 0), 0)
 
     // 未出品：未販売かつ出品日が空のもの
     const unlisted = unsold.filter(item => !item.listing_date)
@@ -278,13 +280,15 @@ export default function DashboardPage() {
 
     return {
       unsoldCount: unsold.length,       // 在庫数（未販売）
-      unsoldValue,                       // 在庫総額
+      unsoldValue,                       // 在庫総額（仕入総額ベース）
+      unsoldValueCost,                   // 在庫総額（原価ベース）
       listedCount,                       // 出品中（未販売 - 未出品）
       listedValue,                       // 出品中の在庫金額
       soldCount: sold.length,            // 売却済み
       unlistedCount: unlisted.length,    // 未出品
       unlistedValue,                     // 未出品の在庫金額
-      totalStockValue: unsoldValue       // 在庫総額（= 未販売の総額）
+      totalStockValue: unsoldValue,      // 在庫総額（仕入総額ベース）
+      totalStockValueCost: unsoldValueCost // 在庫総額（原価ベース）
     }
   }, [inventory])
 
@@ -652,8 +656,12 @@ export default function DashboardPage() {
                 </div>
               </Link>
               <div className="flex justify-between items-center pt-2 border-t-2">
-                <span className="font-medium text-gray-900">在庫総額</span>
-                <span className="font-bold text-lg text-gray-900">¥{stockStats.totalStockValue.toLocaleString()}</span>
+                <span className="font-medium text-gray-900">在庫総額（原価）</span>
+                <span className="font-bold text-lg text-gray-900">¥{stockStats.totalStockValueCost.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="font-medium text-gray-900">在庫総額（仕入総額）</span>
+                <span className="font-bold text-lg text-blue-700">¥{stockStats.totalStockValue.toLocaleString()}</span>
               </div>
             </div>
           </div>
