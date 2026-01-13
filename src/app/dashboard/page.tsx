@@ -19,6 +19,7 @@ type InventoryItem = {
   other_cost: number | null
   status: string
   sale_type: string | null
+  sale_destination: string | null
   image_url: string | null
 }
 
@@ -34,6 +35,7 @@ type ManualSale = {
   purchase_total: number | null
   profit: number | null
   sale_type: string | null
+  sale_destination: string | null
 }
 
 type UserTodo = {
@@ -43,10 +45,17 @@ type UserTodo = {
   createdAt: string
 }
 
+type Platform = {
+  id: string
+  name: string
+  sales_type: 'toC' | 'toB'
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [manualSales, setManualSales] = useState<ManualSale[]>([])
+  const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
 
   // ユーザーToDo
@@ -107,8 +116,14 @@ export default function DashboardPage() {
         }
       }
 
+      // プラットフォームデータを取得
+      const { data: platformsData } = await supabase
+        .from('platforms')
+        .select('id, name, sales_type')
+
       setInventory(allInventory)
       setManualSales(allManualSales)
+      setPlatforms(platformsData || [])
       setLoading(false)
     }
 
@@ -208,13 +223,25 @@ export default function DashboardPage() {
     const profitRate = salesTotal > 0 ? (profit / salesTotal) * 100 : 0
     const roi = salesCost > 0 ? (profit / salesCost) * 100 : 0
 
-    // 小売・業販の内訳（在庫テーブル）
-    const retailSalesInv = inventorySales.filter(item => item.sale_type === '小売')
-    const wholesaleSalesInv = inventorySales.filter(item => item.sale_type === '業販')
+    // 小売（toC）・業販（toB）の販路名リスト
+    const retailPlatformNames = platforms.filter(p => p.sales_type === 'toC').map(p => p.name)
+    const wholesalePlatformNames = platforms.filter(p => p.sales_type === 'toB').map(p => p.name)
 
-    // 小売・業販の内訳（手入力売上）
-    const retailSalesManual = manualSalesThisMonth.filter(item => item.sale_type === '小売')
-    const wholesaleSalesManual = manualSalesThisMonth.filter(item => item.sale_type === '業販')
+    // 小売・業販の内訳（在庫テーブル）- sale_destinationで判定
+    const retailSalesInv = inventorySales.filter(item =>
+      item.sale_destination && retailPlatformNames.includes(item.sale_destination)
+    )
+    const wholesaleSalesInv = inventorySales.filter(item =>
+      item.sale_destination && wholesalePlatformNames.includes(item.sale_destination)
+    )
+
+    // 小売・業販の内訳（手入力売上）- sale_destinationで判定
+    const retailSalesManual = manualSalesThisMonth.filter(item =>
+      item.sale_destination && retailPlatformNames.includes(item.sale_destination)
+    )
+    const wholesaleSalesManual = manualSalesThisMonth.filter(item =>
+      item.sale_destination && wholesalePlatformNames.includes(item.sale_destination)
+    )
 
     const retailTotal = retailSalesInv.reduce((sum, item) => sum + (item.sale_price || 0), 0)
       + retailSalesManual.reduce((sum, item) => sum + (item.sale_price || 0), 0)
@@ -246,7 +273,7 @@ export default function DashboardPage() {
       wholesaleTotal,
       wholesaleProfit
     }
-  }, [inventory, manualSales, currentMonth])
+  }, [inventory, manualSales, platforms, currentMonth])
 
   // 在庫状況
   const stockStats = useMemo(() => {
