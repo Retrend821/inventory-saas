@@ -59,7 +59,7 @@ export default function Navigation() {
             </button>
             {summaryOpen && (
               <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上表</Link>
+                <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上集計</Link>
                 <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>販売データ</Link>
                 <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>手入力売上表</Link>
               </div>
