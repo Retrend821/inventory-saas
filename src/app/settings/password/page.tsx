@@ -11,19 +11,49 @@ export default function PasswordChangePage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [isResetMode, setIsResetMode] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
 
   // Supabaseの認証イベントを監視してパスワードリカバリーモードを検出
   useEffect(() => {
-    // URLハッシュからリカバリートークンをチェック
-    const hash = window.location.hash
-    if (hash && (hash.includes('type=recovery') || hash.includes('access_token'))) {
-      setIsResetMode(true)
+    const checkRecoveryMode = async () => {
+      // URLハッシュからリカバリートークンをチェック
+      const hash = window.location.hash
+      if (hash && (hash.includes('type=recovery') || hash.includes('access_token'))) {
+        setIsResetMode(true)
+        setCheckingSession(false)
+        return
+      }
+
+      // URLパラメータをチェック（Supabaseがクエリパラメータを使う場合）
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.get('type') === 'recovery') {
+        setIsResetMode(true)
+        setCheckingSession(false)
+        return
+      }
+
+      // セッションからリカバリーモードをチェック
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // AAL (Authenticator Assurance Level) でリカバリーセッションかを推測
+        // リカバリーリンクからのセッションは通常のログインとは異なる
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const amr = (session as any).user?.amr
+        if (amr && amr.some((m: { method: string }) => m.method === 'otp')) {
+          setIsResetMode(true)
+        }
+      }
+
+      setCheckingSession(false)
     }
+
+    checkRecoveryMode()
 
     // 認証状態変更イベントを監視
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsResetMode(true)
+        setCheckingSession(false)
       }
     })
 
@@ -108,7 +138,11 @@ export default function PasswordChangePage() {
             </div>
           )}
 
-          {isResetMode ? (
+          {checkingSession ? (
+            <div className="text-center py-4">
+              <p className="text-gray-600">読み込み中...</p>
+            </div>
+          ) : isResetMode ? (
             // メールリンクからのアクセス時：新パスワード入力フォーム
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="mb-4 p-3 bg-blue-50 rounded-lg">
