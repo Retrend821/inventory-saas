@@ -10,11 +10,9 @@ export default function Navigation() {
   const { user, signOut, isViewerUser } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
-  const [analysisOpen, setAnalysisOpen] = useState(false)
   const [inventoryOpen, setInventoryOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const summaryDropdownRef = useRef<HTMLDivElement>(null)
-  const analysisDropdownRef = useRef<HTMLDivElement>(null)
   const inventoryDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -24,9 +22,6 @@ export default function Navigation() {
       }
       if (summaryDropdownRef.current && !summaryDropdownRef.current.contains(event.target as Node)) {
         setSummaryOpen(false)
-      }
-      if (analysisDropdownRef.current && !analysisDropdownRef.current.contains(event.target as Node)) {
-        setAnalysisOpen(false)
       }
       if (inventoryDropdownRef.current && !inventoryDropdownRef.current.contains(event.target as Node)) {
         setInventoryOpen(false)
@@ -57,7 +52,6 @@ export default function Navigation() {
                 setSummaryOpen(!summaryOpen)
                 setSettingsOpen(false)
                 setInventoryOpen(false)
-                setAnalysisOpen(false)
               }}
               className={pathname === '/summary' || pathname === '/summary/all' || pathname.startsWith('/sales') ? activeLinkStyle : baseLinkStyle}
             >
@@ -76,7 +70,6 @@ export default function Navigation() {
               onClick={() => {
                 setInventoryOpen(!inventoryOpen)
                 setSummaryOpen(false)
-                setAnalysisOpen(false)
                 setSettingsOpen(false)
               }}
               className={pathname === '/' || pathname.startsWith('/inventory') ? activeLinkStyle : baseLinkStyle}
@@ -87,24 +80,6 @@ export default function Navigation() {
               <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
                 <Link href="/" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>単品仕入在庫一覧</Link>
                 <Link href="/inventory/bulk" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>まとめ仕入れ在庫一覧</Link>
-              </div>
-            )}
-          </div>
-          <div className="relative" ref={analysisDropdownRef}>
-            <button
-              onClick={() => {
-                setAnalysisOpen(!analysisOpen)
-                setSettingsOpen(false)
-                setInventoryOpen(false)
-                setSummaryOpen(false)
-              }}
-              className={pathname === '/summary/retail' || pathname === '/summary/wholesale' || pathname === '/summary/purchase-source' ? activeLinkStyle : baseLinkStyle}
-            >
-              分析
-            </button>
-            {analysisOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/summary/purchase-source" className={dropdownItemStyle} onClick={() => setAnalysisOpen(false)}>仕入先別データ</Link>
               </div>
             )}
           </div>
@@ -133,7 +108,6 @@ export default function Navigation() {
               onClick={() => {
                 setSettingsOpen(!settingsOpen)
                 setSummaryOpen(false)
-                setAnalysisOpen(false)
                 setInventoryOpen(false)
               }}
               className={pathname.startsWith('/settings') ? activeLinkStyle : baseLinkStyle}
