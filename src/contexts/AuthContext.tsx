@@ -3,13 +3,16 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { isViewer } from '@/lib/userRoles'
 
 type AuthContextType = {
   user: User | null
   session: Session | null
   loading: boolean
+  isViewerUser: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>
+  viewerSignIn: (email: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
 }
 
@@ -19,8 +22,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [viewerEmail, setViewerEmail] = useState<string | null>(null)
+
+  // 閲覧専用ユーザーかどうか（ホワイトリストでログインしたユーザー）
+  const isViewerUser = viewerEmail !== null
 
   useEffect(() => {
+    // ローカルストレージから閲覧専用ユーザー情報を復元
+    const savedViewerEmail = localStorage.getItem('viewerEmail')
+    if (savedViewerEmail && isViewer(savedViewerEmail)) {
+      setViewerEmail(savedViewerEmail)
+      // 閲覧専用ユーザーとして仮のユーザー情報をセット
+      setUser({ email: savedViewerEmail, id: 'viewer-' + savedViewerEmail } as User)
+      setLoading(false)
+      return
+    }
+
     // 現在のセッションを取得
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -48,12 +65,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error as Error | null }
   }
 
+  // 閲覧専用ユーザーとしてログイン（パスワード不要）
+  const viewerSignIn = async (email: string) => {
+    if (!isViewer(email)) {
+      return { error: new Error('このメールアドレスは閲覧専用アカウントとして登録されていません') }
+    }
+    // ローカルストレージに保存
+    localStorage.setItem('viewerEmail', email)
+    setViewerEmail(email)
+    // 仮のユーザー情報をセット
+    setUser({ email, id: 'viewer-' + email } as User)
+    return { error: null }
+  }
+
   const signOut = async () => {
+    // 閲覧専用ユーザーの場合はローカルストレージをクリア
+    if (viewerEmail) {
+      localStorage.removeItem('viewerEmail')
+      setViewerEmail(null)
+      setUser(null)
+      return
+    }
     await supabase.auth.signOut()
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, isViewerUser, signIn, signUp, viewerSignIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )

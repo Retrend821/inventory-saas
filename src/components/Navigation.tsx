@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 
 export default function Navigation() {
   const pathname = usePathname()
-  const { user, signOut } = useAuth()
+  const { user, signOut, isViewerUser } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [analysisOpen, setAnalysisOpen] = useState(false)
@@ -126,6 +126,8 @@ export default function Navigation() {
           >
             送料表
           </Link>
+          {/* 閲覧専用ユーザーには設定メニューを非表示 */}
+          {!isViewerUser && (
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => {
@@ -147,6 +149,7 @@ export default function Navigation() {
               </div>
             )}
           </div>
+          )}
           {/* スペーサー */}
           <div className="flex-grow" />
           {/* ユーザー情報・ログアウト */}
