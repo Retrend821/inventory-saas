@@ -3,28 +3,31 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { useSearchParams } from 'next/navigation'
 
 export default function PasswordChangePage() {
   const { user } = useAuth()
-  const searchParams = useSearchParams()
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [isResetMode, setIsResetMode] = useState(false)
 
-  // URLにリセットトークンがあるかチェック（メールからのリンク）
+  // Supabaseの認証イベントを監視してパスワードリカバリーモードを検出
   useEffect(() => {
-    const checkResetToken = async () => {
-      // Supabaseのパスワードリセットリンクからのアクセスかチェック
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const type = hashParams.get('type')
-      if (type === 'recovery') {
+    // URLハッシュからリカバリートークンをチェック
+    const hash = window.location.hash
+    if (hash && (hash.includes('type=recovery') || hash.includes('access_token'))) {
+      setIsResetMode(true)
+    }
+
+    // 認証状態変更イベントを監視
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
         setIsResetMode(true)
       }
-    }
-    checkResetToken()
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   // パスワードリセットメール送信
