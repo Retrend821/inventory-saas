@@ -18,25 +18,31 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// ローカルストレージから閲覧専用ユーザー情報を取得（SSR対応）
+const getInitialViewerEmail = (): string | null => {
+  if (typeof window === 'undefined') return null
+  const saved = localStorage.getItem('viewerEmail')
+  return saved && isViewer(saved) ? saved : null
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [viewerEmail, setViewerEmail] = useState<string | null>(getInitialViewerEmail)
+  const [user, setUser] = useState<User | null>(() => {
+    const email = getInitialViewerEmail()
+    return email ? { email, id: 'viewer-' + email } as User : null
+  })
   const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [viewerEmail, setViewerEmail] = useState<string | null>(null)
+  const [loading, setLoading] = useState(() => {
+    // 閲覧専用ユーザーなら既にロード完了
+    return !getInitialViewerEmail()
+  })
 
   // 閲覧専用ユーザーかどうか（ホワイトリストでログインしたユーザー）
   const isViewerUser = viewerEmail !== null
 
   useEffect(() => {
-    // ローカルストレージから閲覧専用ユーザー情報を復元
-    const savedViewerEmail = localStorage.getItem('viewerEmail')
-    if (savedViewerEmail && isViewer(savedViewerEmail)) {
-      setViewerEmail(savedViewerEmail)
-      // 閲覧専用ユーザーとして仮のユーザー情報をセット
-      setUser({ email: savedViewerEmail, id: 'viewer-' + savedViewerEmail } as User)
-      setLoading(false)
-      return
-    }
+    // 閲覧専用ユーザーとして既にログイン済みなら何もしない
+    if (viewerEmail) return
 
     // 現在のセッションを取得
     supabase.auth.getSession().then(({ data: { session } }) => {
