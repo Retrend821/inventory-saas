@@ -9,6 +9,32 @@ import {
   LineChart, Line
 } from 'recharts'
 
+// フリマ送料表の金額一覧（全プラットフォーム共通）
+const STANDARD_SHIPPING_COSTS = new Set([
+  // らくらくメルカリ便
+  210, 450, 520, 750, 850, 1050, 1200, 1450, 1700,
+  // ゆうゆうメルカリ便
+  160, 180, 215, 220, 230, 455, 520, 870, 1070, 1900,
+  // エコメルカリ便
+  730,
+  // かんたんラクマパック（ヤマト）
+  200, 430, 500, 650, 1400, 1500, 2800, 3350,
+  // かんたんラクマパック（日本郵便）
+  150, 175, 380, 445, 700, 800, 1150, 1350,
+  // おてがる配送（ヤマト）
+  // 200, 450, 520, 750, 850, 1050, 1200, 1450, 1700 (重複)
+  // おてがる配送（日本郵便）
+  205,
+  // 0円は送料無料なので標準扱い
+  0,
+])
+
+// 送料が外部発送かどうかを判定
+const isExternalShipping = (cost: number | null): boolean => {
+  if (cost === null || cost === undefined) return false
+  return !STANDARD_SHIPPING_COSTS.has(cost)
+}
+
 type InventoryItem = {
   id: string
   inventory_number: string | null
@@ -2152,7 +2178,11 @@ export default function AllSalesPage() {
                           case 'commission':
                             return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.commission)}</td>
                           case 'shipping_cost':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.shipping_cost)}</td>
+                            return (
+                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs ${isExternalShipping(sale.shipping_cost) ? 'text-blue-600 font-semibold' : 'text-gray-700'}`}>
+                                {formatCurrency(sale.shipping_cost)}
+                              </td>
+                            )
                           case 'other_cost':
                             return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.other_cost)}</td>
                           case 'purchase_price':

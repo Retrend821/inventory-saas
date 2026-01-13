@@ -18,6 +18,7 @@ const shippingCategories = [
   'ネコポス',
   '宅急便コンパクト',
   '宅急便',
+  'エコメルカリ便',
   'ゆうパケットポストmini',
   'ゆうパケットポスト',
   'ゆうパケット',
@@ -48,6 +49,11 @@ const mercariYubinData: ShippingMethod[] = [
   { name: 'ゆうパック 100サイズ', size: '100cm以内', weight: '25kg以内', price: '1,070円', category: 'ゆうパック' },
   { name: 'ゆうパック 120サイズ', size: '120cm以内', weight: '25kg以内', price: '1,200円', category: 'ゆうパック' },
   { name: 'ゆうパック 170サイズ', size: '170cm以内', weight: '25kg以内', price: '1,900円', category: 'ゆうパック' },
+]
+
+// エコメルカリ便のデータ
+const mercariEcoData: ShippingMethod[] = [
+  { name: 'エコメルカリ便', size: '3辺合計170cm以内', weight: '25kg以内', price: '730円', category: 'エコメルカリ便' },
 ]
 
 // かんたんラクマパック（ヤマト）のデータ
@@ -176,12 +182,13 @@ export default function ShippingPage() {
   // 各セクションの表示可否を判定
   const showMercariYamato = selectedCategory === 'すべて' || mercariYamatoData.some(d => d.category === selectedCategory)
   const showMercariYubin = selectedCategory === 'すべて' || mercariYubinData.some(d => d.category === selectedCategory)
+  const showMercariEco = selectedCategory === 'すべて' || mercariEcoData.some(d => d.category === selectedCategory)
   const showRakumaYamato = selectedCategory === 'すべて' || rakumaYamatoData.some(d => d.category === selectedCategory)
   const showRakumaYubin = selectedCategory === 'すべて' || rakumaYubinData.some(d => d.category === selectedCategory)
   const showYahooYamato = selectedCategory === 'すべて' || yahooYamatoData.some(d => d.category === selectedCategory)
   const showYahooYubin = selectedCategory === 'すべて' || yahooYubinData.some(d => d.category === selectedCategory)
 
-  const showMercari = showMercariYamato || showMercariYubin
+  const showMercari = showMercariYamato || showMercariYubin || showMercariEco
   const showRakuma = showRakumaYamato || showRakumaYubin
   const showYahoo = showYahooYamato || showYahooYubin
 
@@ -232,6 +239,17 @@ export default function ShippingPage() {
                   <span className="text-gray-500 text-sm">日本郵便</span>
                 </div>
                 <ShippingTable data={mercariYubinData} selectedCategory={selectedCategory} />
+              </div>
+            )}
+
+            {/* エコメルカリ便 */}
+            {showMercariEco && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg border border-red-200">エコメルカリ便</span>
+                  <span className="text-gray-500 text-sm">全サイズ一律</span>
+                </div>
+                <ShippingTable data={mercariEcoData} selectedCategory={selectedCategory} />
               </div>
             )}
           </section>
