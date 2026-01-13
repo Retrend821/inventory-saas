@@ -51,25 +51,6 @@ export default function Navigation() {
           >
             ダッシュボード
           </Link>
-          <div className="relative" ref={inventoryDropdownRef}>
-            <button
-              onClick={() => {
-                setInventoryOpen(!inventoryOpen)
-                setSummaryOpen(false)
-                setAnalysisOpen(false)
-                setSettingsOpen(false)
-              }}
-              className={pathname === '/' || pathname.startsWith('/inventory') ? activeLinkStyle : baseLinkStyle}
-            >
-              在庫管理
-            </button>
-            {inventoryOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>単品仕入在庫一覧</Link>
-                <Link href="/inventory/bulk" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>まとめ仕入れ在庫一覧</Link>
-              </div>
-            )}
-          </div>
           <div className="relative" ref={summaryDropdownRef}>
             <button
               onClick={() => {
@@ -87,6 +68,25 @@ export default function Navigation() {
                 <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>集計表</Link>
                 <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>実売データ</Link>
                 <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>手入力売上表</Link>
+              </div>
+            )}
+          </div>
+          <div className="relative" ref={inventoryDropdownRef}>
+            <button
+              onClick={() => {
+                setInventoryOpen(!inventoryOpen)
+                setSummaryOpen(false)
+                setAnalysisOpen(false)
+                setSettingsOpen(false)
+              }}
+              className={pathname === '/' || pathname.startsWith('/inventory') ? activeLinkStyle : baseLinkStyle}
+            >
+              在庫管理
+            </button>
+            {inventoryOpen && (
+              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                <Link href="/" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>単品仕入在庫一覧</Link>
+                <Link href="/inventory/bulk" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>まとめ仕入れ在庫一覧</Link>
               </div>
             )}
           </div>
