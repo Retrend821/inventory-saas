@@ -18,6 +18,9 @@ type MonthlyGoal = {
   avg_sale_price_goal: number
   avg_profit_goal: number
   avg_purchase_price_goal: number
+  stock_count_turnover_goal: number
+  cost_turnover_goal: number
+  sales_turnover_goal: number
 }
 
 type InventoryItem = {
@@ -89,6 +92,9 @@ export default function SummaryPage() {
     avg_sale_price_goal: 0,
     avg_profit_goal: 0,
     avg_purchase_price_goal: 0,
+    stock_count_turnover_goal: 0,
+    cost_turnover_goal: 0,
+    sales_turnover_goal: 0,
   })
 
   // 目標値を取得
@@ -128,6 +134,9 @@ export default function SummaryPage() {
         avg_sale_price_goal: 0,
         avg_profit_goal: 0,
         avg_purchase_price_goal: 0,
+        stock_count_turnover_goal: 0,
+        cost_turnover_goal: 0,
+        sales_turnover_goal: 0,
       })
     }
   }, [])
@@ -151,6 +160,9 @@ export default function SummaryPage() {
       avg_sale_price_goal: goalForm.avg_sale_price_goal,
       avg_profit_goal: goalForm.avg_profit_goal,
       avg_purchase_price_goal: goalForm.avg_purchase_price_goal,
+      stock_count_turnover_goal: goalForm.stock_count_turnover_goal,
+      cost_turnover_goal: goalForm.cost_turnover_goal,
+      sales_turnover_goal: goalForm.sales_turnover_goal,
     }
 
     const { data, error } = await supabase
@@ -479,12 +491,12 @@ export default function SummaryPage() {
     const avgStockCount = (prevMonthEndStock.count + currentMonthEndStock.count) / 2
     const avgStockValue = (prevMonthEndStock.value + currentMonthEndStock.value) / 2
 
-    // 在庫数回転率（販売件数 / 平均在庫数）
-    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 100) / 100 : 0
-    // 売上高回転率（売上 / 平均在庫高）
-    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 100) / 100 : 0
-    // 売上原価回転率（売上原価 / 平均在庫高）
-    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 100) / 100 : 0
+    // 在庫数回転率（販売件数 / 平均在庫数）を%表示（小数点1位まで）
+    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 1000) / 10 : 0
+    // 売上高回転率（売上 / 平均在庫高）を%表示（小数点1位まで）
+    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
+    // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
+    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
 
     return {
       soldCount,
@@ -617,12 +629,12 @@ export default function SummaryPage() {
     const avgStockCount = (prevMonthEndStock.count + currentMonthEndStock.count) / 2
     const avgStockValue = (prevMonthEndStock.value + currentMonthEndStock.value) / 2
 
-    // 在庫数回転率（販売件数 / 平均在庫数）
-    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 100) / 100 : 0
-    // 売上高回転率（売上 / 平均在庫高）
-    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 100) / 100 : 0
-    // 売上原価回転率（売上原価 / 平均在庫高）
-    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 100) / 100 : 0
+    // 在庫数回転率（販売件数 / 平均在庫数）を%表示（小数点1位まで）
+    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 1000) / 10 : 0
+    // 売上高回転率（売上 / 平均在庫高）を%表示（小数点1位まで）
+    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
+    // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
+    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
 
     // 着地ペース計算（当月のみ）
     const now = new Date()
@@ -859,18 +871,18 @@ export default function SummaryPage() {
       // 平均在庫（月初と月末の平均）
       const avgStockValue = (beginningStockValue + endingStockValue) / 2
 
-      // 在庫数回転率（販売件数 / 平均在庫数）
+      // 在庫数回転率（販売件数 / 平均在庫数）を%表示（小数点1位まで）
       const avgStockCount = (prevMonthEndStockCount + currentMonthEndStockCount) / 2
-      const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 100) / 100 : 0
+      const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 1000) / 10 : 0
 
-      // 売上高回転率（売上 / 平均在庫高）
-      const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 100) / 100 : 0
+      // 売上高回転率（売上 / 平均在庫高）を%表示（小数点1位まで）
+      const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
 
-      // 売上原価回転率（売上原価 / 平均在庫高）
-      const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 100) / 100 : 0
+      // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
+      const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
 
-      // 総合収益性（利益 / 平均在庫高）
-      const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
+      // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
+      const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
 
       return {
         month: parseInt(month),
@@ -922,10 +934,10 @@ export default function SummaryPage() {
     const avgStockCount = (beginningStockCount + endingStockCount) / 2
     const avgStockValue = (beginningStockValue + endingStockValue) / 2
 
-    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 100) / 100 : 0
-    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 100) / 100 : 0
-    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 100) / 100 : 0
-    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
+    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 1000) / 10 : 0
+    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
+    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
+    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
 
     return {
       prevMonthEndStockCount: beginningStockCount,
@@ -1075,7 +1087,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.sales_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, sales_goal: parseInt(e.target.value) || 0 })}
-                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1109,7 +1121,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.profit_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, profit_goal: parseInt(e.target.value) || 0 })}
-                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1143,7 +1155,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.purchase_total_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, purchase_total_goal: parseInt(e.target.value) || 0 })}
-                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1177,7 +1189,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.profit_rate_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, profit_rate_goal: parseInt(e.target.value) || 0 })}
-                          className="w-20 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1211,7 +1223,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.avg_sale_price_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, avg_sale_price_goal: parseInt(e.target.value) || 0 })}
-                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1245,7 +1257,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.avg_profit_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, avg_profit_goal: parseInt(e.target.value) || 0 })}
-                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1279,7 +1291,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.avg_purchase_price_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, avg_purchase_price_goal: parseInt(e.target.value) || 0 })}
-                          className="w-28 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1313,7 +1325,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.purchase_count_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, purchase_count_goal: parseInt(e.target.value) || 0 })}
-                          className="w-20 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1347,7 +1359,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.listed_count_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, listed_count_goal: parseInt(e.target.value) || 0 })}
-                          className="w-20 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1381,7 +1393,7 @@ export default function SummaryPage() {
                           type="number"
                           value={goalForm.sold_count_goal || ''}
                           onChange={(e) => setGoalForm({ ...goalForm, sold_count_goal: parseInt(e.target.value) || 0 })}
-                          className="w-20 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
@@ -1394,56 +1406,107 @@ export default function SummaryPage() {
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">在庫数回転率</td>
-                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.stockCountTurnover}</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.stockCountTurnover}%</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
-                      {formatDiff(summary.stockCountTurnover, previousMonthSummary?.stockCountTurnover, false, false)}
+                      {formatDiff(summary.stockCountTurnover, previousMonthSummary?.stockCountTurnover, true)}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.stock_count_turnover_goal ? (summary.stockCountTurnover >= monthlyGoal.stock_count_turnover_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.stock_count_turnover_goal ? `${monthlyGoal.stock_count_turnover_goal}%` : '-'}
+                    </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.stockCountTurnover}%</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={goalForm.stock_count_turnover_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, stock_count_turnover_goal: parseFloat(e.target.value) || 0 })}
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.stock_count_turnover_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.stock_count_turnover_goal ? `${monthlyGoal.stock_count_turnover_goal}%` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">売上原価回転率</td>
-                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.costTurnover}</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.costTurnover}%</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
-                      {formatDiff(summary.costTurnover, previousMonthSummary?.costTurnover, false, false)}
+                      {formatDiff(summary.costTurnover, previousMonthSummary?.costTurnover, true)}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.cost_turnover_goal ? (summary.costTurnover >= monthlyGoal.cost_turnover_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.cost_turnover_goal ? `${monthlyGoal.cost_turnover_goal}%` : '-'}
+                    </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.costTurnover}%</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={goalForm.cost_turnover_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, cost_turnover_goal: parseFloat(e.target.value) || 0 })}
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.cost_turnover_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.cost_turnover_goal ? `${monthlyGoal.cost_turnover_goal}%` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">売上高回転率</td>
-                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.salesTurnover}</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.salesTurnover}%</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
-                      {formatDiff(summary.salesTurnover, previousMonthSummary?.salesTurnover, false, false)}
+                      {formatDiff(summary.salesTurnover, previousMonthSummary?.salesTurnover, true)}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.sales_turnover_goal ? (summary.salesTurnover >= monthlyGoal.sales_turnover_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.sales_turnover_goal ? `${monthlyGoal.sales_turnover_goal}%` : '-'}
+                    </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.salesTurnover}%</td>
                   )}
                   {selectedMonth !== 'all' && (
-                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={goalForm.sales_turnover_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, sales_turnover_goal: parseFloat(e.target.value) || 0 })}
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.sales_turnover_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.sales_turnover_goal ? `${monthlyGoal.sales_turnover_goal}%` : '-'}
+                        </span>
+                      )}
+                    </td>
                   )}
                 </tr>
               </tbody>
@@ -1517,7 +1580,7 @@ export default function SummaryPage() {
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">¥{data.totalSales.toLocaleString()}</td>
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.totalProfit.toLocaleString()}</td>
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.profitRate}%</td>
-                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.overallProfitability}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.overallProfitability}%</td>
                       {/* 活動の結果 */}
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.listedCount}</td>
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.soldCount}</td>
@@ -1531,9 +1594,9 @@ export default function SummaryPage() {
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.currentMonthEndStockCount}</td>
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.endingStockValue.toLocaleString()}</td>
                       {/* 効率性 */}
-                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.stockCountTurnover}</td>
-                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.salesTurnover}</td>
-                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.costTurnover}</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.stockCountTurnover}%</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.salesTurnover}%</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.costTurnover}%</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1546,7 +1609,7 @@ export default function SummaryPage() {
                       <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">¥{yearlyTotal.totalSales.toLocaleString()}</td>
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.totalProfit.toLocaleString()}</td>
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.profitRate}%</td>
-                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.overallProfitability}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.overallProfitability}%</td>
                       {/* 活動の結果 */}
                       <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.listedCount}</td>
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.soldCount}</td>
@@ -1560,9 +1623,9 @@ export default function SummaryPage() {
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.currentMonthEndStockCount}</td>
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.endingStockValue.toLocaleString()}</td>
                       {/* 効率性 */}
-                      <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.stockCountTurnover}</td>
-                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.salesTurnover}</td>
-                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.costTurnover}</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.stockCountTurnover}%</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.salesTurnover}%</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.costTurnover}%</td>
                     </tr>
                   </tfoot>
                 )}
