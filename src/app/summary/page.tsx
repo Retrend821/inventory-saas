@@ -1037,7 +1037,7 @@ export default function SummaryPage() {
               >
                 {months.map(month => (
                   <option key={month} value={month}>
-                    {month === 'all' ? '年間' : `${parseInt(month)}月`}
+                    {month === 'all' ? '全月' : `${parseInt(month)}月`}
                   </option>
                 ))}
               </select>

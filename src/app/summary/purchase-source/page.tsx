@@ -205,7 +205,7 @@ export default function PurchaseSourcePage() {
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
-                  年間
+                  全月
                 </button>
               </div>
               {/* 年選択 */}
@@ -216,7 +216,7 @@ export default function PurchaseSourcePage() {
               >
                 {availableYears.length > 0 ? (
                   availableYears.map(year => (
-                    <option key={year} value={year}>{year === 'all' ? '全て' : `${year}年`}</option>
+                    <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
                   ))
                 ) : (
                   <option value={new Date().getFullYear()}>{new Date().getFullYear()}年</option>

@@ -559,7 +559,7 @@ export default function RetailSalesPage() {
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
               >
                 {availableYears.map(year => (
-                  <option key={year} value={year}>{year === 'all' ? '全て' : `${year}年`}</option>
+                  <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
                 ))}
               </select>
             </div>
@@ -572,7 +572,7 @@ export default function RetailSalesPage() {
               >
                 {months.map(month => (
                   <option key={month} value={month}>
-                    {month === 'all' ? '年間' : `${parseInt(month)}月`}
+                    {month === 'all' ? '全月' : `${parseInt(month)}月`}
                   </option>
                 ))}
               </select>
