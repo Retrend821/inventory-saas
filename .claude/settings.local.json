@@ -7,7 +7,9 @@
       "Bash(npm run build:*)",
       "Bash(git push:*)",
       "Bash(node:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npx supabase migration:*)",
+      "Bash(npx supabase:*)"
     ]
   }
 }

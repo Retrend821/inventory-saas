@@ -970,9 +970,11 @@ export default function SummaryPage() {
     const diffColor = diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-500'
 
     if (isPercentage) {
+      // 小数点1位で丸める
+      const roundedDiff = Math.round(diff * 10) / 10
       return (
         <span className={`${diffColor} text-xs`}>
-          {diffSign}{diff}pt
+          {roundedDiff >= 0 ? '+' : ''}{roundedDiff}pt
         </span>
       )
     }
