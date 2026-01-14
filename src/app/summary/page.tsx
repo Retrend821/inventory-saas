@@ -505,8 +505,8 @@ export default function SummaryPage() {
     const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
     // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
-    // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
-    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
+    // 総合収益性（利益 / 平均在庫高）を小数点2位まで
+    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
     // GMRI（粗利益率 × 在庫回転率）= 利益率% × 売上原価回転率
     const gmri = Math.round((profitRate * costTurnover) * 10) / 10
 
@@ -649,8 +649,8 @@ export default function SummaryPage() {
     const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
     // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
-    // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
-    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
+    // 総合収益性（利益 / 平均在庫高）を小数点2位まで
+    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
     // GMRI（粗利益率 × 在庫回転率）= 利益率% × 売上原価回転率
     const gmri = Math.round((profitRate * costTurnover) * 10) / 10
 
@@ -902,8 +902,8 @@ export default function SummaryPage() {
       // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
       const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
 
-      // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
-      const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
+      // 総合収益性（利益 / 平均在庫高）を小数点2位まで
+      const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
 
       return {
         month: parseInt(month),
@@ -958,7 +958,7 @@ export default function SummaryPage() {
     const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 1000) / 10 : 0
     const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
-    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
+    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
 
     return {
       prevMonthEndStockCount: beginningStockCount,
@@ -1534,7 +1534,7 @@ export default function SummaryPage() {
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">総合収益性</td>
-                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.overallProfitability}%</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.overallProfitability.toFixed(2)}</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
                       {formatDiff(summary.overallProfitability, previousMonthSummary?.overallProfitability, true)}
@@ -1542,11 +1542,11 @@ export default function SummaryPage() {
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
                     <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.overall_profitability_goal ? (summary.overallProfitability >= monthlyGoal.overall_profitability_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
-                      {monthlyGoal?.overall_profitability_goal ? `${monthlyGoal.overall_profitability_goal}%` : '-'}
+                      {monthlyGoal?.overall_profitability_goal ? `${monthlyGoal.overall_profitability_goal}` : '-'}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.overallProfitability}%</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.overallProfitability.toFixed(2)}</td>
                   )}
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right">
@@ -1561,7 +1561,7 @@ export default function SummaryPage() {
                         />
                       ) : (
                         <span className={`tabular-nums ${monthlyGoal?.overall_profitability_goal ? 'text-green-600' : 'text-gray-400'}`}>
-                          {monthlyGoal?.overall_profitability_goal ? `${monthlyGoal.overall_profitability_goal}%` : '-'}
+                          {monthlyGoal?.overall_profitability_goal ? `${monthlyGoal.overall_profitability_goal}` : '-'}
                         </span>
                       )}
                     </td>
@@ -1689,7 +1689,7 @@ export default function SummaryPage() {
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">¥{data.totalSales.toLocaleString()}</td>
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">¥{data.totalProfit.toLocaleString()}</td>
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.profitRate}%</td>
-                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.overallProfitability}%</td>
+                      <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.overallProfitability.toFixed(2)}</td>
                       {/* 活動の結果 */}
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums border-l border-gray-200">{data.listedCount}</td>
                       <td className="px-4 py-3.5 text-center text-gray-700 tabular-nums">{data.soldCount}</td>
@@ -1718,7 +1718,7 @@ export default function SummaryPage() {
                       <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">¥{yearlyTotal.totalSales.toLocaleString()}</td>
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">¥{yearlyTotal.totalProfit.toLocaleString()}</td>
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.profitRate}%</td>
-                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.overallProfitability}%</td>
+                      <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.overallProfitability.toFixed(2)}</td>
                       {/* 活動の結果 */}
                       <td className="px-4 py-4 text-center tabular-nums font-semibold border-l border-slate-600">{yearlyTotal.listedCount}</td>
                       <td className="px-4 py-4 text-center tabular-nums font-semibold">{yearlyTotal.soldCount}</td>
