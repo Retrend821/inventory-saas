@@ -507,8 +507,8 @@ export default function SummaryPage() {
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
     // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
     const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
-    // GMROI（粗利益 / 平均在庫高）を小数点2位まで
-    const gmroi = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
+    // GMROI（粗利益率 × 在庫回転率）= (利益率/100) × (売上原価回転率/100) を小数点2位まで
+    const gmroi = Math.round((profitRate / 100) * (costTurnover / 100) * 100) / 100
 
     return {
       soldCount,
@@ -651,8 +651,8 @@ export default function SummaryPage() {
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
     // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
     const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
-    // GMROI（粗利益 / 平均在庫高）を小数点2位まで
-    const gmroi = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
+    // GMROI（粗利益率 × 在庫回転率）= (利益率/100) × (売上原価回転率/100) を小数点2位まで
+    const gmroi = Math.round((profitRate / 100) * (costTurnover / 100) * 100) / 100
 
     // 着地ペース計算（当月のみ）
     const now = new Date()
