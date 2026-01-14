@@ -167,6 +167,10 @@ export default function AllSalesPage() {
   const [historyPage, setHistoryPage] = useState(1)
   const historyPageSize = 100
 
+  // 列フィルター用state
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null)
+
   // 列の設定
   const defaultColumns = [
     { key: 'inventory_number', label: '管理番号', width: 'w-16' },
@@ -297,7 +301,7 @@ export default function AllSalesPage() {
   // フィルター・ソート変更時にページをリセット
   useEffect(() => {
     setHistoryPage(1)
-  }, [selectedYear, selectedMonth, filterType, salesTypeFilter, searchQuery, historySortBy])
+  }, [selectedYear, selectedMonth, filterType, salesTypeFilter, searchQuery, historySortBy, columnFilters])
 
   // まとめ仕入れのID→データのマップ
   const bulkPurchaseMap = useMemo(() => {
@@ -477,6 +481,23 @@ export default function AllSalesPage() {
     return new Set(platforms.filter(p => p.sales_type === 'toB').map(p => p.name))
   }, [platforms])
 
+  // フィルター可能な列とそのユニーク値を抽出
+  const filterableColumns = ['category', 'brand_name', 'purchase_source', 'sale_destination']
+  const columnUniqueValues = useMemo(() => {
+    const values: Record<string, string[]> = {}
+    filterableColumns.forEach(col => {
+      const uniqueSet = new Set<string>()
+      unifiedSales.forEach(sale => {
+        const value = sale[col as keyof UnifiedSale]
+        if (value && typeof value === 'string') {
+          uniqueSet.add(value)
+        }
+      })
+      values[col] = Array.from(uniqueSet).sort((a, b) => a.localeCompare(b, 'ja'))
+    })
+    return values
+  }, [unifiedSales])
+
   // フィルタリングされた売上データ
   const filteredSales = useMemo(() => {
     if (!selectedYear || !selectedMonth) return []
@@ -521,7 +542,19 @@ export default function AllSalesPage() {
           )
         }
 
-        return dateMatch && typeMatch && salesTypeMatch && searchMatch
+        // 列フィルター
+        let columnFilterMatch = true
+        for (const [key, value] of Object.entries(columnFilters)) {
+          if (value && value !== '') {
+            const saleValue = sale[key as keyof UnifiedSale]
+            if (saleValue !== value) {
+              columnFilterMatch = false
+              break
+            }
+          }
+        }
+
+        return dateMatch && typeMatch && salesTypeMatch && searchMatch && columnFilterMatch
       })
       .sort((a, b) => {
         // sale_dateがnullの場合は最後にソート
@@ -530,7 +563,7 @@ export default function AllSalesPage() {
         if (!b.sale_date) return -1
         return b.sale_date.localeCompare(a.sale_date)
       })
-  }, [unifiedSales, selectedYear, selectedMonth, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms, searchQuery])
+  }, [unifiedSales, selectedYear, selectedMonth, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms, searchQuery, columnFilters])
 
   // ヘルパー関数
   const isValidDate = (dateStr: string | null): boolean => {
@@ -1037,12 +1070,46 @@ export default function AllSalesPage() {
           /* 販売データテーブル */
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-600 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">
-                {selectedYear === 'all' ? '全年' : `${selectedYear}年${selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}`}の売上明細
-                {salesTypeFilter !== 'all' && ` [${salesTypeFilter === 'toC' ? '小売' : '業販'}]`}
-                （{filteredSales.reduce((sum, s) => sum + s.quantity, 0)}点）
-                {filterType !== 'all' && ` - ${filterType === 'single' ? '単品' : filterType === 'bulk' ? 'まとめ' : '手入力'}`}
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-base font-semibold text-white">
+                  {selectedYear === 'all' ? '全年' : `${selectedYear}年${selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}`}の売上明細
+                  {salesTypeFilter !== 'all' && ` [${salesTypeFilter === 'toC' ? '小売' : '業販'}]`}
+                  （{filteredSales.reduce((sum, s) => sum + s.quantity, 0)}点）
+                  {filterType !== 'all' && ` - ${filterType === 'single' ? '単品' : filterType === 'bulk' ? 'まとめ' : '手入力'}`}
+                </h2>
+                {/* 有効なフィルターのバッジ表示 */}
+                {Object.entries(columnFilters).filter(([_, v]) => v && v !== '').length > 0 && (
+                  <div className="flex items-center gap-1">
+                    {Object.entries(columnFilters)
+                      .filter(([_, v]) => v && v !== '')
+                      .map(([key, value]) => {
+                        const colLabel = defaultColumns.find(c => c.key === key)?.label || key
+                        return (
+                          <span
+                            key={key}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"
+                          >
+                            {colLabel}: {value}
+                            <button
+                              onClick={() => setColumnFilters(prev => ({ ...prev, [key]: '' }))}
+                              className="hover:text-blue-900"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </span>
+                        )
+                      })}
+                    <button
+                      onClick={() => setColumnFilters({})}
+                      className="text-xs text-white hover:text-gray-200 underline ml-1"
+                    >
+                      全解除
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-1">
                 <button
                   onClick={() => setHistorySortBy('date')}
@@ -1090,20 +1157,69 @@ export default function AllSalesPage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50">
-                    {visibleColumns.map(col => (
-                      <th
-                        key={col.key}
-                        className={`px-2 py-3 text-xs font-semibold text-gray-600 bg-gray-50 whitespace-nowrap ${
-                          ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'turnover_days'].includes(col.key)
-                            ? 'text-right'
-                            : ['purchase_date', 'listing_date', 'sale_date'].includes(col.key)
-                            ? 'text-center'
-                            : 'text-left'
-                        }`}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
+                    {visibleColumns.map(col => {
+                      const isFilterable = filterableColumns.includes(col.key)
+                      const hasFilter = columnFilters[col.key] && columnFilters[col.key] !== ''
+                      return (
+                        <th
+                          key={col.key}
+                          className={`px-2 py-3 text-xs font-semibold text-gray-600 bg-gray-50 whitespace-nowrap relative ${
+                            ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'turnover_days'].includes(col.key)
+                              ? 'text-right'
+                              : ['purchase_date', 'listing_date', 'sale_date'].includes(col.key)
+                              ? 'text-center'
+                              : 'text-left'
+                          }`}
+                        >
+                          {isFilterable ? (
+                            <div className="inline-flex items-center gap-1">
+                              <span>{col.label}</span>
+                              <button
+                                onClick={() => setOpenFilterColumn(openFilterColumn === col.key ? null : col.key)}
+                                className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${hasFilter ? 'text-blue-600' : 'text-gray-400'}`}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                </svg>
+                              </button>
+                              {openFilterColumn === col.key && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setOpenFilterColumn(null)}
+                                  />
+                                  <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[150px] max-h-[300px] overflow-y-auto">
+                                    <div
+                                      onClick={() => {
+                                        setColumnFilters(prev => ({ ...prev, [col.key]: '' }))
+                                        setOpenFilterColumn(null)
+                                      }}
+                                      className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${!columnFilters[col.key] ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+                                    >
+                                      すべて
+                                    </div>
+                                    {columnUniqueValues[col.key]?.map(value => (
+                                      <div
+                                        key={value}
+                                        onClick={() => {
+                                          setColumnFilters(prev => ({ ...prev, [col.key]: value }))
+                                          setOpenFilterColumn(null)
+                                        }}
+                                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${columnFilters[col.key] === value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+                                      >
+                                        {value}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            col.label
+                          )}
+                        </th>
+                      )
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
