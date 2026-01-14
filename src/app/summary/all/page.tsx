@@ -482,13 +482,16 @@ export default function AllSalesPage() {
   }, [platforms])
 
   // フィルター可能な列とそのユニーク値を抽出
-  const filterableColumns = ['category', 'brand_name', 'purchase_source', 'sale_destination', 'shipping_cost']
+  const filterableColumns = ['category', 'brand_name', 'purchase_source', 'sale_destination', 'shipping_cost', 'profit', 'profit_rate']
   const columnUniqueValues = useMemo(() => {
     const values: Record<string, string[]> = {}
     filterableColumns.forEach(col => {
       if (col === 'shipping_cost') {
         // 送料は外部発送/標準送料の2択
         values[col] = ['外部発送', '標準送料']
+      } else if (col === 'profit' || col === 'profit_rate') {
+        // 利益・利益率は黒字/赤字の2択
+        values[col] = ['黒字', '赤字']
       } else {
         const uniqueSet = new Set<string>()
         unifiedSales.forEach(sale => {
@@ -559,6 +562,26 @@ export default function AllSalesPage() {
                 break
               }
               if (value === '標準送料' && isExternal) {
+                columnFilterMatch = false
+                break
+              }
+            } else if (key === 'profit') {
+              // 利益は黒字/赤字で判定
+              if (value === '黒字' && sale.profit < 0) {
+                columnFilterMatch = false
+                break
+              }
+              if (value === '赤字' && sale.profit >= 0) {
+                columnFilterMatch = false
+                break
+              }
+            } else if (key === 'profit_rate') {
+              // 利益率は黒字/赤字で判定
+              if (value === '黒字' && sale.profit_rate < 0) {
+                columnFilterMatch = false
+                break
+              }
+              if (value === '赤字' && sale.profit_rate >= 0) {
                 columnFilterMatch = false
                 break
               }
