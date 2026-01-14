@@ -482,18 +482,23 @@ export default function AllSalesPage() {
   }, [platforms])
 
   // フィルター可能な列とそのユニーク値を抽出
-  const filterableColumns = ['category', 'brand_name', 'purchase_source', 'sale_destination']
+  const filterableColumns = ['category', 'brand_name', 'purchase_source', 'sale_destination', 'shipping_cost']
   const columnUniqueValues = useMemo(() => {
     const values: Record<string, string[]> = {}
     filterableColumns.forEach(col => {
-      const uniqueSet = new Set<string>()
-      unifiedSales.forEach(sale => {
-        const value = sale[col as keyof UnifiedSale]
-        if (value && typeof value === 'string') {
-          uniqueSet.add(value)
-        }
-      })
-      values[col] = Array.from(uniqueSet).sort((a, b) => a.localeCompare(b, 'ja'))
+      if (col === 'shipping_cost') {
+        // 送料は外部発送/標準送料の2択
+        values[col] = ['外部発送', '標準送料']
+      } else {
+        const uniqueSet = new Set<string>()
+        unifiedSales.forEach(sale => {
+          const value = sale[col as keyof UnifiedSale]
+          if (value && typeof value === 'string') {
+            uniqueSet.add(value)
+          }
+        })
+        values[col] = Array.from(uniqueSet).sort((a, b) => a.localeCompare(b, 'ja'))
+      }
     })
     return values
   }, [unifiedSales])
@@ -546,10 +551,23 @@ export default function AllSalesPage() {
         let columnFilterMatch = true
         for (const [key, value] of Object.entries(columnFilters)) {
           if (value && value !== '') {
-            const saleValue = sale[key as keyof UnifiedSale]
-            if (saleValue !== value) {
-              columnFilterMatch = false
-              break
+            if (key === 'shipping_cost') {
+              // 送料は外部発送/標準送料で判定
+              const isExternal = isExternalShipping(sale.shipping_cost)
+              if (value === '外部発送' && !isExternal) {
+                columnFilterMatch = false
+                break
+              }
+              if (value === '標準送料' && isExternal) {
+                columnFilterMatch = false
+                break
+              }
+            } else {
+              const saleValue = sale[key as keyof UnifiedSale]
+              if (saleValue !== value) {
+                columnFilterMatch = false
+                break
+              }
             }
           }
         }
