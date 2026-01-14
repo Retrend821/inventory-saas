@@ -21,6 +21,8 @@ type MonthlyGoal = {
   stock_count_turnover_goal: number
   cost_turnover_goal: number
   sales_turnover_goal: number
+  overall_profitability_goal: number
+  gmri_goal: number
 }
 
 type InventoryItem = {
@@ -95,6 +97,8 @@ export default function SummaryPage() {
     stock_count_turnover_goal: 0,
     cost_turnover_goal: 0,
     sales_turnover_goal: 0,
+    overall_profitability_goal: 0,
+    gmri_goal: 0,
   })
 
   // 目標値を取得
@@ -137,6 +141,8 @@ export default function SummaryPage() {
         stock_count_turnover_goal: 0,
         cost_turnover_goal: 0,
         sales_turnover_goal: 0,
+        overall_profitability_goal: 0,
+        gmri_goal: 0,
       })
     }
   }, [])
@@ -163,6 +169,8 @@ export default function SummaryPage() {
       stock_count_turnover_goal: goalForm.stock_count_turnover_goal,
       cost_turnover_goal: goalForm.cost_turnover_goal,
       sales_turnover_goal: goalForm.sales_turnover_goal,
+      overall_profitability_goal: goalForm.overall_profitability_goal,
+      gmri_goal: goalForm.gmri_goal,
     }
 
     const { data, error } = await supabase
@@ -497,6 +505,10 @@ export default function SummaryPage() {
     const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
     // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
+    // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
+    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
+    // GMRI（粗利益率 × 在庫回転率）= 利益率% × 売上原価回転率
+    const gmri = Math.round((profitRate * costTurnover) * 10) / 10
 
     return {
       soldCount,
@@ -512,6 +524,8 @@ export default function SummaryPage() {
       stockCountTurnover,
       salesTurnover,
       costTurnover,
+      overallProfitability,
+      gmri,
     }
   }, [inventory, manualSales, getEndOfMonthStock, getPrevMonthEndStock])
 
@@ -635,6 +649,10 @@ export default function SummaryPage() {
     const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 1000) / 10 : 0
     // 売上原価回転率（売上原価 / 平均在庫高）を%表示（小数点1位まで）
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
+    // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
+    const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
+    // GMRI（粗利益率 × 在庫回転率）= 利益率% × 売上原価回転率
+    const gmri = Math.round((profitRate * costTurnover) * 10) / 10
 
     // 着地ペース計算（当月のみ）
     const now = new Date()
@@ -676,6 +694,9 @@ export default function SummaryPage() {
       stockCountTurnover,
       salesTurnover,
       costTurnover,
+      overallProfitability,
+      gmri,
+      currentStockValue: currentMonthEndStock.value,
       isCurrentMonth,
       progressRatio,
       projectedSales,
@@ -1509,6 +1530,92 @@ export default function SummaryPage() {
                         </span>
                       )}
                     </td>
+                  )}
+                </tr>
+                <tr className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-3.5 text-gray-600 font-medium">総合収益性</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.overallProfitability}%</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.overallProfitability, previousMonthSummary?.overallProfitability, true)}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.overall_profitability_goal ? (summary.overallProfitability >= monthlyGoal.overall_profitability_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.overall_profitability_goal ? `${monthlyGoal.overall_profitability_goal}%` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.overallProfitability}%</td>
+                  )}
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={goalForm.overall_profitability_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, overall_profitability_goal: parseFloat(e.target.value) || 0 })}
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.overall_profitability_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.overall_profitability_goal ? `${monthlyGoal.overall_profitability_goal}%` : '-'}
+                        </span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+                <tr className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-3.5 text-gray-600 font-medium">GMRI</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.gmri}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.gmri, previousMonthSummary?.gmri, false, false)}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.gmri_goal ? (summary.gmri >= monthlyGoal.gmri_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.gmri_goal ? `${monthlyGoal.gmri_goal}` : '-'}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.gmri}</td>
+                  )}
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right">
+                      {isEditingGoal ? (
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={goalForm.gmri_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, gmri_goal: parseFloat(e.target.value) || 0 })}
+                          className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className={`tabular-nums ${monthlyGoal?.gmri_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.gmri_goal ? `${monthlyGoal.gmri_goal}` : '-'}
+                        </span>
+                      )}
+                    </td>
+                  )}
+                </tr>
+                <tr className="hover:bg-gray-50/50 transition-colors bg-blue-50">
+                  <td className="px-6 py-3.5 text-gray-600 font-medium">現時点の在庫額</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums font-semibold">¥{summary.currentStockValue.toLocaleString()}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
                   )}
                 </tr>
               </tbody>
