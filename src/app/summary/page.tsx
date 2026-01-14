@@ -982,7 +982,7 @@ export default function SummaryPage() {
   }, [monthlyData])
 
   // 前月比表示用のヘルパー関数
-  const formatDiff = (current: number, previous: number | undefined, isPercentage: boolean = false, isCurrency: boolean = true) => {
+  const formatDiff = (current: number, previous: number | undefined, isPercentage: boolean = false, isCurrency: boolean = true, decimals: number = 0) => {
     if (previous === undefined || previous === null) return null
     const diff = current - previous
     const percentChange = previous !== 0 ? Math.round((diff / previous) * 100) : (diff !== 0 ? 100 : 0)
@@ -996,6 +996,16 @@ export default function SummaryPage() {
       return (
         <span className={`${diffColor} text-xs`}>
           {roundedDiff >= 0 ? '+' : ''}{roundedDiff}pt
+        </span>
+      )
+    }
+
+    // 小数点指定がある場合
+    if (decimals > 0) {
+      const roundedDiff = Math.round(diff * Math.pow(10, decimals)) / Math.pow(10, decimals)
+      return (
+        <span className={`${diffColor} text-xs`}>
+          {roundedDiff >= 0 ? '+' : ''}{roundedDiff.toFixed(decimals)}
         </span>
       )
     }
@@ -1572,7 +1582,7 @@ export default function SummaryPage() {
                   <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.gmroi.toFixed(2)}</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
-                      {formatDiff(summary.gmroi, previousMonthSummary?.gmroi, false, false)}
+                      {formatDiff(summary.gmroi, previousMonthSummary?.gmroi, false, false, 2)}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
