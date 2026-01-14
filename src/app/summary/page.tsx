@@ -22,7 +22,7 @@ type MonthlyGoal = {
   cost_turnover_goal: number
   sales_turnover_goal: number
   overall_profitability_goal: number
-  gmri_goal: number
+  gmroi_goal: number
 }
 
 type InventoryItem = {
@@ -98,7 +98,7 @@ export default function SummaryPage() {
     cost_turnover_goal: 0,
     sales_turnover_goal: 0,
     overall_profitability_goal: 0,
-    gmri_goal: 0,
+    gmroi_goal: 0,
   })
 
   // 目標値を取得
@@ -142,7 +142,7 @@ export default function SummaryPage() {
         cost_turnover_goal: 0,
         sales_turnover_goal: 0,
         overall_profitability_goal: 0,
-        gmri_goal: 0,
+        gmroi_goal: 0,
       })
     }
   }, [])
@@ -170,7 +170,7 @@ export default function SummaryPage() {
       cost_turnover_goal: goalForm.cost_turnover_goal,
       sales_turnover_goal: goalForm.sales_turnover_goal,
       overall_profitability_goal: goalForm.overall_profitability_goal,
-      gmri_goal: goalForm.gmri_goal,
+      gmroi_goal: goalForm.gmroi_goal,
     }
 
     const { data, error } = await supabase
@@ -507,8 +507,8 @@ export default function SummaryPage() {
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
     // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
     const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
-    // GMRI（粗利益率 × 在庫回転率）= 利益率% × 売上原価回転率 を小数点2位まで
-    const gmri = Math.round((profitRate * costTurnover) * 100) / 100
+    // GMROI（粗利益 / 平均在庫高）を小数点2位まで
+    const gmroi = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
 
     return {
       soldCount,
@@ -525,7 +525,7 @@ export default function SummaryPage() {
       salesTurnover,
       costTurnover,
       overallProfitability,
-      gmri,
+      gmroi,
     }
   }, [inventory, manualSales, getEndOfMonthStock, getPrevMonthEndStock])
 
@@ -651,8 +651,8 @@ export default function SummaryPage() {
     const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 1000) / 10 : 0
     // 総合収益性（利益 / 平均在庫高）を%表示（小数点1位まで）
     const overallProfitability = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 1000) / 10 : 0
-    // GMRI（粗利益率 × 在庫回転率）= 利益率% × 売上原価回転率 を小数点2位まで
-    const gmri = Math.round((profitRate * costTurnover) * 100) / 100
+    // GMROI（粗利益 / 平均在庫高）を小数点2位まで
+    const gmroi = avgStockValue > 0 ? Math.round((totalProfit / avgStockValue) * 100) / 100 : 0
 
     // 着地ペース計算（当月のみ）
     const now = new Date()
@@ -695,7 +695,7 @@ export default function SummaryPage() {
       salesTurnover,
       costTurnover,
       overallProfitability,
-      gmri,
+      gmroi,
       currentStockValue: currentMonthEndStock.value,
       isCurrentMonth,
       progressRatio,
@@ -1568,20 +1568,20 @@ export default function SummaryPage() {
                   )}
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-3.5 text-gray-600 font-medium">GMRI</td>
-                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.gmri.toFixed(2)}</td>
+                  <td className="px-6 py-3.5 text-gray-600 font-medium">GMROI</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.gmroi.toFixed(2)}</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
-                      {formatDiff(summary.gmri, previousMonthSummary?.gmri, false, false)}
+                      {formatDiff(summary.gmroi, previousMonthSummary?.gmroi, false, false)}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.gmri_goal ? (summary.gmri >= monthlyGoal.gmri_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
-                      {monthlyGoal?.gmri_goal ? `${monthlyGoal.gmri_goal}` : '-'}
+                    <td className={`px-6 py-3.5 text-right tabular-nums ${monthlyGoal?.gmroi_goal ? (summary.gmroi >= monthlyGoal.gmroi_goal ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                      {monthlyGoal?.gmroi_goal ? `${monthlyGoal.gmroi_goal}` : '-'}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
-                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.gmri.toFixed(2)}</td>
+                    <td className="px-6 py-3.5 text-right text-blue-600 tabular-nums">{summary.gmroi.toFixed(2)}</td>
                   )}
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right">
@@ -1589,14 +1589,14 @@ export default function SummaryPage() {
                         <input
                           type="number"
                           step="0.1"
-                          value={goalForm.gmri_goal || ''}
-                          onChange={(e) => setGoalForm({ ...goalForm, gmri_goal: parseFloat(e.target.value) || 0 })}
+                          value={goalForm.gmroi_goal || ''}
+                          onChange={(e) => setGoalForm({ ...goalForm, gmroi_goal: parseFloat(e.target.value) || 0 })}
                           className="w-24 px-2 py-1 text-right border border-gray-300 rounded text-sm"
                           placeholder="0"
                         />
                       ) : (
-                        <span className={`tabular-nums ${monthlyGoal?.gmri_goal ? 'text-green-600' : 'text-gray-400'}`}>
-                          {monthlyGoal?.gmri_goal ? `${monthlyGoal.gmri_goal}` : '-'}
+                        <span className={`tabular-nums ${monthlyGoal?.gmroi_goal ? 'text-green-600' : 'text-gray-400'}`}>
+                          {monthlyGoal?.gmroi_goal ? `${monthlyGoal.gmroi_goal}` : '-'}
                         </span>
                       )}
                     </td>
