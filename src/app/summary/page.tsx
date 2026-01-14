@@ -318,6 +318,75 @@ export default function SummaryPage() {
     return dateStr.substring(0, 10).replace(/\//g, '-')
   }
 
+  // 月末在庫を計算するためのヘルパー関数（単品のみ）
+  const getEndOfMonthSingleStock = useCallback((year: string, month: string) => {
+    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+
+    return inventory.filter(item => {
+      const purchaseDate = item.purchase_date
+      const saleDate = item.sale_date
+      if (!isValidDate(purchaseDate)) return false
+      const normalizedPurchase = normalizeDate(purchaseDate!)
+      if (normalizedPurchase > endDate) return false
+      if (item.sale_destination === '返品') return false
+      if (!saleDate) return true
+      if (isValidDate(saleDate)) {
+        const normalizedSale = normalizeDate(saleDate!)
+        return normalizedSale > endDate
+      }
+      return false
+    })
+  }, [inventory])
+
+  // まとめ仕入れの月末在庫を計算（数量と金額を返す）
+  const getBulkEndOfMonthStock = useCallback((year: string, month: string) => {
+    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+
+    let totalCount = 0
+    let totalValue = 0
+
+    bulkPurchases.forEach(bp => {
+      if (!bp.purchase_date || normalizeDate(bp.purchase_date) > endDate) return
+      const soldQuantity = bulkSales
+        .filter(sale =>
+          sale.bulk_purchase_id === bp.id &&
+          sale.sale_date &&
+          normalizeDate(sale.sale_date) <= endDate
+        )
+        .reduce((sum, sale) => sum + sale.quantity, 0)
+      const remainingQuantity = bp.total_quantity - soldQuantity
+      if (remainingQuantity > 0) {
+        totalCount += remainingQuantity
+        const unitCost = bp.total_quantity > 0 ? bp.total_amount / bp.total_quantity : 0
+        totalValue += unitCost * remainingQuantity
+      }
+    })
+
+    return { count: totalCount, value: Math.round(totalValue) }
+  }, [bulkPurchases, bulkSales])
+
+  // 月末在庫（単品＋まとめ）
+  const getEndOfMonthStock = useCallback((year: string, month: string) => {
+    const singleStock = getEndOfMonthSingleStock(year, month)
+    const bulkStock = getBulkEndOfMonthStock(year, month)
+    return {
+      count: singleStock.length + bulkStock.count,
+      value: singleStock.reduce((sum, item) => sum + (item.purchase_total || 0), 0) + bulkStock.value
+    }
+  }, [getEndOfMonthSingleStock, getBulkEndOfMonthStock])
+
+  // 前月末在庫を取得する関数
+  const getPrevMonthEndStock = useCallback((year: string, month: string) => {
+    const monthNum = parseInt(month)
+    if (monthNum === 1) {
+      return getEndOfMonthStock((parseInt(year) - 1).toString(), '12')
+    } else {
+      return getEndOfMonthStock(year, (monthNum - 1).toString().padStart(2, '0'))
+    }
+  }, [getEndOfMonthStock])
+
   // 指定年月の集計を計算するヘルパー関数
   const calculateSummaryForMonth = useCallback((year: string, month: string) => {
     const isYearly = month === 'all'
@@ -401,6 +470,22 @@ export default function SummaryPage() {
     // 仕入単価（仕入総額 / 販売件数）
     const avgPurchasePrice = soldCount > 0 ? Math.round(totalPurchase / soldCount) : 0
 
+    // 売上原価（売却商品の仕入総額）
+    const costOfGoodsSold = totalPurchase
+
+    // 回転率計算用の在庫データ
+    const prevMonthEndStock = getPrevMonthEndStock(year, month)
+    const currentMonthEndStock = getEndOfMonthStock(year, month)
+    const avgStockCount = (prevMonthEndStock.count + currentMonthEndStock.count) / 2
+    const avgStockValue = (prevMonthEndStock.value + currentMonthEndStock.value) / 2
+
+    // 在庫数回転率（販売件数 / 平均在庫数）
+    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 100) / 100 : 0
+    // 売上高回転率（売上 / 平均在庫高）
+    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 100) / 100 : 0
+    // 売上原価回転率（売上原価 / 平均在庫高）
+    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 100) / 100 : 0
+
     return {
       soldCount,
       purchasedCount,
@@ -412,8 +497,11 @@ export default function SummaryPage() {
       avgSalePrice,
       avgProfit,
       avgPurchasePrice,
+      stockCountTurnover,
+      salesTurnover,
+      costTurnover,
     }
-  }, [inventory, manualSales])
+  }, [inventory, manualSales, getEndOfMonthStock, getPrevMonthEndStock])
 
   // 前月の年月を取得
   const getPreviousMonth = (year: string, month: string): { year: string, month: string } => {
@@ -520,6 +608,22 @@ export default function SummaryPage() {
     // 仕入単価（仕入総額 / 販売件数）
     const avgPurchasePrice = soldCount > 0 ? Math.round(totalPurchase / soldCount) : 0
 
+    // 売上原価（売却商品の仕入総額）
+    const costOfGoodsSold = totalPurchase
+
+    // 回転率計算用の在庫データ
+    const prevMonthEndStock = getPrevMonthEndStock(selectedYear, selectedMonth)
+    const currentMonthEndStock = getEndOfMonthStock(selectedYear, selectedMonth)
+    const avgStockCount = (prevMonthEndStock.count + currentMonthEndStock.count) / 2
+    const avgStockValue = (prevMonthEndStock.value + currentMonthEndStock.value) / 2
+
+    // 在庫数回転率（販売件数 / 平均在庫数）
+    const stockCountTurnover = avgStockCount > 0 ? Math.round((soldCount / avgStockCount) * 100) / 100 : 0
+    // 売上高回転率（売上 / 平均在庫高）
+    const salesTurnover = avgStockValue > 0 ? Math.round((totalSales / avgStockValue) * 100) / 100 : 0
+    // 売上原価回転率（売上原価 / 平均在庫高）
+    const costTurnover = avgStockValue > 0 ? Math.round((costOfGoodsSold / avgStockValue) * 100) / 100 : 0
+
     // 着地ペース計算（当月のみ）
     const now = new Date()
     const currentYear = now.getFullYear()
@@ -557,6 +661,9 @@ export default function SummaryPage() {
       avgSalePrice,
       avgProfit,
       avgPurchasePrice,
+      stockCountTurnover,
+      salesTurnover,
+      costTurnover,
       isCurrentMonth,
       progressRatio,
       projectedSales,
@@ -565,7 +672,7 @@ export default function SummaryPage() {
       projectedPurchasedCount,
       projectedListedCount,
     }
-  }, [inventory, manualSales, selectedYear, selectedMonth])
+  }, [inventory, manualSales, selectedYear, selectedMonth, getEndOfMonthStock, getPrevMonthEndStock])
 
   // 前月の集計データ（前月比較用）
   const previousMonthSummary = useMemo(() => {
@@ -1283,6 +1390,60 @@ export default function SummaryPage() {
                         </span>
                       )}
                     </td>
+                  )}
+                </tr>
+                <tr className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-3.5 text-gray-600 font-medium">在庫数回転率</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.stockCountTurnover}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.stockCountTurnover, previousMonthSummary?.stockCountTurnover, false, false)}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                </tr>
+                <tr className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-3.5 text-gray-600 font-medium">売上原価回転率</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.costTurnover}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.costTurnover, previousMonthSummary?.costTurnover, false, false)}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                </tr>
+                <tr className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-3.5 text-gray-600 font-medium">売上高回転率</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">{summary.salesTurnover}</td>
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right tabular-nums">
+                      {formatDiff(summary.salesTurnover, previousMonthSummary?.salesTurnover, false, false)}
+                    </td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && summary.isCurrentMonth && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
+                  )}
+                  {selectedMonth !== 'all' && (
+                    <td className="px-6 py-3.5 text-right text-gray-400">-</td>
                   )}
                 </tr>
               </tbody>
