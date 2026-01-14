@@ -1038,7 +1038,7 @@ export default function AllSalesPage() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-600 flex items-center justify-between">
               <h2 className="text-base font-semibold text-white">
-                {selectedYear === 'all' ? '全期間' : `${selectedYear}年${selectedMonth === 'all' ? '間' : `${parseInt(selectedMonth)}月`}`}の売上明細
+                {selectedYear === 'all' ? '全年' : `${selectedYear}年${selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}`}の売上明細
                 {salesTypeFilter !== 'all' && ` [${salesTypeFilter === 'toC' ? '小売' : '業販'}]`}
                 （{filteredSales.reduce((sum, s) => sum + s.quantity, 0)}点）
                 {filterType !== 'all' && ` - ${filterType === 'single' ? '単品' : filterType === 'bulk' ? 'まとめ' : '手入力'}`}

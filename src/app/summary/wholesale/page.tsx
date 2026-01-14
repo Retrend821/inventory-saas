@@ -786,7 +786,7 @@ export default function WholesaleSalesPage() {
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <div className="px-6 py-4 bg-slate-600">
                     <h2 className="text-base font-semibold text-white">
-                      {selectedYear}年{selectedMonth === 'all' ? '間' : `${parseInt(selectedMonth)}月`}の業販販売
+                      {selectedYear}年{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の業販販売
                     </h2>
                   </div>
                   <table className="w-full text-sm">
@@ -1104,7 +1104,7 @@ export default function WholesaleSalesPage() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-600">
               <h2 className="text-base font-semibold text-white">
-                {selectedYear}年{selectedMonth === 'all' ? '間' : `${parseInt(selectedMonth)}月`}の販売履歴（{filteredSoldItems.length}件）
+                {selectedYear}年{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の販売履歴（{filteredSoldItems.length}件）
               </h2>
             </div>
             <div className="overflow-x-auto">

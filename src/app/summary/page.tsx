@@ -1054,7 +1054,7 @@ export default function SummaryPage() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-800 flex items-center justify-between">
               <h2 className="text-base font-semibold text-white">
-                {selectedYear}年{selectedMonth === 'all' ? '間' : `${parseInt(selectedMonth)}月`}の集計
+                {selectedYear}年{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の集計
               </h2>
               {selectedMonth !== 'all' && (
                 <button
