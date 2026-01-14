@@ -636,7 +636,7 @@ export default function RetailSalesPage() {
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <div className="px-6 py-4 bg-slate-600">
                     <h2 className="text-base font-semibold text-white">
-                      {selectedYear}年{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の小売販売
+                      {selectedYear === 'all' ? '全年' : `${selectedYear}年`}{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の小売販売
                     </h2>
                   </div>
                   <table className="w-full text-sm">
@@ -727,7 +727,7 @@ export default function RetailSalesPage() {
             {selectedYear && (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 bg-slate-600">
-                  <h2 className="text-base font-semibold text-white">{selectedYear}年 月別小売販売実績</h2>
+                  <h2 className="text-base font-semibold text-white">{selectedYear === 'all' ? '全年' : `${selectedYear}年`} 月別小売販売実績</h2>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -785,7 +785,7 @@ export default function RetailSalesPage() {
             {/* 月別売上・利益の棒グラフ */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 bg-slate-600">
-                <h2 className="text-base font-semibold text-white">{selectedYear}年 月別売上・利益</h2>
+                <h2 className="text-base font-semibold text-white">{selectedYear === 'all' ? '全年' : `${selectedYear}年`} 月別売上・利益</h2>
               </div>
               <div className="p-6">
                 <ResponsiveContainer width="100%" height={350}>
@@ -925,7 +925,7 @@ export default function RetailSalesPage() {
             {/* 売上推移の折れ線グラフ */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 bg-slate-600">
-                <h2 className="text-base font-semibold text-white">{selectedYear}年 売上・利益推移</h2>
+                <h2 className="text-base font-semibold text-white">{selectedYear === 'all' ? '全年' : `${selectedYear}年`} 売上・利益推移</h2>
               </div>
               <div className="p-6">
                 <ResponsiveContainer width="100%" height={350}>
@@ -951,7 +951,7 @@ export default function RetailSalesPage() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 bg-slate-600">
               <h2 className="text-base font-semibold text-white">
-                {selectedYear}年{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の販売履歴（{filteredSoldItems.length}件）
+                {selectedYear === 'all' ? '全年' : `${selectedYear}年`}{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の販売履歴（{filteredSoldItems.length}件）
               </h2>
             </div>
             <div className="overflow-x-auto">
