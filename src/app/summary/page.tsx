@@ -412,8 +412,9 @@ export default function SummaryPage() {
     const isYearly = month === 'all'
     const yearMonth = `${year}-${month}`
 
-    // 売却日が選択年月のアイテム（売上日に日付が入っているもの、返品を除く）
+    // 売却日が選択年月のアイテム（売却済みで売上日に日付が入っているもの、返品を除く）
     const soldItems = inventory.filter(item => {
+      if (item.status !== '売却済み') return false
       if (!isValidDate(item.sale_date)) return false
       if (item.sale_destination === '返品') return false
       const normalized = normalizeYearMonth(item.sale_date!)
@@ -544,8 +545,9 @@ export default function SummaryPage() {
     const isYearly = selectedMonth === 'all'
     const yearMonth = `${selectedYear}-${selectedMonth}`
 
-    // 売却日が選択年月のアイテム（売上日に日付が入っているもの、返品を除く）
+    // 売却日が選択年月のアイテム（売却済みで売上日に日付が入っているもの、返品を除く）
     const soldItems = inventory.filter(item => {
+      if (item.status !== '売却済み') return false
       if (!isValidDate(item.sale_date)) return false
       if (item.sale_destination === '返品') return false
       const normalized = normalizeYearMonth(item.sale_date!)
@@ -801,8 +803,9 @@ export default function SummaryPage() {
     return monthList.map(month => {
       const yearMonth = `${selectedYear}-${month}`
 
-      // 当月販売（売上日に日付が入っているもの、返品を除く）
+      // 当月販売（売却済みで売上日に日付が入っているもの、返品を除く）
       const soldItems = inventory.filter(item => {
+        if (item.status !== '売却済み') return false
         if (!isValidDate(item.sale_date)) return false
         if (item.sale_destination === '返品') return false
         return normalizeYearMonth(item.sale_date!) === yearMonth

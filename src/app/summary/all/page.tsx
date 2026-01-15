@@ -171,6 +171,11 @@ export default function AllSalesPage() {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null)
 
+  // セル選択機能用state
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [selectionStart, setSelectionStart] = useState<{ row: number; col: string } | null>(null)
+
   // 列の設定
   const defaultColumns = [
     { key: 'inventory_number', label: '管理番号', width: 'w-16' },
@@ -606,6 +611,121 @@ export default function AllSalesPage() {
         return b.sale_date.localeCompare(a.sale_date)
       })
   }, [unifiedSales, selectedYear, selectedMonth, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms, searchQuery, columnFilters])
+
+  // ソート済みの販売データ
+  const sortedSales = useMemo(() => {
+    return [...filteredSales].sort((a, b) => {
+      if (historySortBy === 'sales') return (b.sale_price || 0) - (a.sale_price || 0)
+      if (historySortBy === 'profit') return (b.profit || 0) - (a.profit || 0)
+      if (historySortBy === 'profitRate') return (b.profit_rate || 0) - (a.profit_rate || 0)
+      // date (default)
+      if (!a.sale_date && !b.sale_date) return 0
+      if (!a.sale_date) return 1
+      if (!b.sale_date) return -1
+      return b.sale_date.localeCompare(a.sale_date)
+    })
+  }, [filteredSales, historySortBy])
+
+  // 数値列のキー
+  const numericColumns = ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'turnover_days']
+
+  // 選択されたセルの集計
+  const selectionStats = useMemo(() => {
+    if (selectedCells.size === 0) return null
+
+    let sum = 0
+    let count = 0
+    let numericCount = 0
+
+    selectedCells.forEach(cellKey => {
+      const [rowIdxStr, colKey] = cellKey.split(':')
+      const rowIdx = parseInt(rowIdxStr)
+      const sale = sortedSales[rowIdx]
+      if (!sale) return
+
+      count++
+
+      if (numericColumns.includes(colKey)) {
+        const value = sale[colKey as keyof UnifiedSale]
+        if (typeof value === 'number') {
+          sum += value
+          numericCount++
+        }
+      }
+    })
+
+    return {
+      count,
+      sum: numericCount > 0 ? sum : null,
+      average: numericCount > 0 ? Math.round(sum / numericCount) : null
+    }
+  }, [selectedCells, sortedSales])
+
+  // セル選択のハンドラー
+  const handleCellMouseDown = (rowIdx: number, colKey: string, e: React.MouseEvent) => {
+    // 右クリックの場合は無視
+    if (e.button !== 0) return
+
+    const cellKey = `${rowIdx}:${colKey}`
+
+    if (e.shiftKey && selectionStart) {
+      // Shift+クリックで範囲選択
+      const newSelection = new Set<string>()
+      const startRow = Math.min(selectionStart.row, rowIdx)
+      const endRow = Math.max(selectionStart.row, rowIdx)
+      const colKeys = visibleColumns.map(c => c.key)
+      const startColIdx = colKeys.indexOf(selectionStart.col)
+      const endColIdx = colKeys.indexOf(colKey)
+      const minColIdx = Math.min(startColIdx, endColIdx)
+      const maxColIdx = Math.max(startColIdx, endColIdx)
+
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = minColIdx; c <= maxColIdx; c++) {
+          newSelection.add(`${r}:${colKeys[c]}`)
+        }
+      }
+      setSelectedCells(newSelection)
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd+クリックで追加/解除
+      const newSelection = new Set(selectedCells)
+      if (newSelection.has(cellKey)) {
+        newSelection.delete(cellKey)
+      } else {
+        newSelection.add(cellKey)
+      }
+      setSelectedCells(newSelection)
+      setSelectionStart({ row: rowIdx, col: colKey })
+    } else {
+      // 通常クリックで単一選択開始
+      setSelectedCells(new Set([cellKey]))
+      setSelectionStart({ row: rowIdx, col: colKey })
+      setIsSelecting(true)
+    }
+  }
+
+  const handleCellMouseEnter = (rowIdx: number, colKey: string) => {
+    if (!isSelecting || !selectionStart) return
+
+    const newSelection = new Set<string>()
+    const startRow = Math.min(selectionStart.row, rowIdx)
+    const endRow = Math.max(selectionStart.row, rowIdx)
+    const colKeys = visibleColumns.map(c => c.key)
+    const startColIdx = colKeys.indexOf(selectionStart.col)
+    const endColIdx = colKeys.indexOf(colKey)
+    const minColIdx = Math.min(startColIdx, endColIdx)
+    const maxColIdx = Math.max(startColIdx, endColIdx)
+
+    for (let r = startRow; r <= endRow; r++) {
+      for (let c = minColIdx; c <= maxColIdx; c++) {
+        newSelection.add(`${r}:${colKeys[c]}`)
+      }
+    }
+    setSelectedCells(newSelection)
+  }
+
+  const handleMouseUp = () => {
+    setIsSelecting(false)
+  }
 
   // ヘルパー関数
   const isValidDate = (dateStr: string | null): boolean => {
@@ -1195,7 +1315,11 @@ export default function AllSalesPage() {
                 </button>
               </div>
             </div>
-            <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+            <div
+              className="overflow-x-auto max-h-[70vh] overflow-y-auto select-none"
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            >
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50">
@@ -1265,24 +1389,19 @@ export default function AllSalesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {[...filteredSales]
-                    .sort((a, b) => {
-                      if (historySortBy === 'sales') return (b.sale_price || 0) - (a.sale_price || 0)
-                      if (historySortBy === 'profit') return (b.profit || 0) - (a.profit || 0)
-                      if (historySortBy === 'profitRate') return (b.profit_rate || 0) - (a.profit_rate || 0)
-                      // date (default)
-                      if (!a.sale_date && !b.sale_date) return 0
-                      if (!a.sale_date) return 1
-                      if (!b.sale_date) return -1
-                      return b.sale_date.localeCompare(a.sale_date)
-                    })
+                  {sortedSales
                     .slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
-                    .map((sale) => (
+                    .map((sale, displayIdx) => {
+                      const rowIdx = (historyPage - 1) * historyPageSize + displayIdx
+                      return (
                     <tr key={`${sale.type}-${sale.id}`} className="hover:bg-gray-50/50 transition-colors">
                       {visibleColumns.map(col => {
+                        const cellKey = `${rowIdx}:${col.key}`
+                        const isSelected = selectedCells.has(cellKey)
+                        const cellClass = isSelected ? 'bg-blue-100' : ''
                         switch (col.key) {
                           case 'inventory_number':
-                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs truncate max-w-[60px]" title={sale.inventory_number || '-'}>{sale.inventory_number || '-'}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs truncate max-w-[60px] cursor-cell ${cellClass}`} title={sale.inventory_number || '-'} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.inventory_number || '-'}</td>
                           case 'image':
                             const imageUrl = sale.image_url
                               ? sale.image_url.startsWith('/api/') || sale.image_url.startsWith('data:')
@@ -1306,65 +1425,66 @@ export default function AllSalesPage() {
                               </td>
                             )
                           case 'category':
-                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{sale.category || '-'}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.category || '-'}</td>
                           case 'brand_name':
-                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{sale.brand_name || '-'}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.brand_name || '-'}</td>
                           case 'product_name':
                             return (
-                              <td key={col.key} className="px-2 py-2">
+                              <td key={col.key} className={`px-2 py-2 cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
                                 <div className="text-gray-900 text-xs font-medium truncate max-w-[150px]">{sale.product_name}</div>
                               </td>
                             )
                           case 'purchase_source':
-                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{sale.purchase_source || '-'}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.purchase_source || '-'}</td>
                           case 'sale_destination':
-                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs">{sale.sale_destination || '-'}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.sale_destination || '-'}</td>
                           case 'sale_price':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.sale_price)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.sale_price)}</td>
                           case 'commission':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.commission)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.commission)}</td>
                           case 'shipping_cost':
                             return (
-                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs ${isExternalShipping(sale.shipping_cost) ? 'text-blue-600 font-semibold' : 'text-gray-700'}`}>
+                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs cursor-cell ${isExternalShipping(sale.shipping_cost) ? 'text-blue-600 font-semibold' : 'text-gray-700'} ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
                                 {formatCurrency(sale.shipping_cost)}
                               </td>
                             )
                           case 'other_cost':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.other_cost)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.other_cost)}</td>
                           case 'purchase_price':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.purchase_price)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.purchase_price)}</td>
                           case 'purchase_total':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.purchase_cost)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.purchase_cost)}</td>
                           case 'deposit_amount':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{formatCurrency(sale.deposit_amount)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.deposit_amount)}</td>
                           case 'profit':
                             return (
-                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs font-medium ${sale.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs font-medium cursor-cell ${sale.profit >= 0 ? 'text-green-600' : 'text-red-600'} ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
                                 {formatCurrency(sale.profit)}
                               </td>
                             )
                           case 'profit_rate':
                             return (
-                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs ${sale.profit_rate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs cursor-cell ${sale.profit_rate >= 0 ? 'text-green-600' : 'text-red-600'} ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
                                 {sale.profit_rate}%
                               </td>
                             )
                           case 'purchase_date':
-                            return <td key={col.key} className="px-2 py-2 text-center text-gray-700 text-xs">{formatDate(sale.purchase_date)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-center text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatDate(sale.purchase_date)}</td>
                           case 'listing_date':
-                            return <td key={col.key} className="px-2 py-2 text-center text-gray-700 text-xs">{formatDate(sale.listing_date)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-center text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatDate(sale.listing_date)}</td>
                           case 'sale_date':
-                            return <td key={col.key} className="px-2 py-2 text-center text-gray-700 text-xs">{formatDate(sale.sale_date)}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-center text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatDate(sale.sale_date)}</td>
                           case 'turnover_days':
-                            return <td key={col.key} className="px-2 py-2 text-right text-gray-700 tabular-nums text-xs">{sale.turnover_days !== null ? `${sale.turnover_days}日` : '-'}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.turnover_days !== null ? `${sale.turnover_days}日` : '-'}</td>
                           case 'memo':
-                            return <td key={col.key} className="px-2 py-2 text-gray-700 text-xs truncate max-w-[100px]">{sale.memo || '-'}</td>
+                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs truncate max-w-[100px] cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.memo || '-'}</td>
                           default:
                             return null
                         }
                       })}
                     </tr>
-                  ))}
+                      )
+                    })}
                   {filteredSales.length === 0 && (
                     <tr>
                       <td colSpan={visibleColumns.length} className="px-4 py-8 text-center text-gray-500">
@@ -1414,6 +1534,28 @@ export default function AllSalesPage() {
                     最後
                   </button>
                 </div>
+              </div>
+            )}
+            {/* 選択範囲の集計ステータスバー */}
+            {selectionStats && (
+              <div className="px-4 py-2 bg-blue-50 border-t border-blue-200 flex items-center gap-6 text-sm">
+                <span className="text-blue-700 font-medium">選択: {selectionStats.count}セル</span>
+                {selectionStats.sum !== null && (
+                  <>
+                    <span className="text-blue-700">
+                      合計: <span className="font-semibold">¥{selectionStats.sum.toLocaleString()}</span>
+                    </span>
+                    <span className="text-blue-700">
+                      平均: <span className="font-semibold">¥{selectionStats.average?.toLocaleString()}</span>
+                    </span>
+                  </>
+                )}
+                <button
+                  onClick={() => setSelectedCells(new Set())}
+                  className="ml-auto text-blue-600 hover:text-blue-800 text-xs"
+                >
+                  選択解除
+                </button>
               </div>
             )}
           </div>
