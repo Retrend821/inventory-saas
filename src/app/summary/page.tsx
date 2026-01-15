@@ -466,14 +466,12 @@ export default function SummaryPage() {
     const totalPurchase = soldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
-    // 販売利益
+    // 販売利益（ダッシュボードと同じ計算式）
     const invProfit = soldItems.reduce((sum, item) => {
-      const salePrice = item.sale_price || 0
-      const commission = item.commission || 0
-      const shipping = item.shipping_cost || 0
+      const depositAmount = item.deposit_amount || 0
       const otherCost = item.other_cost || 0
       const purchaseTotal = item.purchase_total || 0
-      return sum + (salePrice - commission - shipping - otherCost - purchaseTotal)
+      return sum + (depositAmount - otherCost - purchaseTotal)
     }, 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     const totalProfit = invProfit + manualProfit
@@ -608,16 +606,12 @@ export default function SummaryPage() {
     const totalShipping = soldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
 
-    // 販売利益
-    // 単品: 売値 - 手数料 - 送料 - その他経費 - 仕入総額
-    // 手入力: DBに保存された利益値を使用（other_cost等が反映済み）
+    // 販売利益（ダッシュボードと同じ計算式）
     const invProfit = soldItems.reduce((sum, item) => {
-      const salePrice = item.sale_price || 0
-      const commission = item.commission || 0
-      const shipping = item.shipping_cost || 0
+      const depositAmount = item.deposit_amount || 0
       const otherCost = item.other_cost || 0
       const purchaseTotal = item.purchase_total || 0
-      return sum + (salePrice - commission - shipping - otherCost - purchaseTotal)
+      return sum + (depositAmount - otherCost - purchaseTotal)
     }, 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     const totalProfit = invProfit + manualProfit
@@ -872,16 +866,12 @@ export default function SummaryPage() {
       const totalShipping = soldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
         + manualSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
 
-      // 販売利益
-      // 単品: 売値 - 手数料 - 送料 - その他経費 - 仕入総額
-      // 手入力: DBに保存された利益値を使用
+      // 販売利益（ダッシュボードと同じ計算式）
       const invProfit = soldItems.reduce((sum, item) => {
-        const salePrice = item.sale_price || 0
-        const commission = item.commission || 0
-        const shipping = item.shipping_cost || 0
+        const depositAmount = item.deposit_amount || 0
         const otherCost = item.other_cost || 0
         const purchaseTotal = item.purchase_total || 0
-        return sum + (salePrice - commission - shipping - otherCost - purchaseTotal)
+        return sum + (depositAmount - otherCost - purchaseTotal)
       }, 0)
       const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
       const totalProfit = invProfit + manualProfit
