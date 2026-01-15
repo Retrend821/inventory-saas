@@ -901,15 +901,20 @@ export default function Home() {
       const newCommission = calculateCommission(newDestination || null, newSalePrice || null, currentItem.sale_date)
       updateData.commission = newCommission
 
-      // 売上金額がクリアされた場合、手数料と入金額もリセット
+      // 売上金額がクリアされた場合、手数料・入金額・送料・その他コストもリセット
       if (field === 'sale_price' && (value === null || value === 0)) {
         updateData.commission = null
         updateData.deposit_amount = null
+        updateData.shipping_cost = null
+        updateData.other_cost = null
       }
-      // 販売先がクリアされた場合も手数料と入金額をリセット
+      // 販売先がクリアされた場合も手数料・入金額・送料・その他コスト・売上をリセット
       if (field === 'sale_destination' && !value) {
         updateData.commission = null
         updateData.deposit_amount = null
+        updateData.shipping_cost = null
+        updateData.other_cost = null
+        updateData.sale_price = null
       }
     }
 
@@ -1045,7 +1050,11 @@ export default function Home() {
       .update({
         sale_destination: null,
         status: '在庫あり',
-        commission: null
+        commission: null,
+        deposit_amount: null,
+        shipping_cost: null,
+        other_cost: null,
+        sale_price: null
       })
       .eq('id', id)
 
@@ -1053,7 +1062,7 @@ export default function Home() {
       setInventory(prev =>
         prev.map(item =>
           item.id === id
-            ? { ...item, sale_destination: null, status: '在庫あり', commission: null }
+            ? { ...item, sale_destination: null, status: '在庫あり', commission: null, deposit_amount: null, shipping_cost: null, other_cost: null, sale_price: null }
             : item
         )
       )
@@ -3579,6 +3588,88 @@ export default function Home() {
 
         if (!error) {
           setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: null, listing_date: null, sale_date: null } : inv))
+        }
+        return
+      }
+
+      // 販売先クリア時は関連フィールドも全てリセット
+      if (field === 'sale_destination') {
+        const clearData = {
+          sale_destination: null,
+          sale_price: null,
+          commission: null,
+          deposit_amount: null,
+          shipping_cost: null,
+          other_cost: null,
+          status: '在庫あり'
+        }
+        // 履歴に記録
+        const historyChanges = Object.entries(clearData).map(([key, val]) => ({
+          id: item.id,
+          field: key,
+          oldValue: item[key as keyof InventoryItem],
+          newValue: val
+        })).filter(change => change.oldValue !== change.newValue)
+
+        if (historyChanges.length > 0) {
+          setUndoStack(prev => {
+            const newStack = [...prev, historyChanges]
+            if (newStack.length > MAX_HISTORY) {
+              return newStack.slice(-MAX_HISTORY)
+            }
+            return newStack
+          })
+          setRedoStack([])
+        }
+
+        // データベース更新
+        const { error } = await supabase
+          .from('inventory')
+          .update(clearData)
+          .eq('id', item.id)
+
+        if (!error) {
+          setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...clearData } : inv))
+        }
+        return
+      }
+
+      // 売上クリア時は関連フィールドもリセット
+      if (field === 'sale_price') {
+        const clearData = {
+          sale_price: null,
+          commission: null,
+          deposit_amount: null,
+          shipping_cost: null,
+          other_cost: null
+        }
+        // 履歴に記録
+        const historyChanges = Object.entries(clearData).map(([key, val]) => ({
+          id: item.id,
+          field: key,
+          oldValue: item[key as keyof InventoryItem],
+          newValue: val
+        })).filter(change => change.oldValue !== change.newValue)
+
+        if (historyChanges.length > 0) {
+          setUndoStack(prev => {
+            const newStack = [...prev, historyChanges]
+            if (newStack.length > MAX_HISTORY) {
+              return newStack.slice(-MAX_HISTORY)
+            }
+            return newStack
+          })
+          setRedoStack([])
+        }
+
+        // データベース更新
+        const { error } = await supabase
+          .from('inventory')
+          .update(clearData)
+          .eq('id', item.id)
+
+        if (!error) {
+          setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...clearData } : inv))
         }
         return
       }
@@ -6192,18 +6283,20 @@ export default function Home() {
                                       onClick={async (e) => {
                                         e.stopPropagation()
                                         if (item.sale_destination !== null) {
-                                          // 返品からクリアした場合、出品日・売却日もクリア
-                                          if (item.sale_destination === '返品') {
-                                            const { error } = await supabase.from('inventory').update({
-                                              sale_destination: null,
-                                              listing_date: null,
-                                              sale_date: null
-                                            }).eq('id', item.id)
-                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: null, listing_date: null, sale_date: null } : inv))
-                                          } else {
-                                            const { error } = await supabase.from('inventory').update({ sale_destination: null }).eq('id', item.id)
-                                            if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: null } : inv))
+                                          // 販売先クリア時は手数料・入金額・送料・その他コスト・売上もリセット
+                                          const clearData = {
+                                            sale_destination: null,
+                                            sale_price: null,
+                                            commission: null,
+                                            deposit_amount: null,
+                                            shipping_cost: null,
+                                            other_cost: null,
+                                            status: '在庫あり',
+                                            listing_date: item.sale_destination === '返品' ? null : item.listing_date,
+                                            sale_date: item.sale_destination === '返品' ? null : item.sale_date
                                           }
+                                          const { error } = await supabase.from('inventory').update(clearData).eq('id', item.id)
+                                          if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...clearData } : inv))
                                         }
                                         setEditingCell(null)
                                         setEditValue('')
