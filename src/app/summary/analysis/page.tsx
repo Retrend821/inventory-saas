@@ -355,7 +355,8 @@ export default function SalesAnalysisPage() {
           : 0
         const purchasePrice = sale.purchase_price ?? unitCost * sale.quantity
         const otherCost = sale.other_cost ?? 0
-        const profit = sale.sale_amount - purchasePrice - otherCost - sale.commission - sale.shipping_cost
+        const depositAmount = sale.deposit_amount || 0
+        const profit = depositAmount - purchasePrice - otherCost
         const profitRate = sale.sale_amount > 0 ? Math.round((profit / sale.sale_amount) * 100) : 0
 
         sales.push({
