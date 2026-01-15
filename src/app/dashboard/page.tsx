@@ -36,6 +36,7 @@ type ManualSale = {
   profit: number | null
   sale_type: string | null
   sale_destination: string | null
+  cost_recovered: boolean | null
 }
 
 type UserTodo = {
@@ -51,10 +52,35 @@ type Platform = {
   sales_type: 'toC' | 'toB'
 }
 
+type BulkPurchase = {
+  id: string
+  genre: string
+  purchase_date: string
+  total_amount: number
+  total_quantity: number
+}
+
+type BulkSale = {
+  id: string
+  bulk_purchase_id: string
+  sale_date: string
+  sale_destination: string | null
+  quantity: number
+  sale_amount: number
+  commission: number
+  shipping_cost: number
+  product_name: string | null
+  purchase_price: number | null
+  other_cost: number | null
+  deposit_amount: number | null
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [manualSales, setManualSales] = useState<ManualSale[]>([])
+  const [bulkPurchases, setBulkPurchases] = useState<BulkPurchase[]>([])
+  const [bulkSales, setBulkSales] = useState<BulkSale[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -116,6 +142,16 @@ export default function DashboardPage() {
         }
       }
 
+      // まとめ仕入れデータを取得
+      const { data: bulkPurchasesData } = await supabase
+        .from('bulk_purchases')
+        .select('*')
+
+      // まとめ売上データを取得
+      const { data: bulkSalesData } = await supabase
+        .from('bulk_sales')
+        .select('*')
+
       // プラットフォームデータを取得
       const { data: platformsData } = await supabase
         .from('platforms')
@@ -123,6 +159,8 @@ export default function DashboardPage() {
 
       setInventory(allInventory)
       setManualSales(allManualSales)
+      setBulkPurchases(bulkPurchasesData || [])
+      setBulkSales(bulkSalesData || [])
       setPlatforms(platformsData || [])
       setLoading(false)
     }
@@ -189,6 +227,13 @@ export default function DashboardPage() {
     }
   }, [])
 
+  // まとめ仕入れのID→データのマップ
+  const bulkPurchaseMap = useMemo(() => {
+    const map = new Map<string, BulkPurchase>()
+    bulkPurchases.forEach(bp => map.set(bp.id, bp))
+    return map
+  }, [bulkPurchases])
+
   // 今月のデータ
   const monthlyStats = useMemo(() => {
     const isThisMonth = (dateStr: string | null) => {
@@ -209,17 +254,48 @@ export default function DashboardPage() {
     const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total || 0) + (item.other_cost || 0), 0)
     const inventoryProfit = inventorySales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0) - inventorySalesCost
 
-    // 今月の販売（手入力売上）
-    const manualSalesThisMonth = manualSales.filter(item => isThisMonth(item.sale_date))
+    // 今月の販売（まとめ売上）
+    const bulkSalesThisMonth = bulkSales.filter(item => isThisMonth(item.sale_date))
+    const bulkSalesCount = bulkSalesThisMonth.length
+    const bulkSalesTotal = bulkSalesThisMonth.reduce((sum, item) => sum + (item.sale_amount || 0), 0)
+    const bulkSalesProfit = bulkSalesThisMonth.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      const otherCost = item.other_cost ?? 0
+      const depositAmount = item.deposit_amount || 0
+      return sum + (depositAmount - purchasePrice - otherCost)
+    }, 0)
+
+    // bulk_salesに転記された商品を追跡（重複排除用）
+    const bulkSalesKeys = new Set<string>()
+    bulkSales.forEach(sale => {
+      if (sale.product_name && sale.sale_date) {
+        const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
+        bulkSalesKeys.add(key)
+      }
+    })
+
+    // 今月の販売（手入力売上）- cost_recoveredと重複を除外
+    const manualSalesThisMonth = manualSales.filter(item => {
+      if (!isThisMonth(item.sale_date)) return false
+      if (item.cost_recovered) return false
+      // bulk_salesに同じ商品名+売却日のものがあれば除外
+      if (item.product_name && item.sale_date) {
+        const key = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
+        if (bulkSalesKeys.has(key)) return false
+      }
+      return true
+    })
     const manualSalesCount = manualSalesThisMonth.length
     const manualSalesTotal = manualSalesThisMonth.reduce((sum, item) => sum + (item.sale_price || 0), 0)
     const manualSalesProfit = manualSalesThisMonth.reduce((sum, item) => sum + (item.profit || 0), 0)
 
     // 合計
-    const salesCount = inventorySalesCount + manualSalesCount
-    const salesTotal = inventorySalesTotal + manualSalesTotal
+    const salesCount = inventorySalesCount + bulkSalesCount + manualSalesCount
+    const salesTotal = inventorySalesTotal + bulkSalesTotal + manualSalesTotal
     const salesCost = inventorySalesCost + manualSalesThisMonth.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
-    const profit = inventoryProfit + manualSalesProfit
+    const profit = inventoryProfit + bulkSalesProfit + manualSalesProfit
     const profitRate = salesTotal > 0 ? (profit / salesTotal) * 100 : 0
     const roi = salesCost > 0 ? (profit / salesCost) * 100 : 0
 
@@ -235,6 +311,14 @@ export default function DashboardPage() {
       item.sale_destination && wholesalePlatformNames.includes(item.sale_destination)
     )
 
+    // 小売・業販の内訳（まとめ売上）- sale_destinationで判定
+    const retailSalesBulk = bulkSalesThisMonth.filter(item =>
+      item.sale_destination && retailPlatformNames.includes(item.sale_destination)
+    )
+    const wholesaleSalesBulk = bulkSalesThisMonth.filter(item =>
+      item.sale_destination && wholesalePlatformNames.includes(item.sale_destination)
+    )
+
     // 小売・業販の内訳（手入力売上）- sale_destinationで判定
     const retailSalesManual = manualSalesThisMonth.filter(item =>
       item.sale_destination && retailPlatformNames.includes(item.sale_destination)
@@ -244,18 +328,34 @@ export default function DashboardPage() {
     )
 
     const retailTotal = retailSalesInv.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+      + retailSalesBulk.reduce((sum, item) => sum + (item.sale_amount || 0), 0)
       + retailSalesManual.reduce((sum, item) => sum + (item.sale_price || 0), 0)
     const wholesaleTotal = wholesaleSalesInv.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+      + wholesaleSalesBulk.reduce((sum, item) => sum + (item.sale_amount || 0), 0)
       + wholesaleSalesManual.reduce((sum, item) => sum + (item.sale_price || 0), 0)
 
     const retailProfit = retailSalesInv.reduce((sum, item) => {
       const cost = (item.purchase_total || 0) + (item.other_cost || 0)
       return sum + (item.deposit_amount || 0) - cost
+    }, 0) + retailSalesBulk.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      const otherCost = item.other_cost ?? 0
+      const depositAmount = item.deposit_amount || 0
+      return sum + (depositAmount - purchasePrice - otherCost)
     }, 0) + retailSalesManual.reduce((sum, item) => sum + (item.profit || 0), 0)
 
     const wholesaleProfit = wholesaleSalesInv.reduce((sum, item) => {
       const cost = (item.purchase_total || 0) + (item.other_cost || 0)
       return sum + (item.deposit_amount || 0) - cost
+    }, 0) + wholesaleSalesBulk.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      const otherCost = item.other_cost ?? 0
+      const depositAmount = item.deposit_amount || 0
+      return sum + (depositAmount - purchasePrice - otherCost)
     }, 0) + wholesaleSalesManual.reduce((sum, item) => sum + (item.profit || 0), 0)
 
     return {
@@ -266,14 +366,14 @@ export default function DashboardPage() {
       profit,
       profitRate,
       roi,
-      retailCount: retailSalesInv.length + retailSalesManual.length,
+      retailCount: retailSalesInv.length + retailSalesBulk.length + retailSalesManual.length,
       retailTotal,
       retailProfit,
-      wholesaleCount: wholesaleSalesInv.length + wholesaleSalesManual.length,
+      wholesaleCount: wholesaleSalesInv.length + wholesaleSalesBulk.length + wholesaleSalesManual.length,
       wholesaleTotal,
       wholesaleProfit
     }
-  }, [inventory, manualSales, platforms, currentMonth])
+  }, [inventory, manualSales, bulkSales, bulkPurchaseMap, platforms, currentMonth])
 
   // 在庫状況
   const stockStats = useMemo(() => {
