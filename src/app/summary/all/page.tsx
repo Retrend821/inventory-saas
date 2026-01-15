@@ -116,6 +116,7 @@ type ManualSale = {
   memo: string | null
   inventory_number: string | null
   sale_type: string | null
+  cost_recovered: boolean | null
 }
 
 // 統一された売上データ型
@@ -172,9 +173,30 @@ export default function AllSalesPage() {
   const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null)
 
   // セル選択機能用state
-  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set())
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(() => {
+    // localStorageから復元
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sales-summary-selected-cells')
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved)
+          return new Set(parsed)
+        } catch {
+          return new Set()
+        }
+      }
+    }
+    return new Set()
+  })
   const [isSelecting, setIsSelecting] = useState(false)
   const [selectionStart, setSelectionStart] = useState<{ row: number; col: string } | null>(null)
+
+  // セル選択状態をlocalStorageに保存
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sales-summary-selected-cells', JSON.stringify([...selectedCells]))
+    }
+  }, [selectedCells])
 
   // 列の設定
   const defaultColumns = [
@@ -370,12 +392,22 @@ export default function AllSalesPage() {
       }
     })
 
+    // bulk_salesに転記された商品を追跡（重複排除用）
+    // 商品名と売却日の組み合わせをキーとして使用
+    const bulkSalesKeys = new Set<string>()
+
     // まとめ仕入れの販売データ
     bulkSales.forEach(sale => {
       const bulkPurchase = bulkPurchaseMap.get(sale.bulk_purchase_id)
       if (bulkPurchase) {
         // 商品詳細が登録されていればそちらを優先、なければまとめ仕入れのデータを使用
         const hasProductDetails = sale.product_name || sale.brand_name || sale.category
+
+        // 重複検出用キーを登録（商品名 + 売却日）
+        if (sale.product_name && sale.sale_date) {
+          const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
+          bulkSalesKeys.add(key)
+        }
 
         const unitCost = bulkPurchase.total_quantity > 0
           ? Math.round(bulkPurchase.total_amount / bulkPurchase.total_quantity)
@@ -417,9 +449,16 @@ export default function AllSalesPage() {
       }
     })
 
-    // 手入力売上データ
+    // 手入力売上データ（原価回収でbulk_salesに転記済みのものは除外、bulk_salesに既に存在するものも除外）
     manualSales.forEach(item => {
-      if (item.sale_date) {
+      if (item.sale_date && !item.cost_recovered) {
+        // bulk_salesに同じ商品名+売却日のものがあれば除外（重複防止）
+        if (item.product_name && item.sale_date) {
+          const key = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
+          if (bulkSalesKeys.has(key)) {
+            return // bulk_salesに既に存在するのでスキップ
+          }
+        }
         const salePrice = item.sale_price || 0
         const purchaseCost = item.purchase_total || 0
         const commission = item.commission || 0

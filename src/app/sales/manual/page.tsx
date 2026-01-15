@@ -1188,13 +1188,13 @@ export default function ManualSalesPage() {
       return
     }
 
-    // bulk_salesに転記
+    // bulk_salesに転記（原価回収なので、purchase_price = 入金額にして利益を0にする）
     const insertData: Record<string, unknown> = {
       product_name: sale.product_name,
       brand_name: sale.brand_name,
       category: sale.category,
       image_url: sale.image_url,
-      purchase_price: sale.purchase_price,
+      purchase_price: depositAmount,
       sale_date: sale.sale_date || new Date().toISOString().split('T')[0],
       sale_destination: sale.sale_destination,
       quantity: 1,
