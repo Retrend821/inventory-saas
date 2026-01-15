@@ -323,9 +323,9 @@ export default function AllSalesPage() {
   const unifiedSales = useMemo(() => {
     const sales: UnifiedSale[] = []
 
-    // 単品仕入れの販売データ（販売先が入っていて売却日がある場合のみ、返品を除く）
+    // 単品仕入れの販売データ（売却済みで販売先が入っている場合のみ、返品を除く）
     inventory.forEach(item => {
-      if (item.sale_destination && item.sale_destination !== '返品' && item.sale_date) {
+      if (item.status === '売却済み' && item.sale_destination && item.sale_destination !== '返品' && item.sale_date) {
         const salePrice = item.sale_price || 0
         const purchaseCost = item.purchase_total || 0
         const purchasePrice = item.purchase_price || 0
