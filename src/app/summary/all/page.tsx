@@ -332,7 +332,8 @@ export default function AllSalesPage() {
         const commission = item.commission || 0
         const shippingCost = item.shipping_cost || 0
         const otherCost = item.other_cost || 0
-        const profit = salePrice - purchaseCost - commission - shippingCost - otherCost
+        const depositAmount = item.deposit_amount || 0
+        const profit = depositAmount - purchaseCost - otherCost
         const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
 
         sales.push({
