@@ -1585,14 +1585,31 @@ export default function Home() {
 
     setGenericImportModal({ ...genericImportModal, step: 'importing', progress: 0 })
 
-    // 最大の管理番号を取得して、その次から連番を割り当て
-    const { data: maxData } = await supabase
-      .from('inventory')
-      .select('inventory_number')
-      .order('inventory_number', { ascending: false })
-      .limit(1)
-      .single()
-    let nextNumber = (maxData?.inventory_number || 0) + 1
+    // 最大の管理番号を取得して、その次から連番を割り当て（全件から数値で最大値を探す）
+    let maxNum = 0
+    let offset = 0
+    const fetchBatchSize = 1000
+    while (true) {
+      const { data: batchData } = await supabase
+        .from('inventory')
+        .select('inventory_number')
+        .not('inventory_number', 'is', null)
+        .range(offset, offset + fetchBatchSize - 1)
+      if (!batchData || batchData.length === 0) break
+      for (const row of batchData) {
+        const invNum = String(row.inventory_number || '')
+        const match = invNum.match(/^(\d+)/)
+        if (match) {
+          const num = parseInt(match[1], 10)
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num
+          }
+        }
+      }
+      if (batchData.length < fetchBatchSize) break
+      offset += fetchBatchSize
+    }
+    let nextNumber = maxNum + 1
 
     let success = 0
     let failed = 0
@@ -2013,14 +2030,31 @@ export default function Home() {
 
           // 単品をinventoryに登録
           if (singleItems.length > 0) {
-            // 最大の管理番号を取得して、その次から連番を割り当て
-            const { data: maxData } = await supabase
-              .from('inventory')
-              .select('inventory_number')
-              .order('inventory_number', { ascending: false })
-              .limit(1)
-              .single()
-            let nextNumber = (maxData?.inventory_number || 0) + 1
+            // 最大の管理番号を取得して、その次から連番を割り当て（全件から数値で最大値を探す）
+            let maxNum = 0
+            let offset = 0
+            const fetchBatchSize = 1000
+            while (true) {
+              const { data: batchData } = await supabase
+                .from('inventory')
+                .select('inventory_number')
+                .not('inventory_number', 'is', null)
+                .range(offset, offset + fetchBatchSize - 1)
+              if (!batchData || batchData.length === 0) break
+              for (const row of batchData) {
+                const invNum = String(row.inventory_number || '')
+                const match = invNum.match(/^(\d+)/)
+                if (match) {
+                  const num = parseInt(match[1], 10)
+                  if (!isNaN(num) && num > maxNum) {
+                    maxNum = num
+                  }
+                }
+              }
+              if (batchData.length < fetchBatchSize) break
+              offset += fetchBatchSize
+            }
+            let nextNumber = maxNum + 1
 
             const singleItemsWithUserId = singleItems.map(item => {
               const invNum = nextNumber++
@@ -2164,14 +2198,31 @@ export default function Home() {
       }
     } else {
       // 単品仕入れに登録
-      // 最大の管理番号を取得して、その次の番号を割り当て
-      const { data: maxData } = await supabase
-        .from('inventory')
-        .select('inventory_number')
-        .order('inventory_number', { ascending: false })
-        .limit(1)
-        .single()
-      const nextNumber = (maxData?.inventory_number || 0) + 1
+      // 最大の管理番号を取得して、その次の番号を割り当て（全件から数値で最大値を探す）
+      let maxNum = 0
+      let offset = 0
+      const fetchBatchSize = 1000
+      while (true) {
+        const { data: batchData } = await supabase
+          .from('inventory')
+          .select('inventory_number')
+          .not('inventory_number', 'is', null)
+          .range(offset, offset + fetchBatchSize - 1)
+        if (!batchData || batchData.length === 0) break
+        for (const row of batchData) {
+          const invNum = String(row.inventory_number || '')
+          const match = invNum.match(/^(\d+)/)
+          if (match) {
+            const num = parseInt(match[1], 10)
+            if (!isNaN(num) && num > maxNum) {
+              maxNum = num
+            }
+          }
+        }
+        if (batchData.length < fetchBatchSize) break
+        offset += fetchBatchSize
+      }
+      const nextNumber = maxNum + 1
 
       const purchaseTotal = newItemForm.purchase_total ? parseInt(newItemForm.purchase_total, 10) : 0
       const singleItem = {
