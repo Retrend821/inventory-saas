@@ -7,6 +7,7 @@ export const ADMIN_EMAIL = 'retrend.brand@gmail.com'
 // メールアドレスを入力するだけでログイン可能、閲覧のみ
 export const VIEWER_EMAILS = [
   'd.sakurai1993@gmail.com',
+  'yuk.tanaka.amelie@gmail.com',
 ]
 
 // ユーザーが管理者かどうか
