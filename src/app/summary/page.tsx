@@ -45,7 +45,7 @@ type InventoryItem = {
 
 type ManualSale = {
   id: string
-  product_name: string
+  product_name: string | null
   purchase_total: number | null
   sale_price: number | null
   commission: number | null
@@ -54,6 +54,7 @@ type ManualSale = {
   purchase_date: string | null
   listing_date: string | null
   sale_date: string | null
+  cost_recovered: boolean | null
 }
 
 type BulkPurchase = {
@@ -69,6 +70,11 @@ type BulkSale = {
   bulk_purchase_id: string
   sale_date: string
   quantity: number
+  sale_amount: number | null
+  deposit_amount: number | null
+  purchase_price: number | null
+  other_cost: number | null
+  product_name: string | null
 }
 
 export default function SummaryPage() {
@@ -233,7 +239,7 @@ export default function SummaryPage() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('manual_sales')
-          .select('id, product_name, purchase_total, sale_price, commission, shipping_cost, profit, purchase_date, listing_date, sale_date')
+          .select('id, product_name, purchase_total, sale_price, commission, shipping_cost, profit, purchase_date, listing_date, sale_date, cost_recovered')
           .range(from, from + pageSize - 1)
 
         if (error) {
@@ -262,7 +268,7 @@ export default function SummaryPage() {
       // bulk_salesを取得
       const { data: bulkSaleData, error: bulkSaleError } = await supabase
         .from('bulk_sales')
-        .select('id, bulk_purchase_id, sale_date, quantity')
+        .select('id, bulk_purchase_id, sale_date, quantity, sale_amount, deposit_amount, purchase_price, other_cost, product_name')
 
       if (bulkSaleError) {
         console.error('Error fetching bulk_sales:', bulkSaleError)
@@ -407,15 +413,23 @@ export default function SummaryPage() {
     }
   }, [getEndOfMonthStock])
 
+  // bulkPurchaseをマップに変換（利益計算用）
+  const bulkPurchaseMap = useMemo(() => {
+    const map = new Map<string, BulkPurchase>()
+    bulkPurchases.forEach(bp => map.set(bp.id, bp))
+    return map
+  }, [bulkPurchases])
+
   // 指定年月の集計を計算するヘルパー関数
   const calculateSummaryForMonth = useCallback((year: string, month: string) => {
     const isYearly = month === 'all'
     const yearMonth = `${year}-${month}`
 
-    // 売却日が選択年月のアイテム（売却済みで売上日に日付が入っているもの、返品を除く）
+    // 売却日が選択年月のアイテム（売却済み、販売先あり、返品を除く）
     const soldItems = inventory.filter(item => {
       if (item.status !== '売却済み') return false
       if (!isValidDate(item.sale_date)) return false
+      if (!item.sale_destination) return false
       if (item.sale_destination === '返品') return false
       const normalized = normalizeYearMonth(item.sale_date!)
       return isYearly
@@ -423,9 +437,33 @@ export default function SummaryPage() {
         : normalized === yearMonth
     })
 
-    // 手入力売上の売却日が選択年月のアイテム
+    // まとめ売上の売却日が選択年月のアイテム
+    const bulkSoldItems = bulkSales.filter(item => {
+      if (!isValidDate(item.sale_date)) return false
+      const normalized = normalizeYearMonth(item.sale_date!)
+      return isYearly
+        ? normalized.startsWith(year)
+        : normalized === yearMonth
+    })
+
+    // まとめ仕入れ売上に転記された商品を追跡（重複排除用）
+    const bulkSalesKeys = new Set<string>()
+    bulkSales.forEach(sale => {
+      if (sale.product_name && sale.sale_date) {
+        const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
+        bulkSalesKeys.add(key)
+      }
+    })
+
+    // 手入力売上の売却日が選択年月のアイテム（cost_recoveredと重複を除外）
     const manualSoldItems = manualSales.filter(item => {
       if (!isValidDate(item.sale_date)) return false
+      if (item.cost_recovered) return false
+      // まとめ仕入れ売上に同じ商品名+売却日のものがあれば除外
+      if (item.product_name && item.sale_date) {
+        const key = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
+        if (bulkSalesKeys.has(key)) return false
+      }
       const normalized = normalizeYearMonth(item.sale_date!)
       return isYearly
         ? normalized.startsWith(year)
@@ -450,8 +488,8 @@ export default function SummaryPage() {
         : normalized === yearMonth
     })
 
-    // 販売件数（単品 + 手入力）
-    const soldCount = soldItems.length + manualSoldItems.length
+    // 販売件数（単品 + 手入力 + まとめ売上）
+    const soldCount = soldItems.length + manualSoldItems.length + bulkSoldItems.length
 
     // 仕入件数
     const purchasedCount = purchasedItems.length
@@ -459,13 +497,21 @@ export default function SummaryPage() {
     // 出品件数
     const listedCount = listedItems.length
 
-    // 売上（税込）- 売値の合計（単品 + 手入力）
+    // 売上（税込）- 売値の合計（単品 + 手入力 + まとめ売上）
     const totalSales = soldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+      + bulkSoldItems.reduce((sum, item) => sum + (item.sale_amount || 0), 0)
 
-    // 仕入（税込）- 売却商品の仕入総額（単品 + 手入力）
+    // 仕入（税込）- 売却商品の仕入総額（単品 + 手入力 + まとめ売上）
+    const bulkSoldPurchase = bulkSoldItems.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      return sum + purchasePrice
+    }, 0)
     const totalPurchase = soldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+      + bulkSoldPurchase
 
     // 販売利益（ダッシュボードと同じ計算式）
     const invProfit = soldItems.reduce((sum, item) => {
@@ -475,7 +521,16 @@ export default function SummaryPage() {
       return sum + (depositAmount - otherCost - purchaseTotal)
     }, 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
-    const totalProfit = invProfit + manualProfit
+    // まとめ売上の利益（ダッシュボードと同じ計算式）
+    const bulkProfit = bulkSoldItems.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      const otherCost = item.other_cost ?? 0
+      const depositAmount = item.deposit_amount || 0
+      return sum + (depositAmount - purchasePrice - otherCost)
+    }, 0)
+    const totalProfit = invProfit + manualProfit + bulkProfit
 
     // 販売利益率
     const profitRate = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0
@@ -526,7 +581,7 @@ export default function SummaryPage() {
       overallProfitability,
       gmroi,
     }
-  }, [inventory, manualSales, getEndOfMonthStock, getPrevMonthEndStock])
+  }, [inventory, manualSales, bulkSales, bulkPurchaseMap, getEndOfMonthStock, getPrevMonthEndStock])
 
   // 前月の年月を取得
   const getPreviousMonth = (year: string, month: string): { year: string, month: string } => {
@@ -545,10 +600,11 @@ export default function SummaryPage() {
     const isYearly = selectedMonth === 'all'
     const yearMonth = `${selectedYear}-${selectedMonth}`
 
-    // 売却日が選択年月のアイテム（売却済みで売上日に日付が入っているもの、返品を除く）
+    // 売却日が選択年月のアイテム（売却済み、販売先あり、返品を除く）
     const soldItems = inventory.filter(item => {
       if (item.status !== '売却済み') return false
       if (!isValidDate(item.sale_date)) return false
+      if (!item.sale_destination) return false
       if (item.sale_destination === '返品') return false
       const normalized = normalizeYearMonth(item.sale_date!)
       return isYearly
@@ -556,9 +612,33 @@ export default function SummaryPage() {
         : normalized === yearMonth
     })
 
-    // 手入力売上の売却日が選択年月のアイテム
+    // まとめ売上の売却日が選択年月のアイテム
+    const bulkSoldItems = bulkSales.filter(item => {
+      if (!isValidDate(item.sale_date)) return false
+      const normalized = normalizeYearMonth(item.sale_date!)
+      return isYearly
+        ? normalized.startsWith(selectedYear)
+        : normalized === yearMonth
+    })
+
+    // まとめ仕入れ売上に転記された商品を追跡（重複排除用）
+    const bulkSalesKeys = new Set<string>()
+    bulkSales.forEach(sale => {
+      if (sale.product_name && sale.sale_date) {
+        const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
+        bulkSalesKeys.add(key)
+      }
+    })
+
+    // 手入力売上の売却日が選択年月のアイテム（cost_recoveredと重複を除外）
     const manualSoldItems = manualSales.filter(item => {
       if (!isValidDate(item.sale_date)) return false
+      if (item.cost_recovered) return false
+      // まとめ仕入れ売上に同じ商品名+売却日のものがあれば除外
+      if (item.product_name && item.sale_date) {
+        const key = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
+        if (bulkSalesKeys.has(key)) return false
+      }
       const normalized = normalizeYearMonth(item.sale_date!)
       return isYearly
         ? normalized.startsWith(selectedYear)
@@ -583,8 +663,8 @@ export default function SummaryPage() {
         : normalized === yearMonth
     })
 
-    // 販売件数（単品 + 手入力）
-    const soldCount = soldItems.length + manualSoldItems.length
+    // 販売件数（単品 + 手入力 + まとめ売上）
+    const soldCount = soldItems.length + manualSoldItems.length + bulkSoldItems.length
 
     // 仕入件数
     const purchasedCount = purchasedItems.length
@@ -592,13 +672,21 @@ export default function SummaryPage() {
     // 出品件数
     const listedCount = listedItems.length
 
-    // 売上（税込）- 売値の合計（単品 + 手入力）
+    // 売上（税込）- 売値の合計（単品 + 手入力 + まとめ売上）
     const totalSales = soldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+      + bulkSoldItems.reduce((sum, item) => sum + (item.sale_amount || 0), 0)
 
-    // 仕入（税込）- 売却商品の仕入総額（単品 + 手入力）
+    // 仕入（税込）- 売却商品の仕入総額（単品 + 手入力 + まとめ売上）
+    const bulkSoldPurchase = bulkSoldItems.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      return sum + purchasePrice
+    }, 0)
     const totalPurchase = soldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+      + bulkSoldPurchase
 
     // 手数料の合計（単品 + 手入力）
     const totalCommission = soldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
@@ -616,7 +704,16 @@ export default function SummaryPage() {
       return sum + (depositAmount - otherCost - purchaseTotal)
     }, 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
-    const totalProfit = invProfit + manualProfit
+    // まとめ売上の利益（ダッシュボードと同じ計算式）
+    const bulkProfit = bulkSoldItems.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      const otherCost = item.other_cost ?? 0
+      const depositAmount = item.deposit_amount || 0
+      return sum + (depositAmount - purchasePrice - otherCost)
+    }, 0)
+    const totalProfit = invProfit + manualProfit + bulkProfit
 
     // 販売利益率
     const profitRate = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0
@@ -701,7 +798,7 @@ export default function SummaryPage() {
       projectedPurchasedCount,
       projectedListedCount,
     }
-  }, [inventory, manualSales, selectedYear, selectedMonth, getEndOfMonthStock, getPrevMonthEndStock])
+  }, [inventory, manualSales, bulkSales, bulkPurchaseMap, selectedYear, selectedMonth, getEndOfMonthStock, getPrevMonthEndStock])
 
   // 前月の集計データ（前月比較用）
   const previousMonthSummary = useMemo(() => {
@@ -803,17 +900,39 @@ export default function SummaryPage() {
     return monthList.map(month => {
       const yearMonth = `${selectedYear}-${month}`
 
-      // 当月販売（売却済みで売上日に日付が入っているもの、返品を除く）
+      // 当月販売（売却済み、販売先あり、返品を除く）
       const soldItems = inventory.filter(item => {
         if (item.status !== '売却済み') return false
         if (!isValidDate(item.sale_date)) return false
+        if (!item.sale_destination) return false
         if (item.sale_destination === '返品') return false
         return normalizeYearMonth(item.sale_date!) === yearMonth
       })
 
-      // 手入力売上の当月販売
+      // まとめ売上の当月販売
+      const bulkSoldItems = bulkSales.filter(item => {
+        if (!isValidDate(item.sale_date)) return false
+        return normalizeYearMonth(item.sale_date!) === yearMonth
+      })
+
+      // まとめ仕入れ売上に転記された商品を追跡（重複排除用）
+      const bulkSalesKeys = new Set<string>()
+      bulkSales.forEach(sale => {
+        if (sale.product_name && sale.sale_date) {
+          const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
+          bulkSalesKeys.add(key)
+        }
+      })
+
+      // 手入力売上の当月販売（cost_recoveredと重複を除外）
       const manualSoldItems = manualSales.filter(item => {
         if (!isValidDate(item.sale_date)) return false
+        if (item.cost_recovered) return false
+        // まとめ仕入れ売上に同じ商品名+売却日のものがあれば除外
+        if (item.product_name && item.sale_date) {
+          const key = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
+          if (bulkSalesKeys.has(key)) return false
+        }
         return normalizeYearMonth(item.sale_date!) === yearMonth
       })
 
@@ -842,8 +961,8 @@ export default function SummaryPage() {
       // 当月末在庫残高
       const endingStockValue = currentMonthEndStock.value
 
-      // 販売件数（単品 + 手入力）
-      const soldCount = soldItems.length + manualSoldItems.length
+      // 販売件数（単品 + 手入力 + まとめ売上）
+      const soldCount = soldItems.length + manualSoldItems.length + bulkSoldItems.length
 
       // 仕入数・仕入高
       const purchasedCount = purchasedItems.length
@@ -855,13 +974,25 @@ export default function SummaryPage() {
       // 出品数
       const listedCount = listedItems.length
 
-      // 売上（単品 + 手入力）
+      // 売上（単品 + 手入力 + まとめ売上）
       const totalSales = soldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
         + manualSoldItems.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+        + bulkSoldItems.reduce((sum, item) => sum + (item.sale_amount || 0), 0)
 
-      // 売上原価（売却商品の仕入総額）（単品 + 手入力）
+      // bulkPurchaseMapを作成（このスコープで使用）
+      const bpMap = new Map<string, BulkPurchase>()
+      bulkPurchases.forEach(bp => bpMap.set(bp.id, bp))
+
+      // 売上原価（売却商品の仕入総額）（単品 + 手入力 + まとめ売上）
+      const bulkSoldPurchase = bulkSoldItems.reduce((sum, item) => {
+        const bp = bpMap.get(item.bulk_purchase_id)
+        const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+        const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+        return sum + purchasePrice
+      }, 0)
       const costOfGoodsSold = soldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
         + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+        + bulkSoldPurchase
 
       // 手数料・送料（単品 + 手入力）
       const totalCommission = soldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
@@ -877,7 +1008,16 @@ export default function SummaryPage() {
         return sum + (depositAmount - otherCost - purchaseTotal)
       }, 0)
       const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
-      const totalProfit = invProfit + manualProfit
+      // まとめ売上の利益（ダッシュボードと同じ計算式）
+      const bulkProfit = bulkSoldItems.reduce((sum, item) => {
+        const bp = bpMap.get(item.bulk_purchase_id)
+        const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+        const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+        const otherCost = item.other_cost ?? 0
+        const depositAmount = item.deposit_amount || 0
+        return sum + (depositAmount - purchasePrice - otherCost)
+      }, 0)
+      const totalProfit = invProfit + manualProfit + bulkProfit
 
       // 販売利益率
       const profitRate = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0

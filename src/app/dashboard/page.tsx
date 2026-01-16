@@ -247,8 +247,8 @@ export default function DashboardPage() {
     const purchaseCount = purchases.length
     const purchaseTotal = purchases.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
-    // 今月の販売（在庫テーブル）
-    const inventorySales = inventory.filter(item => isThisMonth(item.sale_date) && item.status === '売却済み')
+    // 今月の販売（在庫テーブル）- 販売先あり、返品を除外
+    const inventorySales = inventory.filter(item => isThisMonth(item.sale_date) && item.status === '売却済み' && item.sale_destination && item.sale_destination !== '返品')
     const inventorySalesCount = inventorySales.length
     const inventorySalesTotal = inventorySales.reduce((sum, item) => sum + (item.sale_price || 0), 0)
     const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total || 0) + (item.other_cost || 0), 0)
