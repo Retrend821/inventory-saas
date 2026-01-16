@@ -375,6 +375,71 @@ export default function DashboardPage() {
     }
   }, [inventory, manualSales, bulkSales, bulkPurchaseMap, platforms, currentMonth])
 
+  // 本日の売上
+  const todayStats = useMemo(() => {
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+    const isToday = (dateStr: string | null) => {
+      if (!dateStr) return false
+      return dateStr === todayStr
+    }
+
+    // 本日の販売（単品在庫）- 販売先あり、返品を除外
+    const inventorySales = inventory.filter(item => isToday(item.sale_date) && item.status === '売却済み' && item.sale_destination && item.sale_destination !== '返品')
+    const inventorySalesCount = inventorySales.length
+    const inventorySalesTotal = inventorySales.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total || 0) + (item.other_cost || 0), 0)
+    const inventoryProfit = inventorySales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0) - inventorySalesCost
+
+    // 本日の販売（まとめ仕入れ売上）
+    const bulkSalesToday = bulkSales.filter(item => isToday(item.sale_date))
+    const bulkSalesCount = bulkSalesToday.length
+    const bulkSalesTotal = bulkSalesToday.reduce((sum, item) => sum + (item.sale_amount || 0), 0)
+    const bulkSalesProfit = bulkSalesToday.reduce((sum, item) => {
+      const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
+      const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
+      const purchasePrice = item.purchase_price ?? unitCost * item.quantity
+      const otherCost = item.other_cost ?? 0
+      const depositAmount = item.deposit_amount || 0
+      return sum + (depositAmount - purchasePrice - otherCost)
+    }, 0)
+
+    // まとめ仕入れ売上に転記された商品を追跡（重複排除用）
+    const bulkSalesKeys = new Set<string>()
+    bulkSales.forEach(sale => {
+      if (sale.product_name && sale.sale_date) {
+        const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
+        bulkSalesKeys.add(key)
+      }
+    })
+
+    // 本日の販売（手入力売上）- 原価回収済みと重複を除外
+    const manualSalesToday = manualSales.filter(item => {
+      if (!isToday(item.sale_date)) return false
+      if (item.cost_recovered) return false
+      if (item.product_name && item.sale_date) {
+        const key = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
+        if (bulkSalesKeys.has(key)) return false
+      }
+      return true
+    })
+    const manualSalesCount = manualSalesToday.length
+    const manualSalesTotal = manualSalesToday.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const manualSalesProfit = manualSalesToday.reduce((sum, item) => sum + (item.profit || 0), 0)
+
+    // 合計
+    const salesCount = inventorySalesCount + bulkSalesCount + manualSalesCount
+    const salesTotal = inventorySalesTotal + bulkSalesTotal + manualSalesTotal
+    const profit = inventoryProfit + bulkSalesProfit + manualSalesProfit
+
+    return {
+      salesCount,
+      salesTotal,
+      profit
+    }
+  }, [inventory, manualSales, bulkSales, bulkPurchaseMap])
+
   // 在庫状況
   const stockStats = useMemo(() => {
     // 除外すべき文字列かどうかをチェック（在庫一覧ページと同じ）
@@ -588,7 +653,28 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-4 md:mb-6">
           <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-4">{currentMonth.label}のサマリー</h2>
 
-          {/* メイン指標 */}
+          {/* 本日の売上 */}
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4 mb-4 md:mb-6 border border-amber-200">
+            <div className="text-sm font-medium text-amber-700 mb-2">本日の売上</div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-xs text-amber-600">販売件数</div>
+                <div className="text-xl font-bold text-amber-900">{todayStats.salesCount}件</div>
+              </div>
+              <div>
+                <div className="text-xs text-amber-600">売上</div>
+                <div className="text-xl font-bold text-amber-900">¥{todayStats.salesTotal.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-amber-600">利益</div>
+                <div className={`text-xl font-bold ${todayStats.profit >= 0 ? 'text-amber-900' : 'text-red-600'}`}>
+                  ¥{todayStats.profit.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 今月の指標 */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 md:gap-4 mb-4 md:mb-6">
             <div className="bg-green-50 rounded-lg p-3 md:p-4">
               <div className="text-xs md:text-sm text-green-600">販売件数</div>
