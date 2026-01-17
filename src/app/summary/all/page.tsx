@@ -682,31 +682,8 @@ export default function AllSalesPage() {
       newValue = null
     }
 
-    // 利益と利益率の再計算
-    let updateData: Record<string, unknown> = { [field]: newValue }
-
-    if (numericFields.includes(field) || field === 'purchase_cost') {
-      const salePrice = field === 'sale_price' ? (newValue as number) : record.sale_price
-      const commission = field === 'commission' ? (newValue as number) : record.commission
-      const shippingCost = field === 'shipping_cost' ? (newValue as number) : record.shipping_cost
-      const otherCost = field === 'other_cost' ? (newValue as number) : record.other_cost
-      const purchaseCost = field === 'purchase_price' ? (newValue as number) : record.purchase_cost
-      const depositAmount = field === 'deposit_amount' ? (newValue as number) : (record.deposit_amount || (salePrice - commission - shippingCost - otherCost))
-
-      const profit = depositAmount - purchaseCost - otherCost
-      const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
-
-      updateData = {
-        ...updateData,
-        profit,
-        profit_rate: profitRate,
-      }
-
-      // deposit_amount も更新（sale_price, commission, shipping_cost, other_cost が変更された場合）
-      if (['sale_price', 'commission', 'shipping_cost', 'other_cost'].includes(field)) {
-        updateData.deposit_amount = salePrice - commission - shippingCost - otherCost
-      }
-    }
+    // 更新データ（編集したフィールドのみ更新、自動再計算はしない）
+    const updateData: Record<string, unknown> = { [field]: newValue }
 
     // 回転日数の再計算（日付変更時）
     if (dateFields.includes(field)) {
@@ -796,6 +773,13 @@ export default function AllSalesPage() {
     return values
   }, [unifiedSales])
 
+  // ヘルパー関数: 日付が有効かチェック
+  const isValidDate = (dateStr: string | null): boolean => {
+    if (!dateStr) return false
+    if (/返品|不明|キャンセル/.test(dateStr)) return false
+    return /^\d{4}[-/]\d{2}[-/]\d{2}/.test(dateStr)
+  }
+
   // フィルタリングされた売上データ
   const filteredSales = useMemo(() => {
     if (!selectedYear || !selectedMonth) return []
@@ -806,12 +790,17 @@ export default function AllSalesPage() {
 
     return unifiedSales
       .filter(sale => {
-        // 年月フィルター（sale_dateがnullの場合は日付なしとして全期間に含める）
+        // 年月フィルター
         let dateMatch = true
-        if (!isAllYears && sale.sale_date) {
-          dateMatch = isYearly
-            ? sale.sale_date.startsWith(selectedYear)
-            : sale.sale_date.startsWith(yearMonth)
+        if (!isAllYears) {
+          // 年や月で絞り込む場合、売却日が不明なものは除外
+          if (!sale.sale_date || !isValidDate(sale.sale_date)) {
+            dateMatch = false
+          } else {
+            dateMatch = isYearly
+              ? sale.sale_date.startsWith(selectedYear)
+              : sale.sale_date.startsWith(yearMonth)
+          }
         }
 
         // 種別フィルター
@@ -1061,12 +1050,6 @@ export default function AllSalesPage() {
   }, [editingCell, editValue, editableColumns, handleCellEdit, handleCellSave, handleCellCancel, handleCellMouseDown, handleCellMouseEnter])
 
   // ヘルパー関数
-  const isValidDate = (dateStr: string | null): boolean => {
-    if (!dateStr) return false
-    if (/返品|不明|キャンセル/.test(dateStr)) return false
-    return /^\d{4}[-/]\d{2}[-/]\d{2}/.test(dateStr)
-  }
-
   const normalizeYearMonth = (dateStr: string): string => {
     return dateStr.substring(0, 7).replace('/', '-')
   }
