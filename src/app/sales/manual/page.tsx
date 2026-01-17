@@ -814,6 +814,9 @@ export default function ManualSalesPage() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!editingCell) return
 
+    // IME入力中（変換確定のEnter）は無視
+    if (e.nativeEvent.isComposing) return
+
     if (e.key === 'Enter') {
       e.preventDefault()
       saveEditingCell()
@@ -2728,6 +2731,8 @@ export default function ManualSalesPage() {
                               className="w-full px-2 py-1 text-xs border border-gray-300 rounded mb-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
                               autoFocus
                               onKeyDown={(e) => {
+                                // IME入力中（変換確定のEnter）は無視
+                                if (e.nativeEvent.isComposing) return
                                 if (e.key === 'Enter') {
                                   const inputValue = (e.target as HTMLInputElement).value.trim()
                                   if (inputValue) {
@@ -3124,6 +3129,8 @@ export default function ManualSalesPage() {
                 placeholder="https://example.com/image.jpg"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
                 onKeyDown={(e) => {
+                  // IME入力中（変換確定のEnter）は無視
+                  if (e.nativeEvent.isComposing) return
                   if (e.key === 'Enter' && imageUrlInput.trim()) {
                     handleSaveImageUrl(imageEditModal.id, imageUrlInput)
                   }
@@ -3197,6 +3204,8 @@ export default function ManualSalesPage() {
               className="flex-1 px-3 py-2 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
               autoFocus
               onKeyDown={(e) => {
+                // IME入力中（変換確定のEnter）は無視
+                if (e.nativeEvent.isComposing) return
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   saveModalEdit()
