@@ -1400,8 +1400,33 @@ export default function ManualSalesPage() {
     })
   }
 
+  // ファイル名から日付を抽出（yyyy/mm/dd または yyyy-mm-dd 形式）
+  const extractDateFromFileName = (fileName: string): string | null => {
+    // yyyy/mm/dd 形式
+    const slashMatch = fileName.match(/(\d{4})\/(\d{2})\/(\d{2})/)
+    if (slashMatch) {
+      return `${slashMatch[1]}-${slashMatch[2]}-${slashMatch[3]}`
+    }
+    // yyyy-mm-dd 形式
+    const dashMatch = fileName.match(/(\d{4})-(\d{2})-(\d{2})/)
+    if (dashMatch) {
+      return `${dashMatch[1]}-${dashMatch[2]}-${dashMatch[3]}`
+    }
+    // yyyymmdd 形式（8桁連続）
+    const numMatch = fileName.match(/(\d{4})(\d{2})(\d{2})/)
+    if (numMatch) {
+      const year = parseInt(numMatch[1])
+      const month = parseInt(numMatch[2])
+      const day = parseInt(numMatch[3])
+      if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return `${numMatch[1]}-${numMatch[2]}-${numMatch[3]}`
+      }
+    }
+    return null
+  }
+
   // オークネットCSVを直接インポート
-  const executeAucnetImport = async (csvData: Record<string, string>[], imageMap: Map<string, string> | null) => {
+  const executeAucnetImport = async (csvData: Record<string, string>[], imageMap: Map<string, string> | null, purchaseDate: string | null = null) => {
     // 列名からデータを取得（引用符付き/なし両対応）
     const getCol = (row: Record<string, string>, colName: string): string => {
       return row[colName] || row[`"${colName}"`] || ''
@@ -1454,6 +1479,7 @@ export default function ManualSalesPage() {
           purchase_price: purchasePrice,
           purchase_total: purchaseTotal,
           purchase_source: 'オークネット',
+          purchase_date: purchaseDate,
           image_url: imageUrl,
           profit: 0 - purchaseTotal,
           profit_rate: 0,
@@ -1631,9 +1657,10 @@ export default function ManualSalesPage() {
       // オークネット計算書CSVかチェック
       const { isAucnet, data } = await checkAucnetCSV(file)
       if (isAucnet) {
-        // オークネット計算書のみ → 画像なしで直接インポート
-        console.log('オークネットCSV形式を検出、直接インポート')
-        executeAucnetImport(data, null)
+        // ファイル名から仕入日を抽出
+        const purchaseDate = extractDateFromFileName(file.name)
+        console.log('オークネットCSV形式を検出、直接インポート', { fileName: file.name, purchaseDate })
+        executeAucnetImport(data, null, purchaseDate)
         return
       }
 
@@ -1666,12 +1693,14 @@ export default function ManualSalesPage() {
 
     // 2ファイル以上の場合: オークネット計算書CSVと画像CSVを探す
     let aucnetData: Record<string, string>[] | null = null
+    let aucnetFileName: string | null = null
     let imageFile: File | null = null
 
     for (const file of fileArray) {
       const { isAucnet, data } = await checkAucnetCSV(file)
       if (isAucnet) {
         aucnetData = data
+        aucnetFileName = file.name
         continue
       }
       const isImage = await checkImageCSV(file)
@@ -1686,8 +1715,13 @@ export default function ManualSalesPage() {
       if (imageFile) {
         imageMap = await parseAucnetImageCSV(imageFile)
       }
-      console.log(`オークネットCSV形式を検出、${imageMap ? '画像CSV付きで' : ''}直接インポート`)
-      executeAucnetImport(aucnetData, imageMap)
+      // ファイル名から仕入日を抽出（計算書または画像CSVのどちらか）
+      let purchaseDate = aucnetFileName ? extractDateFromFileName(aucnetFileName) : null
+      if (!purchaseDate && imageFile) {
+        purchaseDate = extractDateFromFileName(imageFile.name)
+      }
+      console.log(`オークネットCSV形式を検出、${imageMap ? '画像CSV付きで' : ''}直接インポート`, { purchaseDate })
+      executeAucnetImport(aucnetData, imageMap, purchaseDate)
     } else {
       alert('認識できるCSVファイルがありませんでした')
     }
