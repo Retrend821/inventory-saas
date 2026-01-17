@@ -119,6 +119,37 @@ type ManualSale = {
   cost_recovered: boolean | null
 }
 
+// sales_summary テーブルの型（編集用）
+type SalesSummaryRecord = {
+  id: string
+  source_type: 'single' | 'bulk' | 'manual'
+  source_id: string
+  inventory_number: string | null
+  product_name: string
+  brand_name: string | null
+  category: string | null
+  image_url: string | null
+  purchase_source: string | null
+  sale_destination: string | null
+  sale_price: number
+  commission: number
+  shipping_cost: number
+  other_cost: number
+  purchase_price: number
+  purchase_cost: number
+  deposit_amount: number | null
+  profit: number
+  profit_rate: number
+  purchase_date: string | null
+  listing_date: string | null
+  sale_date: string | null
+  turnover_days: number | null
+  memo: string | null
+  quantity: number
+  created_at: string
+  updated_at: string
+}
+
 // 統一された売上データ型
 type UnifiedSale = {
   id: string
@@ -156,7 +187,12 @@ export default function AllSalesPage() {
   const [bulkSales, setBulkSales] = useState<BulkSale[]>([])
   const [manualSales, setManualSales] = useState<ManualSale[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
+  const [salesSummary, setSalesSummary] = useState<SalesSummaryRecord[]>([])
   const [loading, setLoading] = useState(true)
+
+  // 編集機能用state
+  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
+  const [editValue, setEditValue] = useState<string>('')
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
 
@@ -315,6 +351,221 @@ export default function AllSalesPage() {
       }
       setManualSales(allManualSales)
 
+      // sales_summary テーブルからデータ取得（ページネーション対応）
+      let allSalesSummary: SalesSummaryRecord[] = []
+      from = 0
+      hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('sales_summary')
+          .select('*')
+          .range(from, from + pageSize - 1)
+
+        if (error) {
+          console.error('Error fetching sales_summary:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allSalesSummary = [...allSalesSummary, ...data]
+          from += pageSize
+          hasMore = data.length === pageSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      // 既存の sales_summary のキーをセットに格納（重複チェック用）
+      const existingKeys = new Set(allSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
+
+      // bulkPurchase のマップを作成
+      const bpMap = new Map<string, BulkPurchase>()
+      bulkPurchaseData?.forEach(bp => bpMap.set(bp.id, bp))
+
+      // bulk_sales のキーを記録（manual_sales との重複排除用）
+      const bulkSalesKeys = new Set<string>()
+      bulkSaleData?.forEach(sale => {
+        if (sale.product_name && sale.sale_date) {
+          const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
+          bulkSalesKeys.add(key)
+        }
+      })
+
+      // 不足分を追加するためのデータを収集
+      const newRecords: Omit<SalesSummaryRecord, 'id' | 'created_at' | 'updated_at'>[] = []
+
+      // 回転日数計算関数
+      const calcTurnover = (purchaseDate: string | null, saleDate: string | null) => {
+        if (!purchaseDate || !saleDate) return null
+        const purchase = new Date(purchaseDate)
+        const sale = new Date(saleDate)
+        const diffTime = sale.getTime() - purchase.getTime()
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      }
+
+      // 1. inventory（単品）の不足分を追加
+      allInventory.forEach(item => {
+        if (item.status === '売却済み' && item.sale_destination && item.sale_destination !== '返品' && item.sale_date) {
+          const key = `single:${item.id}`
+          if (!existingKeys.has(key)) {
+            const salePrice = item.sale_price || 0
+            const purchaseCost = item.purchase_total || 0
+            const purchasePrice = item.purchase_price || 0
+            const commission = item.commission || 0
+            const shippingCost = item.shipping_cost || 0
+            const otherCost = item.other_cost || 0
+            const depositAmount = item.deposit_amount || 0
+            const profit = depositAmount - purchaseCost - otherCost
+            const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
+
+            newRecords.push({
+              source_type: 'single',
+              source_id: item.id,
+              inventory_number: item.inventory_number,
+              product_name: item.product_name || '',
+              brand_name: item.brand_name,
+              category: item.category,
+              image_url: item.saved_image_url || item.image_url,
+              purchase_source: item.purchase_source,
+              sale_destination: item.sale_destination,
+              sale_price: salePrice,
+              commission,
+              shipping_cost: shippingCost,
+              other_cost: otherCost,
+              purchase_price: purchasePrice,
+              purchase_cost: purchaseCost,
+              deposit_amount: item.deposit_amount,
+              profit,
+              profit_rate: profitRate,
+              purchase_date: item.purchase_date,
+              listing_date: item.listing_date,
+              sale_date: item.sale_date,
+              turnover_days: calcTurnover(item.purchase_date, item.sale_date),
+              memo: item.memo,
+              quantity: 1
+            })
+          }
+        }
+      })
+
+      // 2. bulk_sales（まとめ売り）の不足分を追加
+      bulkSaleData?.forEach(sale => {
+        const key = `bulk:${sale.id}`
+        if (!existingKeys.has(key)) {
+          const bulkPurchase = bpMap.get(sale.bulk_purchase_id)
+          if (bulkPurchase) {
+            const hasProductDetails = sale.product_name || sale.brand_name || sale.category
+            const unitCost = bulkPurchase.total_quantity > 0
+              ? Math.round(bulkPurchase.total_amount / bulkPurchase.total_quantity)
+              : 0
+            const purchasePrice = sale.purchase_price ?? unitCost * sale.quantity
+            const otherCost = sale.other_cost ?? 0
+            const depositAmount = sale.deposit_amount || 0
+            const profit = depositAmount - purchasePrice - otherCost
+            const profitRate = sale.sale_amount > 0 ? Math.round((profit / sale.sale_amount) * 100) : 0
+
+            newRecords.push({
+              source_type: 'bulk',
+              source_id: sale.id,
+              inventory_number: null,
+              product_name: hasProductDetails
+                ? (sale.product_name || `【まとめ】${bulkPurchase.genre}`)
+                : `【まとめ】${bulkPurchase.genre}${sale.quantity > 1 ? ` × ${sale.quantity}` : ''}`,
+              brand_name: sale.brand_name,
+              category: sale.category || bulkPurchase.genre,
+              image_url: sale.image_url,
+              purchase_source: bulkPurchase.purchase_source,
+              sale_destination: sale.sale_destination,
+              sale_price: sale.sale_amount,
+              commission: sale.commission,
+              shipping_cost: sale.shipping_cost,
+              other_cost: otherCost,
+              purchase_price: purchasePrice,
+              purchase_cost: purchasePrice + otherCost,
+              deposit_amount: sale.deposit_amount,
+              profit,
+              profit_rate: profitRate,
+              purchase_date: bulkPurchase.purchase_date,
+              listing_date: sale.listing_date,
+              sale_date: sale.sale_date,
+              turnover_days: calcTurnover(bulkPurchase.purchase_date, sale.sale_date),
+              memo: sale.memo,
+              quantity: sale.quantity
+            })
+          }
+        }
+      })
+
+      // 3. manual_sales（手入力）の不足分を追加
+      allManualSales.forEach(item => {
+        if (item.sale_date && !item.cost_recovered) {
+          // bulk_sales との重複チェック
+          if (item.product_name && item.sale_date) {
+            const dupKey = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
+            if (bulkSalesKeys.has(dupKey)) return
+          }
+
+          const key = `manual:${item.id}`
+          if (!existingKeys.has(key)) {
+            const salePrice = item.sale_price || 0
+            const purchaseCost = item.purchase_total || 0
+            const commission = item.commission || 0
+            const shippingCost = item.shipping_cost || 0
+            const otherCost = item.other_cost || 0
+            const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost - otherCost)
+            const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
+
+            newRecords.push({
+              source_type: 'manual',
+              source_id: item.id,
+              inventory_number: item.inventory_number,
+              product_name: item.product_name || '(手入力)',
+              brand_name: item.brand_name,
+              category: item.category,
+              image_url: null,
+              purchase_source: item.purchase_source,
+              sale_destination: item.sale_destination,
+              sale_price: salePrice,
+              commission,
+              shipping_cost: shippingCost,
+              other_cost: otherCost,
+              purchase_price: purchaseCost,
+              purchase_cost: purchaseCost,
+              deposit_amount: salePrice - commission - shippingCost - otherCost,
+              profit,
+              profit_rate: profitRate,
+              purchase_date: item.purchase_date,
+              listing_date: item.listing_date,
+              sale_date: item.sale_date,
+              turnover_days: calcTurnover(item.purchase_date, item.sale_date),
+              memo: item.memo,
+              quantity: 1
+            })
+          }
+        }
+      })
+
+      // 不足分があれば sales_summary に追加
+      if (newRecords.length > 0) {
+        console.log(`Adding ${newRecords.length} new records to sales_summary`)
+        const batchSize = 500
+        for (let i = 0; i < newRecords.length; i += batchSize) {
+          const batch = newRecords.slice(i, i + batchSize)
+          const { data: insertedData, error: insertError } = await supabase
+            .from('sales_summary')
+            .insert(batch)
+            .select()
+
+          if (insertError) {
+            console.error('Error inserting to sales_summary:', insertError)
+          } else if (insertedData) {
+            allSalesSummary = [...allSalesSummary, ...insertedData]
+          }
+        }
+      }
+
+      setSalesSummary(allSalesSummary)
       setLoading(false)
     }
 
@@ -346,158 +597,151 @@ export default function AllSalesPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
 
-  // 統一された売上データを生成
+  // 統一された売上データを生成（sales_summary から）
   const unifiedSales = useMemo(() => {
-    const sales: UnifiedSale[] = []
+    return salesSummary.map(record => ({
+      id: record.id,
+      type: record.source_type,
+      inventory_number: record.inventory_number,
+      product_name: record.product_name,
+      brand_name: record.brand_name,
+      category: record.category,
+      image_url: record.image_url,
+      purchase_source: record.purchase_source,
+      sale_destination: record.sale_destination,
+      sale_price: record.sale_price,
+      commission: record.commission,
+      shipping_cost: record.shipping_cost,
+      other_cost: record.other_cost,
+      purchase_price: record.purchase_price,
+      purchase_cost: record.purchase_cost,
+      deposit_amount: record.deposit_amount,
+      profit: record.profit,
+      profit_rate: record.profit_rate,
+      purchase_date: record.purchase_date,
+      listing_date: record.listing_date,
+      sale_date: record.sale_date,
+      turnover_days: record.turnover_days,
+      memo: record.memo,
+      quantity: record.quantity,
+    }))
+  }, [salesSummary])
 
-    // 単品仕入れの販売データ（売却済みで販売先が入っている場合のみ、返品を除く）
-    inventory.forEach(item => {
-      if (item.status === '売却済み' && item.sale_destination && item.sale_destination !== '返品' && item.sale_date) {
-        const salePrice = item.sale_price || 0
-        const purchaseCost = item.purchase_total || 0
-        const purchasePrice = item.purchase_price || 0
-        const commission = item.commission || 0
-        const shippingCost = item.shipping_cost || 0
-        const otherCost = item.other_cost || 0
-        const depositAmount = item.deposit_amount || 0
-        const profit = depositAmount - purchaseCost - otherCost
-        const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
+  // 編集可能な列の定義
+  const editableColumns = ['product_name', 'brand_name', 'category', 'purchase_source', 'sale_destination',
+    'sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'deposit_amount',
+    'purchase_date', 'listing_date', 'sale_date', 'memo']
 
-        sales.push({
-          id: item.id,
-          type: 'single',
-          inventory_number: item.inventory_number,
-          product_name: item.product_name,
-          brand_name: item.brand_name,
-          category: item.category,
-          image_url: item.saved_image_url || item.image_url,
-          purchase_source: item.purchase_source,
-          sale_destination: item.sale_destination,
-          sale_price: salePrice,
-          commission,
-          shipping_cost: shippingCost,
-          other_cost: otherCost,
-          purchase_price: purchasePrice,
-          purchase_cost: purchaseCost,
-          deposit_amount: item.deposit_amount,
-          profit,
-          profit_rate: profitRate,
-          purchase_date: item.purchase_date,
-          listing_date: item.listing_date,
-          sale_date: item.sale_date,
-          turnover_days: calculateTurnoverDays(item.purchase_date, item.sale_date),
-          memo: item.memo,
-          quantity: 1,
-        })
-      }
-    })
+  // セル編集開始
+  const handleCellEdit = useCallback((saleId: string, field: string, currentValue: string | number | null) => {
+    setEditingCell({ id: saleId, field })
+    setEditValue(currentValue?.toString() || '')
+  }, [])
 
-    // bulk_salesに転記された商品を追跡（重複排除用）
-    // 商品名と売却日の組み合わせをキーとして使用
-    const bulkSalesKeys = new Set<string>()
+  // セル編集保存
+  const handleCellSave = useCallback(async () => {
+    if (!editingCell) return
 
-    // まとめ仕入れの販売データ
-    bulkSales.forEach(sale => {
-      const bulkPurchase = bulkPurchaseMap.get(sale.bulk_purchase_id)
-      if (bulkPurchase) {
-        // 商品詳細が登録されていればそちらを優先、なければまとめ仕入れのデータを使用
-        const hasProductDetails = sale.product_name || sale.brand_name || sale.category
+    const { id, field } = editingCell
+    const record = salesSummary.find(s => s.id === id)
+    if (!record) {
+      setEditingCell(null)
+      setEditValue('')
+      return
+    }
 
-        // 重複検出用キーを登録（商品名 + 売却日）
-        if (sale.product_name && sale.sale_date) {
-          const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
-          bulkSalesKeys.add(key)
+    // 値の変換
+    let newValue: string | number | null = editValue.trim()
+
+    // 数値フィールドの処理
+    const numericFields = ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'deposit_amount']
+    if (numericFields.includes(field)) {
+      if (newValue === '') {
+        newValue = 0
+      } else {
+        const parsed = parseFloat(newValue)
+        if (isNaN(parsed)) {
+          setEditingCell(null)
+          setEditValue('')
+          return
         }
-
-        const unitCost = bulkPurchase.total_quantity > 0
-          ? Math.round(bulkPurchase.total_amount / bulkPurchase.total_quantity)
-          : 0
-        const purchasePrice = sale.purchase_price ?? unitCost * sale.quantity
-        const otherCost = sale.other_cost ?? 0
-        const depositAmount = sale.deposit_amount || 0
-        const profit = depositAmount - purchasePrice - otherCost
-        const profitRate = sale.sale_amount > 0 ? Math.round((profit / sale.sale_amount) * 100) : 0
-
-        sales.push({
-          id: sale.id,
-          type: 'bulk',
-          inventory_number: null,
-          product_name: hasProductDetails
-            ? (sale.product_name || `【まとめ】${bulkPurchase.genre}`)
-            : `【まとめ】${bulkPurchase.genre}${sale.quantity > 1 ? ` × ${sale.quantity}` : ''}`,
-          brand_name: sale.brand_name,
-          category: sale.category || bulkPurchase.genre,
-          image_url: sale.image_url,
-          purchase_source: bulkPurchase.purchase_source,
-          sale_destination: sale.sale_destination,
-          sale_price: sale.sale_amount,
-          commission: sale.commission,
-          shipping_cost: sale.shipping_cost,
-          other_cost: otherCost,
-          purchase_price: purchasePrice,
-          purchase_cost: purchasePrice + otherCost,
-          deposit_amount: sale.deposit_amount,
-          profit,
-          profit_rate: profitRate,
-          purchase_date: bulkPurchase.purchase_date,
-          listing_date: sale.listing_date,
-          sale_date: sale.sale_date,
-          turnover_days: calculateTurnoverDays(bulkPurchase.purchase_date, sale.sale_date),
-          memo: sale.memo,
-          quantity: sale.quantity,
-        })
+        newValue = parsed
       }
-    })
+    }
 
-    // 手入力売上データ（原価回収でbulk_salesに転記済みのものは除外、bulk_salesに既に存在するものも除外）
-    manualSales.forEach(item => {
-      if (item.sale_date && !item.cost_recovered) {
-        // bulk_salesに同じ商品名+売却日のものがあれば除外（重複防止）
-        if (item.product_name && item.sale_date) {
-          const key = `${item.product_name.trim().toLowerCase()}|${item.sale_date}`
-          if (bulkSalesKeys.has(key)) {
-            return // bulk_salesに既に存在するのでスキップ
-          }
+    // 日付フィールドの処理
+    const dateFields = ['purchase_date', 'listing_date', 'sale_date']
+    if (dateFields.includes(field)) {
+      if (newValue === '') {
+        newValue = null
+      }
+    }
+
+    // 文字列フィールドで空の場合
+    if (typeof newValue === 'string' && newValue === '' && !dateFields.includes(field)) {
+      newValue = null
+    }
+
+    // 利益と利益率の再計算
+    let updateData: Record<string, unknown> = { [field]: newValue }
+
+    if (numericFields.includes(field) || field === 'purchase_cost') {
+      const salePrice = field === 'sale_price' ? (newValue as number) : record.sale_price
+      const commission = field === 'commission' ? (newValue as number) : record.commission
+      const shippingCost = field === 'shipping_cost' ? (newValue as number) : record.shipping_cost
+      const otherCost = field === 'other_cost' ? (newValue as number) : record.other_cost
+      const purchaseCost = field === 'purchase_price' ? (newValue as number) : record.purchase_cost
+      const depositAmount = field === 'deposit_amount' ? (newValue as number) : (record.deposit_amount || (salePrice - commission - shippingCost - otherCost))
+
+      const profit = depositAmount - purchaseCost - otherCost
+      const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
+
+      updateData = {
+        ...updateData,
+        profit,
+        profit_rate: profitRate,
+      }
+
+      // deposit_amount も更新（sale_price, commission, shipping_cost, other_cost が変更された場合）
+      if (['sale_price', 'commission', 'shipping_cost', 'other_cost'].includes(field)) {
+        updateData.deposit_amount = salePrice - commission - shippingCost - otherCost
+      }
+    }
+
+    // 回転日数の再計算（日付変更時）
+    if (dateFields.includes(field)) {
+      const purchaseDate = field === 'purchase_date' ? (newValue as string) : record.purchase_date
+      const saleDate = field === 'sale_date' ? (newValue as string) : record.sale_date
+      updateData.turnover_days = calculateTurnoverDays(purchaseDate, saleDate)
+    }
+
+    // DBに保存
+    const { error } = await supabase
+      .from('sales_summary')
+      .update(updateData)
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error updating sales_summary:', error)
+    } else {
+      // ローカルstateを更新
+      setSalesSummary(prev => prev.map(s => {
+        if (s.id === id) {
+          return { ...s, ...updateData } as SalesSummaryRecord
         }
-        const salePrice = item.sale_price || 0
-        const purchaseCost = item.purchase_total || 0
-        const commission = item.commission || 0
-        const shippingCost = item.shipping_cost || 0
-        const otherCost = item.other_cost || 0
-        const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost - otherCost)
-        const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
+        return s
+      }))
+    }
 
-        sales.push({
-          id: `manual-${item.id}`,
-          type: 'manual',
-          inventory_number: item.inventory_number,
-          product_name: item.product_name || '(手入力)',
-          brand_name: item.brand_name,
-          category: item.category,
-          image_url: null,
-          purchase_source: item.purchase_source,
-          sale_destination: item.sale_destination,
-          sale_price: salePrice,
-          commission,
-          shipping_cost: shippingCost,
-          other_cost: otherCost,
-          purchase_price: purchaseCost,
-          purchase_cost: purchaseCost,
-          deposit_amount: salePrice - commission - shippingCost - otherCost,
-          profit,
-          profit_rate: profitRate,
-          purchase_date: item.purchase_date,
-          listing_date: item.listing_date,
-          sale_date: item.sale_date,
-          turnover_days: calculateTurnoverDays(item.purchase_date, item.sale_date),
-          memo: item.memo,
-          quantity: 1,
-        })
-      }
-    })
+    setEditingCell(null)
+    setEditValue('')
+  }, [editingCell, editValue, salesSummary, calculateTurnoverDays])
 
-    return sales
-  }, [inventory, bulkSales, bulkPurchaseMap, manualSales])
+  // 編集キャンセル
+  const handleCellCancel = useCallback(() => {
+    setEditingCell(null)
+    setEditValue('')
+  }, [])
 
   // 利用可能な年のリスト
   const availableYears = useMemo(() => {
@@ -766,6 +1010,55 @@ export default function AllSalesPage() {
   const handleMouseUp = () => {
     setIsSelecting(false)
   }
+
+  // 編集可能セルのレンダリング
+  const renderEditableCell = useCallback((
+    sale: UnifiedSale,
+    field: string,
+    value: string | number | null,
+    displayValue: React.ReactNode,
+    className: string,
+    rowIdx: number,
+    cellClass: string
+  ) => {
+    const isEditing = editingCell?.id === sale.id && editingCell?.field === field
+    const isEditable = editableColumns.includes(field)
+
+    if (isEditing) {
+      const isNumeric = ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'deposit_amount'].includes(field)
+      const isDate = ['purchase_date', 'listing_date', 'sale_date'].includes(field)
+
+      return (
+        <td key={field} className={`px-1 py-1 ${className}`}>
+          <input
+            type={isDate ? 'date' : isNumeric ? 'number' : 'text'}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleCellSave}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCellSave()
+              if (e.key === 'Escape') handleCellCancel()
+            }}
+            autoFocus
+            className={`w-full px-1 py-0.5 text-xs border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${isNumeric ? 'text-right' : ''}`}
+          />
+        </td>
+      )
+    }
+
+    return (
+      <td
+        key={field}
+        className={`${className} ${cellClass} ${isEditable ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+        onMouseDown={(e) => handleCellMouseDown(rowIdx, field, e)}
+        onMouseEnter={() => handleCellMouseEnter(rowIdx, field)}
+        onDoubleClick={() => isEditable && handleCellEdit(sale.id, field, value)}
+        title={isEditable ? 'ダブルクリックで編集' : undefined}
+      >
+        {displayValue}
+      </td>
+    )
+  }, [editingCell, editValue, editableColumns, handleCellEdit, handleCellSave, handleCellCancel, handleCellMouseDown, handleCellMouseEnter])
 
   // ヘルパー関数
   const isValidDate = (dateStr: string | null): boolean => {
@@ -1465,37 +1758,29 @@ export default function AllSalesPage() {
                               </td>
                             )
                           case 'category':
-                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.category || '-'}</td>
+                            return renderEditableCell(sale, 'category', sale.category, sale.category || '-', 'px-2 py-2 text-gray-700 text-xs', rowIdx, cellClass)
                           case 'brand_name':
-                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.brand_name || '-'}</td>
+                            return renderEditableCell(sale, 'brand_name', sale.brand_name, sale.brand_name || '-', 'px-2 py-2 text-gray-700 text-xs', rowIdx, cellClass)
                           case 'product_name':
-                            return (
-                              <td key={col.key} className={`px-2 py-2 cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
-                                <div className="text-gray-900 text-xs font-medium truncate max-w-[150px]">{sale.product_name}</div>
-                              </td>
-                            )
+                            return renderEditableCell(sale, 'product_name', sale.product_name, <div className="text-gray-900 text-xs font-medium truncate max-w-[150px]">{sale.product_name}</div>, 'px-2 py-2', rowIdx, cellClass)
                           case 'purchase_source':
-                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.purchase_source || '-'}</td>
+                            return renderEditableCell(sale, 'purchase_source', sale.purchase_source, sale.purchase_source || '-', 'px-2 py-2 text-gray-700 text-xs', rowIdx, cellClass)
                           case 'sale_destination':
-                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.sale_destination || '-'}</td>
+                            return renderEditableCell(sale, 'sale_destination', sale.sale_destination, sale.sale_destination || '-', 'px-2 py-2 text-gray-700 text-xs', rowIdx, cellClass)
                           case 'sale_price':
-                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.sale_price)}</td>
+                            return renderEditableCell(sale, 'sale_price', sale.sale_price, formatCurrency(sale.sale_price), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'commission':
-                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.commission)}</td>
+                            return renderEditableCell(sale, 'commission', sale.commission, formatCurrency(sale.commission), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'shipping_cost':
-                            return (
-                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs cursor-cell ${isExternalShipping(sale.shipping_cost) ? 'text-blue-600 font-semibold' : 'text-gray-700'} ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
-                                {formatCurrency(sale.shipping_cost)}
-                              </td>
-                            )
+                            return renderEditableCell(sale, 'shipping_cost', sale.shipping_cost, formatCurrency(sale.shipping_cost), `px-2 py-2 text-right tabular-nums text-xs ${isExternalShipping(sale.shipping_cost) ? 'text-blue-600 font-semibold' : 'text-gray-700'}`, rowIdx, cellClass)
                           case 'other_cost':
-                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.other_cost)}</td>
+                            return renderEditableCell(sale, 'other_cost', sale.other_cost, formatCurrency(sale.other_cost), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'purchase_price':
-                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.purchase_price)}</td>
+                            return renderEditableCell(sale, 'purchase_price', sale.purchase_price, formatCurrency(sale.purchase_price), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'purchase_total':
                             return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.purchase_cost)}</td>
                           case 'deposit_amount':
-                            return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatCurrency(sale.deposit_amount)}</td>
+                            return renderEditableCell(sale, 'deposit_amount', sale.deposit_amount, formatCurrency(sale.deposit_amount), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'profit':
                             return (
                               <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs font-medium cursor-cell ${sale.profit >= 0 ? 'text-green-600' : 'text-red-600'} ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
@@ -1509,15 +1794,15 @@ export default function AllSalesPage() {
                               </td>
                             )
                           case 'purchase_date':
-                            return <td key={col.key} className={`px-2 py-2 text-center text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatDate(sale.purchase_date)}</td>
+                            return renderEditableCell(sale, 'purchase_date', sale.purchase_date, formatDate(sale.purchase_date), 'px-2 py-2 text-center text-gray-700 text-xs', rowIdx, cellClass)
                           case 'listing_date':
-                            return <td key={col.key} className={`px-2 py-2 text-center text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatDate(sale.listing_date)}</td>
+                            return renderEditableCell(sale, 'listing_date', sale.listing_date, formatDate(sale.listing_date), 'px-2 py-2 text-center text-gray-700 text-xs', rowIdx, cellClass)
                           case 'sale_date':
-                            return <td key={col.key} className={`px-2 py-2 text-center text-gray-700 text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{formatDate(sale.sale_date)}</td>
+                            return renderEditableCell(sale, 'sale_date', sale.sale_date, formatDate(sale.sale_date), 'px-2 py-2 text-center text-gray-700 text-xs', rowIdx, cellClass)
                           case 'turnover_days':
                             return <td key={col.key} className={`px-2 py-2 text-right text-gray-700 tabular-nums text-xs cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.turnover_days !== null ? `${sale.turnover_days}日` : '-'}</td>
                           case 'memo':
-                            return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs truncate max-w-[100px] cursor-cell ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.memo || '-'}</td>
+                            return renderEditableCell(sale, 'memo', sale.memo, sale.memo || '-', 'px-2 py-2 text-gray-700 text-xs truncate max-w-[100px]', rowIdx, cellClass)
                           default:
                             return null
                         }
