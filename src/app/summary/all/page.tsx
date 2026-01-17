@@ -774,8 +774,9 @@ export default function AllSalesPage() {
   }, [unifiedSales])
 
   // ヘルパー関数: 日付が有効かチェック
-  const isValidDate = (dateStr: string | null): boolean => {
+  const isValidDate = (dateStr: string | null | undefined): boolean => {
     if (!dateStr) return false
+    if (typeof dateStr !== 'string') return false
     if (/返品|不明|キャンセル/.test(dateStr)) return false
     return /^\d{4}[-/]\d{2}[-/]\d{2}/.test(dateStr)
   }
@@ -788,18 +789,26 @@ export default function AllSalesPage() {
     const isYearly = selectedMonth === 'all'
     const yearMonth = `${selectedYear}-${selectedMonth}`
 
+    // ヘルパー関数（useMemo内で定義）
+    const checkValidDate = (dateStr: string | null | undefined): boolean => {
+      if (!dateStr) return false
+      if (typeof dateStr !== 'string') return false
+      if (/返品|不明|キャンセル/.test(dateStr)) return false
+      return /^\d{4}[-/]\d{2}[-/]\d{2}/.test(dateStr)
+    }
+
     return unifiedSales
       .filter(sale => {
         // 年月フィルター
         let dateMatch = true
         if (!isAllYears) {
           // 年や月で絞り込む場合、売却日が不明なものは除外
-          if (!sale.sale_date || !isValidDate(sale.sale_date)) {
+          if (!checkValidDate(sale.sale_date)) {
             dateMatch = false
           } else {
             dateMatch = isYearly
-              ? sale.sale_date.startsWith(selectedYear)
-              : sale.sale_date.startsWith(yearMonth)
+              ? sale.sale_date!.startsWith(selectedYear)
+              : sale.sale_date!.startsWith(yearMonth)
           }
         }
 
