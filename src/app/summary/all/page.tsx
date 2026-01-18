@@ -748,8 +748,12 @@ export default function AllSalesPage() {
     return new Set(platforms.filter(p => p.sales_type === 'toB').map(p => p.name))
   }, [platforms])
 
+  // ソート可能な列
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
   // フィルター可能な列とそのユニーク値を抽出
-  const filterableColumns = ['category', 'brand_name', 'purchase_source', 'sale_destination', 'shipping_cost', 'profit', 'profit_rate']
+  const filterableColumns = ['inventory_number', 'category', 'brand_name', 'purchase_source', 'sale_destination', 'shipping_cost', 'profit', 'profit_rate']
   const columnUniqueValues = useMemo(() => {
     const values: Record<string, string[]> = {}
     filterableColumns.forEach(col => {
@@ -759,6 +763,21 @@ export default function AllSalesPage() {
       } else if (col === 'profit' || col === 'profit_rate') {
         // 利益・利益率は黒字/赤字の2択
         values[col] = ['黒字', '赤字']
+      } else if (col === 'inventory_number') {
+        // 管理番号は数値ソートで上位100件のみ表示（多すぎるため）
+        const uniqueSet = new Set<string>()
+        unifiedSales.forEach(sale => {
+          if (sale.inventory_number) {
+            uniqueSet.add(sale.inventory_number)
+          }
+        })
+        values[col] = Array.from(uniqueSet)
+          .sort((a, b) => {
+            const numA = parseInt(a) || 0
+            const numB = parseInt(b) || 0
+            return numB - numA
+          })
+          .slice(0, 100)
       } else {
         const uniqueSet = new Set<string>()
         unifiedSales.forEach(sale => {
@@ -897,6 +916,29 @@ export default function AllSalesPage() {
   // ソート済みの販売データ
   const sortedSales = useMemo(() => {
     return [...filteredSales].sort((a, b) => {
+      // 列ヘッダーによるソートが優先
+      if (sortColumn) {
+        const dir = sortDirection === 'asc' ? 1 : -1
+        if (sortColumn === 'inventory_number') {
+          const numA = parseInt(a.inventory_number || '0') || 0
+          const numB = parseInt(b.inventory_number || '0') || 0
+          return (numA - numB) * dir
+        }
+        if (sortColumn === 'sale_price') return ((a.sale_price || 0) - (b.sale_price || 0)) * dir
+        if (sortColumn === 'profit') return ((a.profit || 0) - (b.profit || 0)) * dir
+        if (sortColumn === 'profit_rate') return ((a.profit_rate || 0) - (b.profit_rate || 0)) * dir
+        if (sortColumn === 'sale_date') {
+          if (!a.sale_date && !b.sale_date) return 0
+          if (!a.sale_date) return 1
+          if (!b.sale_date) return -1
+          return a.sale_date.localeCompare(b.sale_date) * dir
+        }
+        // 文字列列
+        const valA = String(a[sortColumn as keyof UnifiedSale] || '')
+        const valB = String(b[sortColumn as keyof UnifiedSale] || '')
+        return valA.localeCompare(valB, 'ja') * dir
+      }
+      // 従来のボタンソート
       if (historySortBy === 'sales') return (b.sale_price || 0) - (a.sale_price || 0)
       if (historySortBy === 'profit') return (b.profit || 0) - (a.profit || 0)
       if (historySortBy === 'profitRate') return (b.profit_rate || 0) - (a.profit_rate || 0)
@@ -906,7 +948,7 @@ export default function AllSalesPage() {
       if (!b.sale_date) return -1
       return b.sale_date.localeCompare(a.sale_date)
     })
-  }, [filteredSales, historySortBy])
+  }, [filteredSales, historySortBy, sortColumn, sortDirection])
 
   // 数値列のキー
   const numericColumns = ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'turnover_days']
@@ -1650,7 +1692,24 @@ export default function AllSalesPage() {
                   <tr className="bg-gray-50">
                     {visibleColumns.map(col => {
                       const isFilterable = filterableColumns.includes(col.key)
+                      const isSortable = ['inventory_number', 'sale_price', 'profit', 'profit_rate', 'sale_date', 'purchase_date', 'turnover_days'].includes(col.key)
                       const hasFilter = columnFilters[col.key] && columnFilters[col.key] !== ''
+                      const isCurrentSort = sortColumn === col.key
+
+                      const handleSort = () => {
+                        if (isCurrentSort) {
+                          if (sortDirection === 'desc') {
+                            setSortDirection('asc')
+                          } else {
+                            setSortColumn(null)
+                            setSortDirection('desc')
+                          }
+                        } else {
+                          setSortColumn(col.key)
+                          setSortDirection('desc')
+                        }
+                      }
+
                       return (
                         <th
                           key={col.key}
@@ -1662,52 +1721,77 @@ export default function AllSalesPage() {
                               : 'text-left'
                           }`}
                         >
-                          {isFilterable ? (
-                            <div className="inline-flex items-center gap-1">
-                              <span>{col.label}</span>
+                          <div className="inline-flex items-center gap-1">
+                            <span>{col.label}</span>
+                            {/* ソートアイコン */}
+                            {isSortable && (
                               <button
-                                onClick={() => setOpenFilterColumn(openFilterColumn === col.key ? null : col.key)}
-                                className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${hasFilter ? 'text-blue-600' : 'text-gray-400'}`}
+                                onClick={handleSort}
+                                className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${isCurrentSort ? 'text-blue-600' : 'text-gray-400'}`}
+                                title={isCurrentSort ? (sortDirection === 'desc' ? '降順' : '昇順') : 'ソート'}
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                                </svg>
+                                {isCurrentSort ? (
+                                  sortDirection === 'desc' ? (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                    </svg>
+                                  )
+                                ) : (
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                  </svg>
+                                )}
                               </button>
-                              {openFilterColumn === col.key && (
-                                <>
-                                  <div
-                                    className="fixed inset-0 z-40"
-                                    onClick={() => setOpenFilterColumn(null)}
-                                  />
-                                  <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[150px] max-h-[300px] overflow-y-auto">
+                            )}
+                            {/* フィルターアイコン */}
+                            {isFilterable && (
+                              <>
+                                <button
+                                  onClick={() => setOpenFilterColumn(openFilterColumn === col.key ? null : col.key)}
+                                  className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${hasFilter ? 'text-blue-600' : 'text-gray-400'}`}
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                  </svg>
+                                </button>
+                                {openFilterColumn === col.key && (
+                                  <>
                                     <div
-                                      onClick={() => {
-                                        setColumnFilters(prev => ({ ...prev, [col.key]: '' }))
-                                        setOpenFilterColumn(null)
-                                      }}
-                                      className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${!columnFilters[col.key] ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
-                                    >
-                                      すべて
-                                    </div>
-                                    {columnUniqueValues[col.key]?.map(value => (
+                                      className="fixed inset-0 z-40"
+                                      onClick={() => setOpenFilterColumn(null)}
+                                    />
+                                    <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[150px] max-h-[300px] overflow-y-auto">
                                       <div
-                                        key={value}
                                         onClick={() => {
-                                          setColumnFilters(prev => ({ ...prev, [col.key]: value }))
+                                          setColumnFilters(prev => ({ ...prev, [col.key]: '' }))
                                           setOpenFilterColumn(null)
                                         }}
-                                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${columnFilters[col.key] === value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+                                        className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${!columnFilters[col.key] ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
                                       >
-                                        {value}
+                                        すべて
                                       </div>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          ) : (
-                            col.label
-                          )}
+                                      {columnUniqueValues[col.key]?.map(value => (
+                                        <div
+                                          key={value}
+                                          onClick={() => {
+                                            setColumnFilters(prev => ({ ...prev, [col.key]: value }))
+                                            setOpenFilterColumn(null)
+                                          }}
+                                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${columnFilters[col.key] === value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+                                        >
+                                          {value}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </th>
                       )
                     })}
