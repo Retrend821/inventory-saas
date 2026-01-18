@@ -65,7 +65,7 @@ function getSupabaseClient() {
  * 外部画像URLをSupabase Storageにアップロード
  */
 async function uploadImageToSupabase(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof getSupabaseClient>,
   imageUrl: string,
   inventoryId: string
 ): Promise<string | null> {
