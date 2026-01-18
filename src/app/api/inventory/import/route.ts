@@ -17,13 +17,38 @@
  * - category: カテゴリ
  * - supplier: 仕入先（"買取王国"）
  * - purchase_date: 仕入日（YYYY-MM-DD）
- * - purchase_price: 仕入価格
+ * - purchase_price: 仕入価格（税込）
  * - external_id: 外部ID（GmailのmessageId - 重複防止用）
  * - external_source: 外部ソース（"kaitorioukoku"）
+ *
+ * ---
+ *
+ * 【オフモール（HARDOFFオフモール）の仕入れ自動取り込み】
+ * 呼び出し元: Google Apps Script (importOffmallFromGmail)
+ * GASファイル: scripts/importOffmallFromGmail.gs
+ *
+ * 処理フロー:
+ * 1. GASがGmailから「【HARDOFFオフモール】ご注文内容確認書」を検索
+ * 2. メール本文から商品名([商品]〜[価格])、価格、商品URLを抽出
+ * 3. 商品ページから画像URLを取得し、Google Driveに保存
+ * 4. このAPIを呼び出してinventoryテーブルに登録
+ *
+ * 送信データ:
+ * - product_name: 商品名（必須）
+ * - brand_name: ブランド名（自動検出）
+ * - category: カテゴリ（自動検出）
+ * - supplier: 仕入先（"オフモール"）
+ * - purchase_date: 仕入日（YYYY/MM/DD）
+ * - purchase_price: 仕入価格（税込）
+ * - image_url: 画像URL（外部URL → Supabase Storageに自動アップロード）
+ * - external_id: 外部ID（GmailのmessageId - 重複防止用）
+ * - external_source: 外部ソース（"offmall"）
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+
+const BUCKET_NAME = 'inventory-images'
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -34,6 +59,81 @@ function getSupabaseClient() {
   }
 
   return createClient(supabaseUrl, supabaseServiceKey)
+}
+
+/**
+ * 外部画像URLをSupabase Storageにアップロード
+ */
+async function uploadImageToSupabase(
+  supabase: ReturnType<typeof createClient>,
+  imageUrl: string,
+  inventoryId: string
+): Promise<string | null> {
+  try {
+    // 既にSupabase StorageのURLならそのまま返す
+    if (imageUrl.includes('supabase.co/storage')) {
+      return imageUrl
+    }
+
+    // オフモール（hardoff）の画像URL用のリファラー設定
+    let fetchUrl = imageUrl
+    let headers: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    }
+
+    if (imageUrl.includes('hardoff.co.jp') || imageUrl.includes('netmall.hardoff.co.jp')) {
+      headers['Referer'] = 'https://netmall.hardoff.co.jp/'
+    } else if (imageUrl.includes('2ndstreet.jp') || imageUrl.includes('trefac.jp')) {
+      // プロキシサービス経由
+      fetchUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl)}`
+      headers = {}
+    } else if (imageUrl.includes('drive.google.com')) {
+      // Google DriveのURLはそのまま使う（アップロード不要）
+      return imageUrl
+    }
+
+    const response = await fetch(fetchUrl, { headers })
+
+    if (!response.ok) {
+      console.error('Image fetch failed:', response.status, imageUrl)
+      return null
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg'
+    const imageBuffer = await response.arrayBuffer()
+
+    // 拡張子を決定
+    let extension = 'jpg'
+    if (contentType.includes('png')) extension = 'png'
+    else if (contentType.includes('gif')) extension = 'gif'
+    else if (contentType.includes('webp')) extension = 'webp'
+
+    const fileName = `${inventoryId}_${Date.now()}.${extension}`
+
+    // Supabase Storageにアップロード
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(fileName, imageBuffer, {
+        contentType,
+        upsert: true
+      })
+
+    if (error) {
+      console.error('Upload error:', error)
+      return null
+    }
+
+    // 公開URLを取得
+    const { data: publicUrlData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(fileName)
+
+    return publicUrlData.publicUrl
+  } catch (error) {
+    console.error('Image upload error:', error)
+    return null
+  }
 }
 
 type InventoryInput = {
@@ -167,6 +267,18 @@ export async function POST(request: NextRequest) {
       if (error) {
         errors.push({ item, error: error.message })
       } else {
+        // 画像URLがあればSupabase Storageにアップロード
+        if (item.image_url && data?.id) {
+          const supabaseImageUrl = await uploadImageToSupabase(supabase, item.image_url, data.id)
+          if (supabaseImageUrl && supabaseImageUrl !== item.image_url) {
+            // DBの画像URLを更新
+            await supabase
+              .from('inventory')
+              .update({ image_url: supabaseImageUrl })
+              .eq('id', data.id)
+            data.image_url = supabaseImageUrl
+          }
+        }
         results.push(data)
       }
     }
@@ -181,6 +293,71 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Inventory import error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json(
+      { error: 'Internal server error', details: errorMessage },
+      { status: 500 }
+    )
+  }
+}
+
+// 画像をSupabase Storageに移行（PUT）
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = getSupabaseClient()
+    const { source } = await request.json()
+
+    // 指定されたソース（例：offmall）の在庫で、Google Drive画像を持つものを取得
+    let query = supabase
+      .from('inventory')
+      .select('id, image_url')
+      .not('image_url', 'is', null)
+      .not('image_url', 'ilike', '%supabase.co/storage%')
+
+    if (source) {
+      query = query.eq('external_source', source)
+    }
+
+    const { data: items, error } = await query
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (!items || items.length === 0) {
+      return NextResponse.json({ message: 'No items to migrate', migrated: 0 })
+    }
+
+    let migratedCount = 0
+    const errors: { id: string; error: string }[] = []
+
+    for (const item of items) {
+      if (!item.image_url) continue
+
+      const supabaseImageUrl = await uploadImageToSupabase(supabase, item.image_url, item.id)
+
+      if (supabaseImageUrl && supabaseImageUrl !== item.image_url) {
+        const { error: updateError } = await supabase
+          .from('inventory')
+          .update({ image_url: supabaseImageUrl })
+          .eq('id', item.id)
+
+        if (updateError) {
+          errors.push({ id: item.id, error: updateError.message })
+        } else {
+          migratedCount++
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      migrated: migratedCount,
+      total: items.length,
+      errors
+    })
+  } catch (error) {
+    console.error('Migration error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
       { error: 'Internal server error', details: errorMessage },
