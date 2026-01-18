@@ -99,8 +99,9 @@ const yahooYamatoData: ShippingMethod[] = [
 
 // おてがる配送（日本郵便）のデータ
 const yahooYubinData: ShippingMethod[] = [
-  { name: 'ゆうパケット', size: '3辺合計60cm以内（長辺34cm・厚さ3cm以内）', weight: '1kg以内', price: '205円', category: 'ゆうパケット' },
+  { name: 'ゆうパケットポストmini', size: '郵便ポスト投函可能サイズ', weight: '2kg以内', price: '160円', category: 'ゆうパケットポストmini' },
   { name: 'ゆうパケットポスト', size: '専用箱または発送用シール使用', weight: '2kg以内', price: '175円', category: 'ゆうパケットポスト' },
+  { name: 'ゆうパケット', size: '3辺合計60cm以内（長辺34cm・厚さ3cm以内）', weight: '1kg以内', price: '205円', category: 'ゆうパケット' },
   { name: 'ゆうパケットプラス', size: '専用BOX（24×17×7cm）', weight: '2kg以内', price: '410円', extra: '+BOX65円', category: 'ゆうパケットプラス' },
   { name: 'ゆうパック 60サイズ', size: '60cm以内', weight: '25kg以内', price: '750円', category: 'ゆうパック' },
   { name: 'ゆうパック 80サイズ', size: '80cm以内', weight: '25kg以内', price: '870円', category: 'ゆうパック' },
