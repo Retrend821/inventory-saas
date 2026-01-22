@@ -1100,6 +1100,69 @@ export default function AllSalesPage() {
     )
   }, [editingCell, editValue, editableColumns, handleCellEdit, handleCellSave, handleCellCancel, handleCellMouseDown, handleCellMouseEnter])
 
+  // CSVエクスポート関数
+  const exportToCSV = useCallback(() => {
+    if (sortedSales.length === 0) {
+      alert('エクスポートするデータがありません')
+      return
+    }
+
+    // CSVヘッダー（visibleColumnsのみ、imageを除く）
+    const csvColumns = visibleColumns.filter(col => col.key !== 'image')
+    const headers = csvColumns.map(col => col.label)
+
+    // CSVデータ行
+    const rows = sortedSales.map(sale => {
+      return csvColumns.map(col => {
+        let value: string | number | null | undefined
+
+        // purchase_total（仕入総額）は purchase_cost を使用
+        if (col.key === 'purchase_total') {
+          value = sale.purchase_cost
+        } else {
+          const key = col.key as keyof UnifiedSale
+          value = sale[key]
+        }
+
+        // 値のフォーマット
+        if (value === null || value === undefined) {
+          return ''
+        }
+        if (typeof value === 'number') {
+          return value.toString()
+        }
+        // 文字列にカンマや改行、ダブルクォートが含まれる場合はエスケープ
+        const strValue = String(value)
+        if (strValue.includes(',') || strValue.includes('\n') || strValue.includes('"')) {
+          return `"${strValue.replace(/"/g, '""')}"`
+        }
+        return strValue
+      })
+    })
+
+    // BOM付きUTF-8でCSV生成（Excel対応）
+    const bom = '\uFEFF'
+    const csvContent = bom + [headers.join(','), ...rows.map(row => row.join(','))].join('\n')
+
+    // ダウンロード
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+
+    // ファイル名に検索条件を含める
+    const datePart = selectedYear === 'all' ? '全期間' : selectedMonth === 'all' ? `${selectedYear}年` : `${selectedYear}年${selectedMonth}月`
+    const filterPart = filterType !== 'all' ? `_${filterType === 'single' ? '単品' : filterType === 'bulk' ? 'まとめ' : '手入力'}` : ''
+    const salesTypePart = salesTypeFilter !== 'all' ? `_${salesTypeFilter === 'toC' ? '小売' : '業販'}` : ''
+    const timestamp = new Date().toISOString().slice(0, 10)
+    link.download = `売上明細_${datePart}${filterPart}${salesTypePart}_${timestamp}.csv`
+
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [sortedSales, visibleColumns, selectedYear, selectedMonth, filterType, salesTypeFilter])
+
   // ヘルパー関数
   const normalizeYearMonth = (dateStr: string): string => {
     return dateStr.substring(0, 7).replace('/', '-')
@@ -1550,7 +1613,18 @@ export default function AllSalesPage() {
                 <option value="manual">手入力売上</option>
               </select>
             </div>
-            <div className="ml-auto relative">
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={exportToCSV}
+                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                title="検索結果をCSVファイルとしてダウンロード"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                CSVエクスポート
+              </button>
+              <div className="relative">
               <button
                 onClick={() => setShowColumnSettings(!showColumnSettings)}
                 className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
@@ -1587,6 +1661,7 @@ export default function AllSalesPage() {
                   </div>
                 </>
               )}
+              </div>
             </div>
           </div>
         </div>
