@@ -1237,8 +1237,8 @@ export default function AllSalesPage() {
 
       // デバッグ: manualSalesの件数と最初の数件のinventory_numberを表示
       console.log('manualSales件数:', manualSales.length)
-      console.log('manualSales inventory_number一覧（最初の20件）:', manualSales.slice(0, 20).map(s => s.inventory_number))
-      console.log('CSV管理番号一覧（最初の10件）:', rows.slice(0, 10).map(r => r['管理番号']))
+      console.log('manualSales inventory_number一覧（最初の20件）:', JSON.stringify(manualSales.slice(0, 20).map(s => s.inventory_number)))
+      console.log('CSV管理番号一覧（最初の10件）:', JSON.stringify(rows.slice(0, 10).map(r => r['管理番号'])))
 
       for (const row of rows) {
         const invNum = row['管理番号']?.trim()
