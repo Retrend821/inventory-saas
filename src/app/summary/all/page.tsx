@@ -1238,8 +1238,12 @@ export default function AllSalesPage() {
       for (const row of rows) {
         const invNum = row['管理番号']?.trim()
         const newName = row['商品名']?.trim()
+        const genre = row['ジャンル']?.trim()
 
         if (!invNum || !newName) continue
+
+        // ネクタイは除外
+        if (genre === 'ネクタイ') continue
 
         // inventoryテーブルから対応するアイテムを検索
         const item = inventory.find(inv => inv.inventory_number === invNum)
