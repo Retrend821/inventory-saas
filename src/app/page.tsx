@@ -1126,17 +1126,12 @@ export default function Home() {
         complete: (results) => {
           const firstRow = results.data[0]
           const headers = firstRow ? Object.keys(firstRow) : []
-          console.log('=== detectCSVType UTF-8 ===')
-          console.log('Headers:', headers)
-          console.log('FirstRow:', firstRow)
           // ものバンクはUTF-8なので先にチェック（BOM除去後のヘッダーでもチェック）
           const cleanHeaders = headers.map(h => h.replace(/^\ufeff/, ''))
           const hasBoxNo = '箱番' in firstRow || cleanHeaders.includes('箱番')
           const hasBranchNo = '枝番' in firstRow || cleanHeaders.includes('枝番')
           const hasPrice = '金額' in firstRow || cleanHeaders.includes('金額')
-          console.log('Monobank check:', { hasBoxNo, hasBranchNo, hasPrice })
           if (firstRow && hasBoxNo && hasBranchNo && hasPrice) {
-            console.log('Detected: monobank')
             resolve('monobank')
             return
           }
@@ -1795,9 +1790,6 @@ export default function Home() {
     }[],
     source: string
   ) => {
-    console.log('=== processCSVItems 開始 ===')
-    console.log('source:', source)
-    console.log('items.length:', items.length)
     if (items.length > 0) {
       // ステップ1: 重複チェック
       setUploadProgress({ stage: '重複チェック中', current: 0, total: items.length })
@@ -1915,13 +1907,9 @@ export default function Home() {
           numOffset += fetchBatchSize
         }
         let nextNumber = maxNum + 1
-        console.log('=== 管理番号割り当て ===')
-        console.log('現在の最大番号:', maxNum)
-        console.log('次の番号から開始:', nextNumber)
 
         const singleItemsWithUserId = singleItems.map(item => {
           const invNum = nextNumber++
-          console.log(`割り当て: ${invNum} → ${item.product_name}`)
           return {
             ...item,
             user_id: user?.id,
@@ -1929,23 +1917,16 @@ export default function Home() {
             memo: `${invNum}）${item.purchase_total || 0}`
           }
         })
-        console.log('登録するアイテム:', singleItemsWithUserId.map(i => ({ no: i.inventory_number, name: i.product_name })))
-        console.log('=== Supabase insert 実行 ===')
         const { data, error } = await supabase
           .from('inventory')
           .insert(singleItemsWithUserId)
           .select()
-
-        console.log('=== Supabase insert 結果 ===')
-        console.log('data:', data)
-        console.log('error:', error)
 
         if (error) {
           console.error('Error inserting data:', error.message, error.details, error.hint)
           alert(`データの登録に失敗しました: ${error.message}`)
           setUploadProgress(null)
         } else {
-          console.log('Insert成功! 件数:', data?.length)
           insertedData = data
         }
       }
@@ -2079,9 +2060,6 @@ export default function Home() {
           }
         })
 
-      console.log('=== ものバンク processCSVItems 呼び出し ===')
-      console.log('items数:', items.length)
-      console.log('items:', items.map(i => ({ name: i.product_name, price: i.purchase_total })))
       await processCSVItems(items, source)
       return
     }
@@ -2985,8 +2963,6 @@ export default function Home() {
     }
 
     // 2ファイル以上: メインCSVと画像CSVを探す
-    console.log('=== 2ファイル判定開始 ===')
-    console.log('files.length:', files.length)
     let mainFile: File | null = null
     let imageFile: File | null = null
     let isMonobank = false
@@ -2994,43 +2970,26 @@ export default function Home() {
 
     for (const file of files) {
       const text = await readFileAsText(file)
-      console.log('--- ファイル:', file.name, '---')
-      console.log('text先頭100文字:', text.substring(0, 100))
-      console.log('checkAucnetImageCSV:', checkAucnetImageCSV(text))
-      console.log('checkMonobankImageCSV:', checkMonobankImageCSV(text))
-      console.log('checkMonobankMainCSV:', checkMonobankMainCSV(text))
       if (checkAucnetImageCSV(text)) {
         imageFile = file
         isAucnet = true
-        console.log('→ オークネット画像CSVとして認識')
       } else if (checkMonobankImageCSV(text)) {
         imageFile = file
         isMonobank = true
-        console.log('→ ものバンク画像CSVとして認識')
       } else if (checkMonobankMainCSV(text)) {
         mainFile = file
         isMonobank = true
-        console.log('→ ものバンクメインCSVとして認識')
       } else {
         mainFile = file
-        console.log('→ その他のメインCSVとして認識')
       }
     }
 
-    console.log('=== 判定結果 ===')
-    console.log('mainFile:', mainFile?.name)
-    console.log('imageFile:', imageFile?.name)
-    console.log('isMonobank:', isMonobank)
-    console.log('isAucnet:', isAucnet)
-
     if (mainFile && imageFile && isMonobank) {
       // ものバンク2ファイルインポート
-      console.log('ものバンク2ファイルインポート開始:', mainFile.name, imageFile.name)
       const imageMap = await parseMonobankImageCSV(imageFile)
       handleCSVUpload(mainFile, null, imageMap)
     } else if (mainFile && imageFile && isAucnet) {
       // オークネット2ファイルインポート
-      console.log('オークネット2ファイルインポート開始:', mainFile.name, imageFile.name)
       handleAucnetImport(mainFile, imageFile)
     } else if (mainFile) {
       handleCSVSelect(mainFile)
