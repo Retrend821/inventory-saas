@@ -1125,8 +1125,18 @@ export default function Home() {
         preview: 1,
         complete: (results) => {
           const firstRow = results.data[0]
-          // ものバンクはUTF-8なので先にチェック
-          if (firstRow && '箱番' in firstRow && '枝番' in firstRow && '金額' in firstRow) {
+          const headers = firstRow ? Object.keys(firstRow) : []
+          console.log('=== detectCSVType UTF-8 ===')
+          console.log('Headers:', headers)
+          console.log('FirstRow:', firstRow)
+          // ものバンクはUTF-8なので先にチェック（BOM除去後のヘッダーでもチェック）
+          const cleanHeaders = headers.map(h => h.replace(/^\ufeff/, ''))
+          const hasBoxNo = '箱番' in firstRow || cleanHeaders.includes('箱番')
+          const hasBranchNo = '枝番' in firstRow || cleanHeaders.includes('枝番')
+          const hasPrice = '金額' in firstRow || cleanHeaders.includes('金額')
+          console.log('Monobank check:', { hasBoxNo, hasBranchNo, hasPrice })
+          if (firstRow && hasBoxNo && hasBranchNo && hasPrice) {
+            console.log('Detected: monobank')
             resolve('monobank')
             return
           }
