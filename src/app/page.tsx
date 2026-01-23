@@ -2985,6 +2985,8 @@ export default function Home() {
     }
 
     // 2ファイル以上: メインCSVと画像CSVを探す
+    console.log('=== 2ファイル判定開始 ===')
+    console.log('files.length:', files.length)
     let mainFile: File | null = null
     let imageFile: File | null = null
     let isMonobank = false
@@ -2992,19 +2994,34 @@ export default function Home() {
 
     for (const file of files) {
       const text = await readFileAsText(file)
+      console.log('--- ファイル:', file.name, '---')
+      console.log('text先頭100文字:', text.substring(0, 100))
+      console.log('checkAucnetImageCSV:', checkAucnetImageCSV(text))
+      console.log('checkMonobankImageCSV:', checkMonobankImageCSV(text))
+      console.log('checkMonobankMainCSV:', checkMonobankMainCSV(text))
       if (checkAucnetImageCSV(text)) {
         imageFile = file
         isAucnet = true
+        console.log('→ オークネット画像CSVとして認識')
       } else if (checkMonobankImageCSV(text)) {
         imageFile = file
         isMonobank = true
+        console.log('→ ものバンク画像CSVとして認識')
       } else if (checkMonobankMainCSV(text)) {
         mainFile = file
         isMonobank = true
+        console.log('→ ものバンクメインCSVとして認識')
       } else {
         mainFile = file
+        console.log('→ その他のメインCSVとして認識')
       }
     }
+
+    console.log('=== 判定結果 ===')
+    console.log('mainFile:', mainFile?.name)
+    console.log('imageFile:', imageFile?.name)
+    console.log('isMonobank:', isMonobank)
+    console.log('isAucnet:', isAucnet)
 
     if (mainFile && imageFile && isMonobank) {
       // ものバンク2ファイルインポート
