@@ -113,6 +113,7 @@ export default function ManualSalesPage() {
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'main' | 'bulk'>('all')
+  const [sortByImage, setSortByImage] = useState<'none' | 'hasImage' | 'noImage'>('none')
   // 列の表示/非表示（localStorageから復元）
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
@@ -392,7 +393,7 @@ export default function ManualSalesPage() {
 
   // フィルタリング
   const filteredSales = useMemo(() => {
-    return sales.filter(sale => {
+    let result = sales.filter(sale => {
       // 年フィルター
       if (selectedYear && selectedYear !== '') {
         const saleYear = extractYear(sale.sale_date)
@@ -425,7 +426,24 @@ export default function ManualSalesPage() {
       }
       return true
     })
-  }, [sales, selectedYear, selectedMonth, saleTypeFilter, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations])
+
+    // 画像有無でソート
+    if (sortByImage === 'hasImage') {
+      result = result.sort((a, b) => {
+        const aHas = a.image_url ? 1 : 0
+        const bHas = b.image_url ? 1 : 0
+        return bHas - aHas // 画像ありが上
+      })
+    } else if (sortByImage === 'noImage') {
+      result = result.sort((a, b) => {
+        const aHas = a.image_url ? 1 : 0
+        const bHas = b.image_url ? 1 : 0
+        return aHas - bHas // 画像なしが上
+      })
+    }
+
+    return result
+  }, [sales, selectedYear, selectedMonth, saleTypeFilter, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations, sortByImage])
 
   // 仮想スクロール用のvirtualizer
   const rowVirtualizer = useVirtualizer({
@@ -2419,6 +2437,15 @@ export default function ManualSalesPage() {
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
               <option key={month} value={month}>{month}月</option>
             ))}
+          </select>
+          <select
+            value={sortByImage}
+            onChange={(e) => setSortByImage(e.target.value as 'none' | 'hasImage' | 'noImage')}
+            className={`px-3 py-2 ${t.input} border rounded`}
+          >
+            <option value="none">画像：指定なし</option>
+            <option value="hasImage">画像あり優先</option>
+            <option value="noImage">画像なし優先</option>
           </select>
         </div>
 
