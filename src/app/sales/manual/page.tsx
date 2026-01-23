@@ -332,6 +332,25 @@ export default function ManualSalesPage() {
     return dateStr.replace(/\//g, '-')
   }
 
+  // 日付を年と月日で改行して表示
+  const formatDateWithBreak = (dateStr: string | null) => {
+    if (!dateStr) return '-'
+    const match = dateStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+    if (match) {
+      const year = match[1]
+      const month = match[2].padStart(2, '0')
+      const day = match[3].padStart(2, '0')
+      return (
+        <>
+          <span className="text-[10px] text-gray-400">{year}</span>
+          <br />
+          <span className="text-xs">{month}/{day}</span>
+        </>
+      )
+    }
+    return dateStr
+  }
+
   // 日付が有効かチェック
   const isValidDate = (dateStr: string | null): boolean => {
     if (!dateStr) return false
@@ -2584,13 +2603,13 @@ export default function ManualSalesPage() {
                     return (
                       <td
                         className={cellClass}
-                        style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0, position: 'relative' }}
+                        style={{ overflow: 'hidden', position: 'relative' }}
                         onClick={() => handleCellClick(sale, field)}
                         onDoubleClick={() => handleCellDoubleClick(sale, field)}
                         onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                         onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                       >
-                        <span className="block truncate">{value}</span>
+                        <span className="block leading-tight">{formatDateWithBreak(value as string)}</span>
                         {isEditing && (
                           <input
                             ref={(el) => {
