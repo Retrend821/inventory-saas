@@ -1462,12 +1462,17 @@ export default function Home() {
   const handleGenericCSVImport = (file: File) => {
     console.log('handleGenericCSVImport called:', file.name, file.size)
 
-    // オークネット画像CSVかチェック（1行目からURLの場合はスキップ）
+    // 画像CSVかチェック（1行目からURLの場合はスキップ）
     const checkAndProcess = (text: string) => {
       const lines = text.trim().split('\n').slice(0, 5)
-      const isImageCSV = lines.some(line => line.includes('image.brand-auc.com'))
-      if (isImageCSV) {
-        alert('オークネット画像CSVは「在庫管理」→「単品仕入一覧」から計算書CSVと一緒にインポートしてください。')
+      const isAucnetImageCSV = lines.some(line => line.includes('image.brand-auc.com'))
+      const isMonobankImageCSV = lines.some(line => line.includes('mekiki.ai'))
+      if (isAucnetImageCSV) {
+        alert('オークネット画像CSVは計算書CSVと一緒に選択してください。')
+        return
+      }
+      if (isMonobankImageCSV) {
+        alert('ものバンク画像CSVはメインCSVと一緒に選択してください。\n\n2つのファイルを同時に選択（Ctrl/Cmd+クリック）してからアップロードしてください。')
         return
       }
       tryParse(text)
@@ -2907,12 +2912,24 @@ export default function Home() {
     }
   }
 
-  // 複数ファイル対応: オークネットの場合は計算書CSVと画像CSVを同時選択可能
+  // 複数ファイル対応: オークネット・ものバンクの場合はメインCSVと画像CSVを同時選択可能
   const handleCSVFilesSelect = async (files: File[]) => {
     // オークネット画像CSVかチェック
-    const checkImageCSV = (text: string): boolean => {
+    const checkAucnetImageCSV = (text: string): boolean => {
       const lines = text.trim().split('\n').slice(0, 5)
       return lines.some(line => line.includes('image.brand-auc.com'))
+    }
+
+    // ものバンク画像CSVかチェック
+    const checkMonobankImageCSV = (text: string): boolean => {
+      const lines = text.trim().split('\n').slice(0, 5)
+      return lines.some(line => line.includes('mekiki.ai'))
+    }
+
+    // ものバンクメインCSVかチェック（箱番、枝番、金額を含む）
+    const checkMonobankMainCSV = (text: string): boolean => {
+      const firstLine = text.trim().split('\n')[0] || ''
+      return firstLine.includes('箱番') && firstLine.includes('枝番') && firstLine.includes('金額')
     }
 
     // ファイルを読み込んでテキストとして返す（エンコード自動判定）
@@ -2935,32 +2952,50 @@ export default function Home() {
       })
     }
 
-    // 1ファイルの場合は従来通り
+    // 1ファイルの場合
     if (files.length === 1) {
       const text = await readFileAsText(files[0])
-      if (checkImageCSV(text)) {
+      if (checkAucnetImageCSV(text)) {
         alert('オークネット画像CSVだけでは取り込めません。計算書CSVも一緒に選択してください。')
+        return
+      }
+      if (checkMonobankImageCSV(text)) {
+        alert('ものバンク画像CSVだけでは取り込めません。メインCSVも一緒に選択してください。')
         return
       }
       handleCSVSelect(files[0])
       return
     }
 
-    // 2ファイル以上: オークネット計算書CSVと画像CSVを探す
+    // 2ファイル以上: メインCSVと画像CSVを探す
     let mainFile: File | null = null
     let imageFile: File | null = null
+    let isMonobank = false
+    let isAucnet = false
 
     for (const file of files) {
       const text = await readFileAsText(file)
-      if (checkImageCSV(text)) {
+      if (checkAucnetImageCSV(text)) {
         imageFile = file
+        isAucnet = true
+      } else if (checkMonobankImageCSV(text)) {
+        imageFile = file
+        isMonobank = true
+      } else if (checkMonobankMainCSV(text)) {
+        mainFile = file
+        isMonobank = true
       } else {
         mainFile = file
       }
     }
 
-    if (mainFile && imageFile) {
-      // 両方ある場合は直接オークネットインポートを実行（state経由だと非同期で遅延する）
+    if (mainFile && imageFile && isMonobank) {
+      // ものバンク2ファイルインポート
+      console.log('ものバンク2ファイルインポート開始:', mainFile.name, imageFile.name)
+      const imageMap = await parseMonobankImageCSV(imageFile)
+      handleCSVUpload(mainFile, null, imageMap)
+    } else if (mainFile && imageFile && isAucnet) {
+      // オークネット2ファイルインポート
       console.log('オークネット2ファイルインポート開始:', mainFile.name, imageFile.name)
       handleAucnetImport(mainFile, imageFile)
     } else if (mainFile) {
