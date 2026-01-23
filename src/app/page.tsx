@@ -1118,32 +1118,46 @@ export default function Home() {
   // CSVの種類を判定
   const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'aucnet' | 'unknown'> => {
     return new Promise((resolve) => {
+      // まずUTF-8でパースを試みる（ものバンク等）
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       Papa.parse<any>(file, {
         header: true,
         preview: 1,
-        encoding: 'Shift_JIS',
         complete: (results) => {
           const firstRow = results.data[0]
-          const headers = firstRow ? Object.keys(firstRow) : []
-          // 引用符を除去してチェック
-          const cleanHeaders = headers.map(h => h.replace(/^"|"$/g, ''))
-
-          if (firstRow && 'item_name' in firstRow) {
-            resolve('ecoauc')
-          } else if (firstRow && '管理番号' in firstRow && '落札金額' in firstRow) {
-            resolve('starbuyers')
-          } else if (firstRow && '商品名' in firstRow && 'オークション画像URL' in firstRow) {
-            resolve('yahoo')
-          } else if (firstRow && '購入日(YYYY/MM/DD)' in firstRow && 'お支払い金額' in firstRow) {
-            resolve('secondstreet')
-          } else if (firstRow && '箱番' in firstRow && '枝番' in firstRow && '金額' in firstRow) {
+          // ものバンクはUTF-8なので先にチェック
+          if (firstRow && '箱番' in firstRow && '枝番' in firstRow && '金額' in firstRow) {
             resolve('monobank')
-          } else if (cleanHeaders.includes('受付番号') && cleanHeaders.includes('請求商品代')) {
-            resolve('aucnet')
-          } else {
-            resolve('unknown')
+            return
           }
+          // UTF-8で認識できなければShift_JISで再パース
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          Papa.parse<any>(file, {
+            header: true,
+            preview: 1,
+            encoding: 'Shift_JIS',
+            complete: (sjisResults) => {
+              const sjisFirstRow = sjisResults.data[0]
+              const headers = sjisFirstRow ? Object.keys(sjisFirstRow) : []
+              // 引用符を除去してチェック
+              const cleanHeaders = headers.map(h => h.replace(/^"|"$/g, ''))
+
+              if (sjisFirstRow && 'item_name' in sjisFirstRow) {
+                resolve('ecoauc')
+              } else if (sjisFirstRow && '管理番号' in sjisFirstRow && '落札金額' in sjisFirstRow) {
+                resolve('starbuyers')
+              } else if (sjisFirstRow && '商品名' in sjisFirstRow && 'オークション画像URL' in sjisFirstRow) {
+                resolve('yahoo')
+              } else if (sjisFirstRow && '購入日(YYYY/MM/DD)' in sjisFirstRow && 'お支払い金額' in sjisFirstRow) {
+                resolve('secondstreet')
+              } else if (cleanHeaders.includes('受付番号') && cleanHeaders.includes('請求商品代')) {
+                resolve('aucnet')
+              } else {
+                resolve('unknown')
+              }
+            },
+            error: () => resolve('unknown')
+          })
         },
         error: () => resolve('unknown')
       })
@@ -1751,11 +1765,296 @@ export default function Home() {
     return datePart
   }
 
+  // 共通のCSVインポート処理（重複チェック、DB登録、画像保存）
+  const processCSVItems = async (
+    items: {
+      product_name: string
+      brand_name: string | null
+      category: string | null
+      image_url: string | null
+      purchase_price: number | null
+      purchase_total: number | null
+      purchase_date: string | null
+      purchase_source: string
+      status: string
+    }[],
+    source: string
+  ) => {
+    if (items.length > 0) {
+      // ステップ1: 重複チェック
+      setUploadProgress({ stage: '重複チェック中', current: 0, total: items.length })
+
+      // 既存データを全件取得（Supabaseのデフォルト1000件制限を回避）
+      let existingItems: { product_name: string; purchase_date: string | null; purchase_total: number | null; image_url: string | null }[] = []
+      let offset = 0
+      const batchSize = 1000
+      while (true) {
+        const { data } = await supabase
+          .from('inventory')
+          .select('product_name, purchase_date, purchase_total, image_url')
+          .range(offset, offset + batchSize - 1)
+        if (!data || data.length === 0) break
+        existingItems = existingItems.concat(data)
+        if (data.length < batchSize) break
+        offset += batchSize
+      }
+
+      // 重複チェック用のキーを生成
+      const existingImageUrls = new Set(
+        (existingItems || []).filter(item => item.image_url).map(item => item.image_url)
+      )
+      const existingKeys = new Set(
+        (existingItems || []).map(item => `${item.product_name}|${item.purchase_date}|${item.purchase_total}`)
+      )
+
+      console.log('=== 重複チェックデバッグ ===')
+      console.log('既存データ件数:', existingItems?.length || 0)
+      console.log('既存キー例（最初の3件）:', Array.from(existingKeys).slice(0, 3))
+      console.log('CSVアイテム件数:', items.length)
+      console.log('CSVアイテム例（最初の1件）:', items[0] ? `${items[0].product_name}|${items[0].purchase_date}|${items[0].purchase_total}` : 'なし')
+
+      // 重複を除外し、スキップされたアイテムも記録
+      const newItems: typeof items = []
+      const skippedItems: typeof items = []
+
+      for (const item of items) {
+        const key = `${item.product_name}|${item.purchase_date}|${item.purchase_total}`
+        if ((item.image_url && existingImageUrls.has(item.image_url)) || existingKeys.has(key)) {
+          skippedItems.push(item)
+        } else {
+          newItems.push(item)
+        }
+      }
+
+      console.log('新規アイテム:', newItems.length, '件')
+      console.log('スキップ:', skippedItems.length, '件')
+
+      if (newItems.length === 0) {
+        setImportResult({
+          source,
+          newItems: [],
+          skippedItems: skippedItems.map(i => ({ product_name: i.product_name, purchase_total: i.purchase_total }))
+        })
+        setUploadProgress(null)
+        setUploading(false)
+        return
+      }
+
+      // まとめ仕入れと単品を分離
+      const bulkItems = newItems.filter(item => isBulkItem(item.product_name))
+      const singleItems = newItems.filter(item => !isBulkItem(item.product_name))
+
+      // ステップ2: DB登録
+      setUploadProgress({ stage: 'データベースに登録中', current: 0, total: newItems.length })
+
+      let insertedData: InventoryItem[] | null = null
+
+      // まとめ仕入れをbulk_purchasesに登録
+      if (bulkItems.length > 0) {
+        const bulkPurchasesToInsert = bulkItems.map(item => ({
+          genre: detectGenreFromName(item.product_name),
+          purchase_date: item.purchase_date || new Date().toISOString().split('T')[0],
+          purchase_source: item.purchase_source,
+          total_amount: item.purchase_total || 0,
+          total_quantity: extractQuantityFromName(item.product_name),
+          memo: item.product_name,
+          user_id: user?.id
+        }))
+
+        const { error: bulkError } = await supabase
+          .from('bulk_purchases')
+          .insert(bulkPurchasesToInsert)
+
+        if (bulkError) {
+          console.error('Error inserting bulk purchases:', bulkError.message)
+        }
+      }
+
+      // 単品をinventoryに登録
+      if (singleItems.length > 0) {
+        // 最大の管理番号を取得して、その次から連番を割り当て
+        let maxNum = 0
+        let numOffset = 0
+        const fetchBatchSize = 1000
+        while (true) {
+          const { data: batchData } = await supabase
+            .from('inventory')
+            .select('inventory_number')
+            .not('inventory_number', 'is', null)
+            .range(numOffset, numOffset + fetchBatchSize - 1)
+          if (!batchData || batchData.length === 0) break
+          for (const row of batchData) {
+            const invNum = String(row.inventory_number || '')
+            const match = invNum.match(/^(\d+)/)
+            if (match) {
+              const num = parseInt(match[1], 10)
+              if (!isNaN(num) && num > maxNum) {
+                maxNum = num
+              }
+            }
+          }
+          if (batchData.length < fetchBatchSize) break
+          numOffset += fetchBatchSize
+        }
+        let nextNumber = maxNum + 1
+
+        const singleItemsWithUserId = singleItems.map(item => {
+          const invNum = nextNumber++
+          return {
+            ...item,
+            user_id: user?.id,
+            inventory_number: invNum,
+            memo: `${invNum}）${item.purchase_total || 0}`
+          }
+        })
+        const { data, error } = await supabase
+          .from('inventory')
+          .insert(singleItemsWithUserId)
+          .select()
+
+        if (error) {
+          console.error('Error inserting data:', error.message, error.details, error.hint)
+          alert(`データの登録に失敗しました: ${error.message}`)
+          setUploadProgress(null)
+        } else {
+          insertedData = data
+        }
+      }
+
+      setUploadProgress({ stage: 'データベースに登録中', current: newItems.length, total: newItems.length })
+
+      // ステップ3: 画像を保存（単品のみ）
+      if (insertedData) {
+        const itemsWithImages = insertedData.filter(item => item.image_url)
+        const totalImages = itemsWithImages.length
+
+        if (totalImages > 0) {
+          setUploadProgress({ stage: '画像を保存中', current: 0, total: totalImages })
+
+          for (let i = 0; i < itemsWithImages.length; i++) {
+            const item = itemsWithImages[i]
+            try {
+              const response = await fetch('/api/upload-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  imageUrl: item.image_url,
+                  inventoryId: item.id,
+                }),
+              })
+
+              if (response.ok) {
+                const result = await response.json()
+                if (result.url) {
+                  await supabase
+                    .from('inventory')
+                    .update({ saved_image_url: result.url })
+                    .eq('id', item.id)
+                }
+              }
+            } catch (e) {
+              console.error('Image save error:', e)
+            }
+            setUploadProgress({ stage: '画像を保存中', current: i + 1, total: totalImages })
+          }
+        }
+      }
+
+      fetchInventory()
+
+      // 結果を表示
+      const resultNewItems = [
+        ...singleItems.map(i => ({ product_name: i.product_name, purchase_total: i.purchase_total })),
+        ...bulkItems.map(i => ({ product_name: `【まとめ仕入れへ】${i.product_name}`, purchase_total: i.purchase_total }))
+      ]
+      setImportResult({
+        source,
+        newItems: resultNewItems,
+        skippedItems: skippedItems.map(i => ({ product_name: i.product_name, purchase_total: i.purchase_total }))
+      })
+    }
+    setUploadProgress(null)
+    setUploading(false)
+  }
+
   const handleCSVUpload = async (file: File, purchaseDate: string | null, imageMap: Map<string, string> | null) => {
     setUploading(true)
     setPendingCSV(null)
     setStarBuyersImageCSV(null)
 
+    // まずUTF-8でパースしてものバンク形式かチェック
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const checkMonobank = (): Promise<{ isMonobank: boolean; data: any[] }> => {
+      return new Promise((resolve) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Papa.parse<any>(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const firstRow = results.data[0]
+            if (firstRow && '箱番' in firstRow && '枝番' in firstRow && '金額' in firstRow) {
+              resolve({ isMonobank: true, data: results.data })
+            } else {
+              resolve({ isMonobank: false, data: [] })
+            }
+          },
+          error: () => resolve({ isMonobank: false, data: [] })
+        })
+      })
+    }
+
+    const monobankCheck = await checkMonobank()
+
+    if (monobankCheck.isMonobank) {
+      // ものバンク形式（UTF-8）の処理
+      const results = { data: monobankCheck.data }
+      let items: {
+        product_name: string
+        brand_name: string | null
+        category: string | null
+        image_url: string | null
+        purchase_price: number | null
+        purchase_total: number | null
+        purchase_date: string | null
+        purchase_source: string
+        status: string
+      }[] = []
+
+      const source = 'モノバンク'
+      items = (results.data as MonobankCSV[])
+        .filter(row => row['詳細'] && row['詳細'].trim() !== '' && row['金額'])
+        .map(row => {
+          const priceStr = (row['金額'] || '').replace(/[¥￥\s,]/g, '')
+          const price = priceStr ? parseInt(priceStr, 10) : null
+          const purchaseTotal = price ? Math.round(price * 1.03 * 1.1) : null
+          const dateStr = row['取引日'] || null
+          const csvBrand = row['ブランド']
+          const brandName = csvBrand ? (detectBrand(csvBrand) || csvBrand) : detectBrand(row['詳細'])
+          const boxNo = row['箱番']
+          const branchNo = row['枝番']
+          const imageKey = `${boxNo}-${branchNo}`
+          const imageUrl = imageMap?.get(imageKey) || null
+          const csvCategory = row['カテゴリー']
+          const category = csvCategory ? (detectCategory(csvCategory) || csvCategory) : detectCategory(row['詳細'])
+
+          return {
+            product_name: row['詳細'],
+            brand_name: brandName,
+            category: category,
+            image_url: imageUrl,
+            purchase_price: price,
+            purchase_total: purchaseTotal,
+            purchase_date: dateStr,
+            purchase_source: 'モノバンク',
+            status: '在庫あり',
+          }
+        })
+
+      await processCSVItems(items, source)
+      return
+    }
+
+    // Shift_JISでパース（エコオク、スターバイヤーズ等）
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Papa.parse<any>(file, {
       header: true,
@@ -1892,249 +2191,13 @@ export default function Home() {
                 status: '在庫あり',
               }
             })
-        } else if (firstRow && '箱番' in firstRow && '枝番' in firstRow && '金額' in firstRow) {
-          // モノバンク形式
-          source = 'モノバンク'
-          items = (results.data as MonobankCSV[])
-            .filter(row => row['詳細'] && row['詳細'].trim() !== '' && row['金額'])
-            .map(row => {
-              // 金額をパース（正味仕入値＝落札金額）
-              const priceStr = (row['金額'] || '').replace(/[¥￥\s,]/g, '')
-              const price = priceStr ? parseInt(priceStr, 10) : null
-              // 仕入総額 = 落札金額 × 1.03（落札手数料3%） × 1.1（消費税10%）
-              const purchaseTotal = price ? Math.round(price * 1.03 * 1.1) : null
-              // 取引日をパース: "2025-11-13" → そのまま使用
-              const dateStr = row['取引日'] || null
-              // ブランド名はCSVから取得して辞書で変換
-              const csvBrand = row['ブランド']
-              const brandName = csvBrand ? (detectBrand(csvBrand) || csvBrand) : detectBrand(row['詳細'])
-              // 箱番-枝番で画像URLをマッチング
-              const boxNo = row['箱番']
-              const branchNo = row['枝番']
-              const imageKey = `${boxNo}-${branchNo}`
-              const imageUrl = imageMap?.get(imageKey) || null
-
-              // モノバンクはカテゴリ列があるので優先、なければ商品名から検出
-              const csvCategory = row['カテゴリー']
-              const category = csvCategory ? (detectCategory(csvCategory) || csvCategory) : detectCategory(row['詳細'])
-
-              return {
-                product_name: row['詳細'],
-                brand_name: brandName,
-                category: category,
-                image_url: imageUrl,
-                purchase_price: price,
-                purchase_total: purchaseTotal,
-                purchase_date: dateStr,
-                purchase_source: 'モノバンク',
-                status: '在庫あり',
-              }
-            })
         } else {
           // 不明な形式は汎用インポートモーダルを表示（このケースには到達しないはずだが念のため）
           setUploading(false)
           return
         }
 
-        if (items.length > 0) {
-          // ステップ1: 重複チェック
-          setUploadProgress({ stage: '重複チェック中', current: 0, total: items.length })
-
-          // 既存データを全件取得（Supabaseのデフォルト1000件制限を回避）
-          let existingItems: { product_name: string; purchase_date: string | null; purchase_total: number | null; image_url: string | null }[] = []
-          let offset = 0
-          const batchSize = 1000
-          while (true) {
-            const { data } = await supabase
-              .from('inventory')
-              .select('product_name, purchase_date, purchase_total, image_url')
-              .range(offset, offset + batchSize - 1)
-            if (!data || data.length === 0) break
-            existingItems = existingItems.concat(data)
-            if (data.length < batchSize) break
-            offset += batchSize
-          }
-
-          // 重複チェック用のキーを生成
-          // 画像URLでも判定、商品名+仕入日+仕入総額でも判定（両方チェック）
-          const existingImageUrls = new Set(
-            (existingItems || []).filter(item => item.image_url).map(item => item.image_url)
-          )
-          const existingKeys = new Set(
-            (existingItems || []).map(item => `${item.product_name}|${item.purchase_date}|${item.purchase_total}`)
-          )
-
-          console.log('=== 重複チェックデバッグ ===')
-          console.log('既存データ件数:', existingItems?.length || 0)
-          console.log('既存キー例（最初の3件）:', Array.from(existingKeys).slice(0, 3))
-          console.log('CSVアイテム件数:', items.length)
-          console.log('CSVアイテム例（最初の1件）:', items[0] ? `${items[0].product_name}|${items[0].purchase_date}|${items[0].purchase_total}` : 'なし')
-
-          // 重複を除外し、スキップされたアイテムも記録
-          const newItems: typeof items = []
-          const skippedItems: typeof items = []
-
-          for (const item of items) {
-            const key = `${item.product_name}|${item.purchase_date}|${item.purchase_total}`
-            // 画像URLが一致、または商品名+日付+金額が一致していれば重複
-            if ((item.image_url && existingImageUrls.has(item.image_url)) || existingKeys.has(key)) {
-              skippedItems.push(item)
-            } else {
-              newItems.push(item)
-            }
-          }
-
-          console.log('新規アイテム:', newItems.length, '件')
-          console.log('スキップ:', skippedItems.length, '件')
-
-          if (newItems.length === 0) {
-            setImportResult({
-              source,
-              newItems: [],
-              skippedItems: skippedItems.map(i => ({ product_name: i.product_name, purchase_total: i.purchase_total }))
-            })
-            setUploadProgress(null)
-            setUploading(false)
-            return
-          }
-
-          // まとめ仕入れと単品を分離
-          const bulkItems = newItems.filter(item => isBulkItem(item.product_name))
-          const singleItems = newItems.filter(item => !isBulkItem(item.product_name))
-
-          // ステップ2: DB登録
-          setUploadProgress({ stage: 'データベースに登録中', current: 0, total: newItems.length })
-
-          let insertedData: InventoryItem[] | null = null
-
-          // まとめ仕入れをbulk_purchasesに登録
-          if (bulkItems.length > 0) {
-            const bulkPurchasesToInsert = bulkItems.map(item => ({
-              genre: detectGenreFromName(item.product_name),
-              purchase_date: item.purchase_date || new Date().toISOString().split('T')[0],
-              purchase_source: item.purchase_source,
-              total_amount: item.purchase_total || 0,
-              total_quantity: extractQuantityFromName(item.product_name),
-              memo: item.product_name, // 元の商品名をメモに保存
-              user_id: user?.id
-            }))
-
-            const { error: bulkError } = await supabase
-              .from('bulk_purchases')
-              .insert(bulkPurchasesToInsert)
-
-            if (bulkError) {
-              console.error('Error inserting bulk purchases:', bulkError.message)
-            }
-          }
-
-          // 単品をinventoryに登録
-          if (singleItems.length > 0) {
-            // 最大の管理番号を取得して、その次から連番を割り当て（全件から数値で最大値を探す）
-            let maxNum = 0
-            let offset = 0
-            const fetchBatchSize = 1000
-            while (true) {
-              const { data: batchData } = await supabase
-                .from('inventory')
-                .select('inventory_number')
-                .not('inventory_number', 'is', null)
-                .range(offset, offset + fetchBatchSize - 1)
-              if (!batchData || batchData.length === 0) break
-              for (const row of batchData) {
-                const invNum = String(row.inventory_number || '')
-                const match = invNum.match(/^(\d+)/)
-                if (match) {
-                  const num = parseInt(match[1], 10)
-                  if (!isNaN(num) && num > maxNum) {
-                    maxNum = num
-                  }
-                }
-              }
-              if (batchData.length < fetchBatchSize) break
-              offset += fetchBatchSize
-            }
-            let nextNumber = maxNum + 1
-
-            const singleItemsWithUserId = singleItems.map(item => {
-              const invNum = nextNumber++
-              return {
-                ...item,
-                user_id: user?.id,
-                inventory_number: invNum,
-                memo: `${invNum}）${item.purchase_total || 0}`
-              }
-            })
-            const { data, error } = await supabase
-              .from('inventory')
-              .insert(singleItemsWithUserId)
-              .select()
-
-            if (error) {
-              console.error('Error inserting data:', error.message, error.details, error.hint)
-              alert(`データの登録に失敗しました: ${error.message}`)
-              setUploadProgress(null)
-            } else {
-              insertedData = data
-            }
-          }
-
-          setUploadProgress({ stage: 'データベースに登録中', current: newItems.length, total: newItems.length })
-
-          // ステップ3: 画像を保存（単品のみ）- サーバー経由でSupabaseにアップロード
-          if (insertedData) {
-            const itemsWithImages = insertedData.filter(item => item.image_url)
-            const totalImages = itemsWithImages.length
-
-            if (totalImages > 0) {
-              setUploadProgress({ stage: '画像を保存中', current: 0, total: totalImages })
-
-              for (let i = 0; i < itemsWithImages.length; i++) {
-                const item = itemsWithImages[i]
-                try {
-                  // Supabaseにアップロード（サーバー経由）
-                  const response = await fetch('/api/upload-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      imageUrl: item.image_url,
-                      inventoryId: item.id,
-                    }),
-                  })
-
-                  if (response.ok) {
-                    const result = await response.json()
-                    if (result.url) {
-                      // saved_image_urlを更新
-                      await supabase
-                        .from('inventory')
-                        .update({ saved_image_url: result.url })
-                        .eq('id', item.id)
-                    }
-                  }
-                } catch (e) {
-                  console.error('Image save error:', e)
-                }
-                setUploadProgress({ stage: '画像を保存中', current: i + 1, total: totalImages })
-              }
-            }
-          }
-
-          fetchInventory()
-
-          // 結果を表示（まとめ仕入れと単品を区別）
-          const resultNewItems = [
-            ...singleItems.map(i => ({ product_name: i.product_name, purchase_total: i.purchase_total })),
-            ...bulkItems.map(i => ({ product_name: `【まとめ仕入れへ】${i.product_name}`, purchase_total: i.purchase_total }))
-          ]
-          setImportResult({
-            source,
-            newItems: resultNewItems,
-            skippedItems: skippedItems.map(i => ({ product_name: i.product_name, purchase_total: i.purchase_total }))
-          })
-        }
-        setUploadProgress(null)
-        setUploading(false)
+        await processCSVItems(items, source)
       },
       error: (error) => {
         console.error('CSV parse error:', error)
