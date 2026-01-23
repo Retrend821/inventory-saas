@@ -1199,6 +1199,7 @@ export default function AllSalesPage() {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importPreview, setImportPreview] = useState<{ id: string; inventory_number: string; old_name: string; new_name: string }[]>([])
   const [showImportModal, setShowImportModal] = useState(false)
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null)
 
   const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -1273,15 +1274,20 @@ export default function AllSalesPage() {
   const executeImport = useCallback(async () => {
     if (importPreview.length === 0) return
 
+    const total = importPreview.length
+    setImportProgress({ current: 0, total })
+
     try {
       // inventoryテーブルを更新
-      for (const change of importPreview) {
+      for (let i = 0; i < importPreview.length; i++) {
+        const change = importPreview[i]
         const { error } = await supabase
           .from('inventory')
           .update({ product_name: change.new_name })
           .eq('id', change.id)
 
         if (error) throw error
+        setImportProgress({ current: i + 1, total })
       }
 
       // sales_summaryも更新
@@ -1293,6 +1299,7 @@ export default function AllSalesPage() {
           .eq('inventory_number', change.inventory_number)
       }
 
+      setImportProgress(null)
       alert(`${importPreview.length}件の商品名を更新しました`)
       setShowImportModal(false)
       setImportPreview([])
@@ -1301,6 +1308,7 @@ export default function AllSalesPage() {
       window.location.reload()
     } catch (error) {
       console.error('Import error:', error)
+      setImportProgress(null)
       alert('インポートに失敗しました: ' + (error as Error).message)
     }
   }, [importPreview])
@@ -2275,14 +2283,19 @@ export default function AllSalesPage() {
                 <button
                   onClick={() => { setShowImportModal(false); setImportPreview([]); }}
                   className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border rounded-lg hover:bg-gray-50"
+                  disabled={!!importProgress}
                 >
                   キャンセル
                 </button>
                 <button
                   onClick={executeImport}
-                  className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                  className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                  disabled={!!importProgress}
                 >
-                  {importPreview.length}件を更新
+                  {importProgress
+                    ? `更新中... ${importProgress.current}/${importProgress.total}`
+                    : `${importPreview.length}件を更新`
+                  }
                 </button>
               </div>
             </div>
