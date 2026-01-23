@@ -1170,7 +1170,7 @@ export default function Home() {
   }
 
   // オークネット2ファイルインポート処理
-  const handleAucnetImport = async (mainFile: File, imageFile: File | null) => {
+  const handleAucnetImport = async (mainFile: File, imageFile: File | null, inputDate: string | null) => {
     // Shift-JISで読む
     const readShiftJIS = (file: File): Promise<string> => {
       return new Promise((resolve) => {
@@ -1184,26 +1184,24 @@ export default function Home() {
     const imageMap = new Map<string, string>()
     if (imageFile) {
       const imageText = await readShiftJIS(imageFile)
-      console.log('画像CSVの内容:', imageText.substring(0, 500))
       for (const line of imageText.trim().split('\n')) {
         const url = line.replace(/^"|"$/g, '').trim()
         if (url.startsWith('http')) {
           const match = url.match(/J\d+_(\d+-\d+)_/)
           if (match) {
-            console.log(`画像マッチ: 受付番号=[${match[1]}], URL=[${url.substring(0, 80)}...]`)
             imageMap.set(match[1], url)
           }
         }
       }
-      console.log(`画像CSV: ${imageMap.size}件マッチ`)
-      console.log('画像マップのキー:', Array.from(imageMap.keys()))
     }
 
-    // ファイル名から日付を抽出（20251212_オークネット計算書.csv → 2025-12-12）
-    let purchaseDate: string | null = null
-    const dateMatch = mainFile.name.match(/^(\d{4})(\d{2})(\d{2})/)
-    if (dateMatch) {
-      purchaseDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`
+    // 日付は引数から使用（なければファイル名から抽出）
+    let purchaseDate: string | null = inputDate
+    if (!purchaseDate) {
+      const dateMatch = mainFile.name.match(/^(\d{4})(\d{2})(\d{2})/)
+      if (dateMatch) {
+        purchaseDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`
+      }
     }
 
     // 計算書CSV
@@ -1325,8 +1323,16 @@ export default function Home() {
       // セカスト形式：そのまま処理
       handleCSVUpload(file, null, null)
     } else if (csvType === 'aucnet') {
-      // オークネット形式：画像CSVがあれば一緒にインポート
-      handleAucnetImport(file, aucnetImageFile)
+      // オークネット形式：日付確認ダイアログを表示
+      // ファイル名から日付を抽出してデフォルト値に
+      const dateMatch = file.name.match(/^(\d{4})(\d{2})(\d{2})/)
+      if (dateMatch) {
+        setCsvPurchaseDate(`${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`)
+      } else {
+        setCsvPurchaseDate(new Date().toISOString().split('T')[0])
+      }
+      setPendingCSV({ file, needsDate: true, type: 'aucnet' })
+      setAucnetImageFile(null)
     } else {
       // 不明な形式は汎用インポートモーダルを表示
       handleGenericCSVImport(file)
@@ -2989,8 +2995,15 @@ export default function Home() {
       const imageMap = await parseMonobankImageCSV(imageFile)
       handleCSVUpload(mainFile, null, imageMap)
     } else if (mainFile && imageFile && isAucnet) {
-      // オークネット2ファイルインポート
-      handleAucnetImport(mainFile, imageFile)
+      // オークネット2ファイルインポート：日付確認ダイアログを表示
+      const dateMatch = mainFile.name.match(/^(\d{4})(\d{2})(\d{2})/)
+      if (dateMatch) {
+        setCsvPurchaseDate(`${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`)
+      } else {
+        setCsvPurchaseDate(new Date().toISOString().split('T')[0])
+      }
+      setPendingCSV({ file: mainFile, needsDate: true, type: 'aucnet' })
+      setAucnetImageFile(imageFile)
     } else if (mainFile) {
       handleCSVSelect(mainFile)
     } else {
@@ -6925,6 +6938,71 @@ export default function Home() {
                 onClick={() => {
                   if (pendingCSV) {
                     handleCSVUpload(pendingCSV.file, csvPurchaseDate || null, null)
+                  }
+                }}
+                className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium"
+              >
+                取り込み
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* オークネット: 仕入日確認ダイアログ */}
+      {pendingCSV && pendingCSV.type === 'aucnet' && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">オークネットCSVを取り込み</h3>
+            <p className="text-sm text-gray-600 mb-4">仕入日を確認してください。</p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                仕入日
+              </label>
+              <input
+                type="date"
+                value={csvPurchaseDate}
+                onChange={(e) => setCsvPurchaseDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                autoFocus
+              />
+            </div>
+            {!aucnetImageFile && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  画像CSV（任意）
+                </label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) setAucnetImageFile(file)
+                  }}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+            )}
+            {aucnetImageFile && (
+              <p className="mb-4 text-sm text-green-600">画像CSV: {aucnetImageFile.name}</p>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setPendingCSV(null)
+                  setCsvPurchaseDate('')
+                  setAucnetImageFile(null)
+                }}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingCSV) {
+                    handleAucnetImport(pendingCSV.file, aucnetImageFile, csvPurchaseDate || null)
+                    setPendingCSV(null)
+                    setCsvPurchaseDate('')
                   }
                 }}
                 className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium"
