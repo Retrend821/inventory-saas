@@ -1235,19 +1235,14 @@ export default function AllSalesPage() {
       // 差分をプレビュー
       const changes: { id: string; inventory_number: string; old_name: string; new_name: string }[] = []
 
-      // デバッグ: manualSalesの件数と最初の数件のinventory_numberを表示
-      console.log('manualSales件数:', manualSales.length)
-      console.log('manualSales inventory_number一覧（最初の20件）:', JSON.stringify(manualSales.slice(0, 20).map(s => s.inventory_number)))
-      console.log('CSV管理番号一覧（最初の10件）:', JSON.stringify(rows.slice(0, 10).map(r => r['管理番号'])))
-
       for (const row of rows) {
         const invNum = row['管理番号']?.trim()
         const newName = row['商品名']?.trim()
 
         if (!invNum || !newName) continue
 
-        // 売上明細（manual_sales）から対応するアイテムを検索
-        const item = manualSales.find(sale => sale.inventory_number === invNum)
+        // inventoryテーブルから対応するアイテムを検索
+        const item = inventory.find(inv => inv.inventory_number === invNum)
         if (item && item.product_name !== newName) {
           changes.push({
             id: item.id,
@@ -1259,12 +1254,7 @@ export default function AllSalesPage() {
       }
 
       if (changes.length === 0) {
-        // デバッグ: 一致しない理由を表示
-        const sampleInvNums = rows.slice(0, 3).map(r => r['管理番号']?.trim())
-        const matchingSales = manualSales.filter(s => sampleInvNums.includes(s.inventory_number || ''))
-        console.log('サンプル管理番号:', sampleInvNums)
-        console.log('一致するmanualSales:', matchingSales.length)
-        alert('変更が見つかりませんでした（商品名が同じ、または管理番号が一致しない）\nブラウザのコンソールでデバッグ情報を確認してください')
+        alert('変更が見つかりませんでした（商品名が同じ、または管理番号が一致しない）')
         return
       }
 
@@ -1274,28 +1264,28 @@ export default function AllSalesPage() {
     reader.readAsText(file)
     // inputをリセット
     e.target.value = ''
-  }, [manualSales])
+  }, [inventory])
 
   const executeImport = useCallback(async () => {
     if (importPreview.length === 0) return
 
     try {
-      // manual_salesテーブルを更新
+      // inventoryテーブルを更新
       for (const change of importPreview) {
         const { error } = await supabase
-          .from('manual_sales')
+          .from('inventory')
           .update({ product_name: change.new_name })
           .eq('id', change.id)
 
         if (error) throw error
       }
 
-      // sales_summaryも更新（manual_salesはsource_type='manual'）
+      // sales_summaryも更新
       for (const change of importPreview) {
         await supabase
           .from('sales_summary')
           .update({ product_name: change.new_name })
-          .eq('source_type', 'manual')
+          .eq('source_type', 'single')
           .eq('inventory_number', change.inventory_number)
       }
 
