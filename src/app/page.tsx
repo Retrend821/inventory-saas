@@ -1795,6 +1795,9 @@ export default function Home() {
     }[],
     source: string
   ) => {
+    console.log('=== processCSVItems 開始 ===')
+    console.log('source:', source)
+    console.log('items.length:', items.length)
     if (items.length > 0) {
       // ステップ1: 重複チェック
       setUploadProgress({ stage: '重複チェック中', current: 0, total: items.length })
@@ -1912,9 +1915,13 @@ export default function Home() {
           numOffset += fetchBatchSize
         }
         let nextNumber = maxNum + 1
+        console.log('=== 管理番号割り当て ===')
+        console.log('現在の最大番号:', maxNum)
+        console.log('次の番号から開始:', nextNumber)
 
         const singleItemsWithUserId = singleItems.map(item => {
           const invNum = nextNumber++
+          console.log(`割り当て: ${invNum} → ${item.product_name}`)
           return {
             ...item,
             user_id: user?.id,
@@ -1922,16 +1929,23 @@ export default function Home() {
             memo: `${invNum}）${item.purchase_total || 0}`
           }
         })
+        console.log('登録するアイテム:', singleItemsWithUserId.map(i => ({ no: i.inventory_number, name: i.product_name })))
+        console.log('=== Supabase insert 実行 ===')
         const { data, error } = await supabase
           .from('inventory')
           .insert(singleItemsWithUserId)
           .select()
+
+        console.log('=== Supabase insert 結果 ===')
+        console.log('data:', data)
+        console.log('error:', error)
 
         if (error) {
           console.error('Error inserting data:', error.message, error.details, error.hint)
           alert(`データの登録に失敗しました: ${error.message}`)
           setUploadProgress(null)
         } else {
+          console.log('Insert成功! 件数:', data?.length)
           insertedData = data
         }
       }
@@ -2065,6 +2079,9 @@ export default function Home() {
           }
         })
 
+      console.log('=== ものバンク processCSVItems 呼び出し ===')
+      console.log('items数:', items.length)
+      console.log('items:', items.map(i => ({ name: i.product_name, price: i.purchase_total })))
       await processCSVItems(items, source)
       return
     }
