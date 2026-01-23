@@ -1107,8 +1107,10 @@ export default function AllSalesPage() {
       return
     }
 
-    // CSVヘッダー（visibleColumnsのみ、imageを除く）
-    const csvColumns = visibleColumns.filter(col => col.key !== 'image')
+    // CSVヘッダー（visibleColumnsを使用、imageは画像URLとして出力）
+    const csvColumns = visibleColumns.map(col =>
+      col.key === 'image' ? { ...col, key: 'image_url', label: '画像URL' } : col
+    )
     const headers = csvColumns.map(col => col.label)
 
     // CSVデータ行
@@ -1162,6 +1164,136 @@ export default function AllSalesPage() {
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
   }, [sortedSales, visibleColumns, selectedYear, selectedMonth, filterType, salesTypeFilter])
+
+  // バックアップ機能（全データをJSONでエクスポート）
+  const exportBackup = useCallback(async () => {
+    try {
+      const backupData = {
+        exportedAt: new Date().toISOString(),
+        inventory,
+        bulkPurchases,
+        bulkSales,
+        manualSales,
+        salesSummary
+      }
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `バックアップ_${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      alert('バックアップを保存しました')
+    } catch (error) {
+      console.error('Backup error:', error)
+      alert('バックアップの保存に失敗しました')
+    }
+  }, [inventory, bulkPurchases, bulkSales, manualSales, salesSummary])
+
+  // CSVインポート（商品名を上書き更新）
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importPreview, setImportPreview] = useState<{ id: string; inventory_number: string; old_name: string; new_name: string }[]>([])
+  const [showImportModal, setShowImportModal] = useState(false)
+
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportFile(file)
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target?.result as string
+      // BOMを除去
+      const cleanText = text.replace(/^\uFEFF/, '')
+      const lines = cleanText.split('\n').filter(line => line.trim())
+      if (lines.length < 2) {
+        alert('CSVファイルにデータがありません')
+        return
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim())
+      const inventoryNumberIdx = headers.findIndex(h => h === '管理番号')
+      const productNameIdx = headers.findIndex(h => h === '商品名')
+
+      if (inventoryNumberIdx === -1 || productNameIdx === -1) {
+        alert('CSVに「管理番号」と「商品名」列が必要です')
+        return
+      }
+
+      // 差分をプレビュー
+      const changes: { id: string; inventory_number: string; old_name: string; new_name: string }[] = []
+
+      for (let i = 1; i < lines.length; i++) {
+        // CSVパース（ダブルクォート対応）
+        const row = lines[i].match(/("([^"]|"")*"|[^,]*)/g) || []
+        const invNum = row[inventoryNumberIdx]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim()
+        const newName = row[productNameIdx]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim()
+
+        if (!invNum || !newName) continue
+
+        // 元データから対応するアイテムを検索
+        const item = inventory.find(inv => inv.inventory_number === invNum)
+        if (item && item.product_name !== newName) {
+          changes.push({
+            id: item.id,
+            inventory_number: invNum,
+            old_name: item.product_name,
+            new_name: newName
+          })
+        }
+      }
+
+      if (changes.length === 0) {
+        alert('変更が見つかりませんでした（商品名が同じ、または管理番号が一致しない）')
+        return
+      }
+
+      setImportPreview(changes)
+      setShowImportModal(true)
+    }
+    reader.readAsText(file)
+    // inputをリセット
+    e.target.value = ''
+  }, [inventory])
+
+  const executeImport = useCallback(async () => {
+    if (importPreview.length === 0) return
+
+    try {
+      // inventoryテーブルを更新
+      for (const change of importPreview) {
+        const { error } = await supabase
+          .from('inventory')
+          .update({ product_name: change.new_name })
+          .eq('id', change.id)
+
+        if (error) throw error
+      }
+
+      // sales_summaryも更新
+      for (const change of importPreview) {
+        await supabase
+          .from('sales_summary')
+          .update({ product_name: change.new_name })
+          .eq('source_type', 'single')
+          .eq('inventory_number', change.inventory_number)
+      }
+
+      alert(`${importPreview.length}件の商品名を更新しました`)
+      setShowImportModal(false)
+      setImportPreview([])
+
+      // データを再取得
+      window.location.reload()
+    } catch (error) {
+      console.error('Import error:', error)
+      alert('インポートに失敗しました: ' + (error as Error).message)
+    }
+  }, [importPreview])
 
   // ヘルパー関数
   const normalizeYearMonth = (dateStr: string): string => {
@@ -1624,6 +1756,31 @@ export default function AllSalesPage() {
                 </svg>
                 CSVエクスポート
               </button>
+              <button
+                onClick={exportBackup}
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                title="全データをJSONでバックアップ"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                バックアップ
+              </button>
+              <label
+                className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-1 cursor-pointer"
+                title="編集したCSVをインポートして商品名を更新"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                CSVインポート
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleImportFile}
+                  className="hidden"
+                />
+              </label>
               <div className="relative">
               <button
                 onClick={() => setShowColumnSettings(!showColumnSettings)}
@@ -2058,6 +2215,66 @@ export default function AllSalesPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* CSVインポートプレビューモーダル */}
+        {showImportModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
+              <div className="px-6 py-4 border-b flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  インポートプレビュー（{importPreview.length}件の変更）
+                </h3>
+                <button
+                  onClick={() => { setShowImportModal(false); setImportPreview([]); }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto p-6">
+                <div className="text-sm text-gray-600 mb-4">
+                  以下の商品名が変更されます。確認後「実行」をクリックしてください。
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">管理番号</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">変更前</th>
+                      <th className="px-3 py-2 text-center font-medium text-gray-700">→</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">変更後</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {importPreview.map((change, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-gray-900 font-mono">{change.inventory_number}</td>
+                        <td className="px-3 py-2 text-red-600 line-through">{change.old_name}</td>
+                        <td className="px-3 py-2 text-center text-gray-400">→</td>
+                        <td className="px-3 py-2 text-green-600 font-medium">{change.new_name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-6 py-4 border-t flex items-center justify-end gap-3">
+                <button
+                  onClick={() => { setShowImportModal(false); setImportPreview([]); }}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border rounded-lg hover:bg-gray-50"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={executeImport}
+                  className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                >
+                  {importPreview.length}件を更新
+                </button>
+              </div>
             </div>
           </div>
         )}
