@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Papa from 'papaparse'
 import { supabase } from '@/lib/supabase'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1209,17 +1210,24 @@ export default function AllSalesPage() {
       const text = event.target?.result as string
       // BOMを除去
       const cleanText = text.replace(/^\uFEFF/, '')
-      const lines = cleanText.split('\n').filter(line => line.trim())
-      if (lines.length < 2) {
+
+      // PapaParseでCSVをパース
+      const parsed = Papa.parse(cleanText, {
+        header: true,
+        skipEmptyLines: true,
+      })
+
+      const rows = parsed.data as Record<string, string>[]
+      if (rows.length === 0) {
         alert('CSVファイルにデータがありません')
         return
       }
 
-      const headers = lines[0].split(',').map(h => h.trim())
-      const inventoryNumberIdx = headers.findIndex(h => h === '管理番号')
-      const productNameIdx = headers.findIndex(h => h === '商品名')
+      const headers = Object.keys(rows[0] || {})
+      const hasInventoryNumber = headers.includes('管理番号')
+      const hasProductName = headers.includes('商品名')
 
-      if (inventoryNumberIdx === -1 || productNameIdx === -1) {
+      if (!hasInventoryNumber || !hasProductName) {
         alert('CSVに「管理番号」と「商品名」列が必要です')
         return
       }
@@ -1227,21 +1235,19 @@ export default function AllSalesPage() {
       // 差分をプレビュー
       const changes: { id: string; inventory_number: string; old_name: string; new_name: string }[] = []
 
-      for (let i = 1; i < lines.length; i++) {
-        // CSVパース（ダブルクォート対応）
-        const row = lines[i].match(/("([^"]|"")*"|[^,]*)/g) || []
-        const invNum = row[inventoryNumberIdx]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim()
-        const newName = row[productNameIdx]?.replace(/^"|"$/g, '').replace(/""/g, '"').trim()
+      for (const row of rows) {
+        const invNum = row['管理番号']?.trim()
+        const newName = row['商品名']?.trim()
 
         if (!invNum || !newName) continue
 
-        // 元データから対応するアイテムを検索
-        const item = inventory.find(inv => inv.inventory_number === invNum)
+        // 売上明細（manual_sales）から対応するアイテムを検索
+        const item = manualSales.find(sale => sale.inventory_number === invNum)
         if (item && item.product_name !== newName) {
           changes.push({
             id: item.id,
             inventory_number: invNum,
-            old_name: item.product_name,
+            old_name: item.product_name || '',
             new_name: newName
           })
         }
@@ -1258,28 +1264,28 @@ export default function AllSalesPage() {
     reader.readAsText(file)
     // inputをリセット
     e.target.value = ''
-  }, [inventory])
+  }, [manualSales])
 
   const executeImport = useCallback(async () => {
     if (importPreview.length === 0) return
 
     try {
-      // inventoryテーブルを更新
+      // manual_salesテーブルを更新
       for (const change of importPreview) {
         const { error } = await supabase
-          .from('inventory')
+          .from('manual_sales')
           .update({ product_name: change.new_name })
           .eq('id', change.id)
 
         if (error) throw error
       }
 
-      // sales_summaryも更新
+      // sales_summaryも更新（manual_salesはsource_type='manual'）
       for (const change of importPreview) {
         await supabase
           .from('sales_summary')
           .update({ product_name: change.new_name })
-          .eq('source_type', 'single')
+          .eq('source_type', 'manual')
           .eq('inventory_number', change.inventory_number)
       }
 
