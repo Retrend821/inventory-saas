@@ -198,6 +198,16 @@ export default function AllSalesPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>('')
 
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
+  const [imageEditModal, setImageEditModal] = useState<{
+    saleId: string
+    sourceType: 'single' | 'bulk' | 'manual'
+    sourceId: string
+    imageUrl: string | null
+    productName: string
+    brandName: string | null
+    category: string | null
+  } | null>(null)
+  const [imageEditProductName, setImageEditProductName] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk' | 'manual'>('all')
   const [salesTypeFilter, setSalesTypeFilter] = useState<'all' | 'toC' | 'toB'>('all')
   const [imageFilter, setImageFilter] = useState<'all' | 'with' | 'without'>('all')
@@ -2004,7 +2014,7 @@ export default function AllSalesPage() {
                       return (
                         <th
                           key={col.key}
-                          className={`px-2 py-3 text-xs font-semibold text-gray-600 bg-gray-50 whitespace-nowrap relative ${
+                          className={`px-2 py-3 text-xs font-semibold text-gray-600 bg-gray-50 whitespace-nowrap relative ${col.width} ${
                             ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'turnover_days'].includes(col.key)
                               ? 'text-right'
                               : ['purchase_date', 'listing_date', 'sale_date'].includes(col.key)
