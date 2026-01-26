@@ -200,6 +200,7 @@ export default function AllSalesPage() {
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<'all' | 'single' | 'bulk' | 'manual'>('all')
   const [salesTypeFilter, setSalesTypeFilter] = useState<'all' | 'toC' | 'toB'>('all')
+  const [imageFilter, setImageFilter] = useState<'all' | 'with' | 'without'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [historySortBy, setHistorySortBy] = useState<'date' | 'sales' | 'profit' | 'profitRate'>('date')
   const [historyPage, setHistoryPage] = useState(1)
@@ -580,7 +581,7 @@ export default function AllSalesPage() {
   // フィルター・ソート変更時にページをリセット
   useEffect(() => {
     setHistoryPage(1)
-  }, [selectedYear, selectedMonth, filterType, salesTypeFilter, searchQuery, historySortBy, columnFilters])
+  }, [selectedYear, selectedMonth, filterType, salesTypeFilter, searchQuery, historySortBy, columnFilters, imageFilter])
 
   // まとめ仕入れのID→データのマップ
   const bulkPurchaseMap = useMemo(() => {
@@ -903,7 +904,15 @@ export default function AllSalesPage() {
           }
         }
 
-        return dateMatch && typeMatch && salesTypeMatch && searchMatch && columnFilterMatch
+        // 画像フィルター
+        let imageMatch = true
+        if (imageFilter === 'with') {
+          imageMatch = !!sale.image_url
+        } else if (imageFilter === 'without') {
+          imageMatch = !sale.image_url
+        }
+
+        return dateMatch && typeMatch && salesTypeMatch && searchMatch && columnFilterMatch && imageMatch
       })
       .sort((a, b) => {
         // sale_dateがnullの場合は最後にソート
@@ -912,7 +921,7 @@ export default function AllSalesPage() {
         if (!b.sale_date) return -1
         return b.sale_date.localeCompare(a.sale_date)
       })
-  }, [unifiedSales, selectedYear, selectedMonth, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms, searchQuery, columnFilters])
+  }, [unifiedSales, selectedYear, selectedMonth, filterType, salesTypeFilter, retailPlatforms, wholesalePlatforms, searchQuery, columnFilters, imageFilter])
 
   // ソート済みの販売データ
   const sortedSales = useMemo(() => {
@@ -1761,6 +1770,18 @@ export default function AllSalesPage() {
                 <option value="single">単品仕入れ</option>
                 <option value="bulk">まとめ仕入れ</option>
                 <option value="manual">手入力売上</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">画像:</label>
+              <select
+                value={imageFilter}
+                onChange={(e) => setImageFilter(e.target.value as 'all' | 'with' | 'without')}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">すべて</option>
+                <option value="with">画像あり</option>
+                <option value="without">画像なし</option>
               </select>
             </div>
             <div className="ml-auto flex items-center gap-2">
