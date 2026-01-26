@@ -599,35 +599,55 @@ export default function AllSalesPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
 
+  // inventory の id → 画像URL マップを作成
+  const inventoryImageMap = useMemo(() => {
+    const map = new Map<string, string | null>()
+    inventory.forEach(item => {
+      map.set(item.id, item.saved_image_url || item.image_url)
+    })
+    return map
+  }, [inventory])
+
   // 統一された売上データを生成（sales_summary から）
   const unifiedSales = useMemo(() => {
-    return salesSummary.map(record => ({
-      id: record.id,
-      type: record.source_type,
-      inventory_number: record.inventory_number,
-      product_name: record.product_name,
-      brand_name: record.brand_name,
-      category: record.category,
-      image_url: record.image_url,
-      purchase_source: record.purchase_source,
-      sale_destination: record.sale_destination,
-      sale_price: record.sale_price,
-      commission: record.commission,
-      shipping_cost: record.shipping_cost,
-      other_cost: record.other_cost,
-      purchase_price: record.purchase_price,
-      purchase_cost: record.purchase_cost,
-      deposit_amount: record.deposit_amount,
-      profit: record.profit,
-      profit_rate: record.profit_rate,
-      purchase_date: record.purchase_date,
-      listing_date: record.listing_date,
-      sale_date: record.sale_date,
-      turnover_days: record.turnover_days,
-      memo: record.memo,
-      quantity: record.quantity,
-    }))
-  }, [salesSummary])
+    return salesSummary.map(record => {
+      // single タイプの場合は inventory テーブルから最新の画像URLを取得
+      let imageUrl = record.image_url
+      if (record.source_type === 'single') {
+        const inventoryImage = inventoryImageMap.get(record.source_id)
+        if (inventoryImage) {
+          imageUrl = inventoryImage
+        }
+      }
+
+      return {
+        id: record.id,
+        type: record.source_type,
+        inventory_number: record.inventory_number,
+        product_name: record.product_name,
+        brand_name: record.brand_name,
+        category: record.category,
+        image_url: imageUrl,
+        purchase_source: record.purchase_source,
+        sale_destination: record.sale_destination,
+        sale_price: record.sale_price,
+        commission: record.commission,
+        shipping_cost: record.shipping_cost,
+        other_cost: record.other_cost,
+        purchase_price: record.purchase_price,
+        purchase_cost: record.purchase_cost,
+        deposit_amount: record.deposit_amount,
+        profit: record.profit,
+        profit_rate: record.profit_rate,
+        purchase_date: record.purchase_date,
+        listing_date: record.listing_date,
+        sale_date: record.sale_date,
+        turnover_days: record.turnover_days,
+        memo: record.memo,
+        quantity: record.quantity,
+      }
+    })
+  }, [salesSummary, inventoryImageMap])
 
   // 編集可能な列の定義
   const editableColumns = ['product_name', 'brand_name', 'category', 'purchase_source', 'sale_destination',
