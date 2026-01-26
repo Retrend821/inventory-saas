@@ -2103,10 +2103,32 @@ export default function AllSalesPage() {
                           case 'inventory_number':
                             return <td key={col.key} className={`px-2 py-2 text-gray-700 text-xs truncate max-w-[60px] cursor-cell ${cellClass}`} title={sale.inventory_number || '-'} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>{sale.inventory_number || '-'}</td>
                           case 'image':
-                            const imageUrl = sale.image_url
-                              ? sale.image_url.startsWith('/api/') || sale.image_url.startsWith('data:')
-                                ? sale.image_url
-                                : `/api/image-proxy?url=${encodeURIComponent(sale.image_url)}`
+                            // 画像URLを変換（2ndstreetはCDN経由、Google DriveはlH3経由）
+                            let processedImageUrl = sale.image_url
+                            if (processedImageUrl) {
+                              // Google DriveのURLを直接表示形式に変換
+                              if (processedImageUrl.includes('drive.google.com')) {
+                                const fileIdMatch = processedImageUrl.match(/\/d\/([a-zA-Z0-9_-]+)/)
+                                if (fileIdMatch) {
+                                  processedImageUrl = `https://lh3.googleusercontent.com/d/${fileIdMatch[1]}`
+                                } else if (processedImageUrl.includes('uc?export=view') || processedImageUrl.includes('uc?id=')) {
+                                  const idMatch = processedImageUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+                                  if (idMatch) {
+                                    processedImageUrl = `https://lh3.googleusercontent.com/d/${idMatch[1]}`
+                                  }
+                                }
+                              }
+                              // 2ndstreetのURLをCDN経由に変換
+                              if (processedImageUrl.includes('www.2ndstreet.jp')) {
+                                processedImageUrl = processedImageUrl
+                                  .replace('www.2ndstreet.jp', 'cdn2.2ndstreet.jp')
+                                  .replace(/_tn\.(jpg|jpeg|png|gif|webp)/i, '.$1')
+                              }
+                            }
+                            const imageUrl = processedImageUrl
+                              ? processedImageUrl.startsWith('/api/') || processedImageUrl.startsWith('data:') || processedImageUrl.includes('googleusercontent.com') || processedImageUrl.includes('supabase.co')
+                                ? processedImageUrl
+                                : `/api/image-proxy?url=${encodeURIComponent(processedImageUrl)}`
                               : null
                             return (
                               <td key={col.key} className="px-2 py-2">
