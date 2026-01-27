@@ -1988,7 +1988,7 @@ export default function AllSalesPage() {
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
             >
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50">
                     {visibleColumns.map(col => {
@@ -2141,16 +2141,16 @@ export default function AllSalesPage() {
                                 : `/api/image-proxy?url=${encodeURIComponent(processedImageUrl)}`
                               : null
                             return (
-                              <td key={col.key} className="px-2 py-2">
+                              <td key={col.key} className="px-2 py-2 w-14">
                                 {imageUrl ? (
                                   <img
                                     src={imageUrl}
                                     alt={sale.product_name}
-                                    className="w-10 h-10 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                                    className="w-10 h-10 min-w-[40px] min-h-[40px] object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                                     onClick={() => setEnlargedImage(imageUrl)}
                                   />
                                 ) : (
-                                  <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">
+                                  <div className="w-10 h-10 min-w-[40px] min-h-[40px] bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">
                                     No
                                   </div>
                                 )}
