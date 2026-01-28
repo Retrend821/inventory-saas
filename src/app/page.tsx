@@ -1118,6 +1118,7 @@ export default function Home() {
   // CSVの種類を判定
   const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'aucnet' | 'unknown'> => {
     return new Promise((resolve) => {
+      console.log('=== detectCSVType 開始 ===', file.name)
       // まずUTF-8でパースを試みる（ものバンク、スターバイヤーズ等）
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       Papa.parse<any>(file, {
@@ -1126,14 +1127,18 @@ export default function Home() {
         complete: (results) => {
           const firstRow = results.data[0]
           const headers = firstRow ? Object.keys(firstRow) : []
+          console.log('UTF-8 headers:', headers)
+          console.log('UTF-8 firstRow:', firstRow)
           // BOM除去後のヘッダーでもチェック
           const cleanHeaders = headers.map(h => h.replace(/^\ufeff/, ''))
+          console.log('cleanHeaders:', cleanHeaders)
 
           // ものバンクはUTF-8なので先にチェック
           const hasBoxNo = '箱番' in firstRow || cleanHeaders.includes('箱番')
           const hasBranchNo = '枝番' in firstRow || cleanHeaders.includes('枝番')
           const hasPrice = '金額' in firstRow || cleanHeaders.includes('金額')
           if (firstRow && hasBoxNo && hasBranchNo && hasPrice) {
+            console.log('→ monobank detected')
             resolve('monobank')
             return
           }
@@ -1141,7 +1146,9 @@ export default function Home() {
           // スターバイヤーズもUTF-8の場合があるのでチェック
           const hasKanriNo = '管理番号' in firstRow || cleanHeaders.includes('管理番号')
           const hasRakusatsuPrice = '落札金額' in firstRow || cleanHeaders.includes('落札金額')
+          console.log('hasKanriNo:', hasKanriNo, 'hasRakusatsuPrice:', hasRakusatsuPrice)
           if (firstRow && hasKanriNo && hasRakusatsuPrice) {
+            console.log('→ starbuyers detected (UTF-8)')
             resolve('starbuyers')
             return
           }
