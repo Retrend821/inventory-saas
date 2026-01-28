@@ -1304,12 +1304,54 @@ export default function Home() {
           }
         }).filter(r => r.product_name || r.brand_name)
 
-        const { error } = await supabase.from('inventory').insert(records)
+        // 重複チェック: 既存データを取得
+        let existingItems: { product_name: string; purchase_date: string | null; purchase_total: number | null; image_url: string | null }[] = []
+        let existingOffset = 0
+        while (true) {
+          const { data } = await supabase
+            .from('inventory')
+            .select('product_name, purchase_date, purchase_total, image_url')
+            .range(existingOffset, existingOffset + batchSize - 1)
+          if (!data || data.length === 0) break
+          existingItems = existingItems.concat(data)
+          if (data.length < batchSize) break
+          existingOffset += batchSize
+        }
+
+        // 重複チェック用のキーを生成
+        const existingImageUrls = new Set(
+          existingItems.filter(item => item.image_url).map(item => item.image_url)
+        )
+        const existingKeys = new Set(
+          existingItems.map(item => `${item.product_name}|${item.purchase_date}|${item.purchase_total}`)
+        )
+
+        // 重複を除外
+        const newRecords = records.filter(record => {
+          const key = `${record.product_name}|${record.purchase_date}|${record.purchase_total}`
+          const isDuplicate = (record.image_url && existingImageUrls.has(record.image_url)) || existingKeys.has(key)
+          return !isDuplicate
+        })
+
+        const skippedCount = records.length - newRecords.length
+
+        if (newRecords.length === 0) {
+          alert(`全${records.length}件が既存データと重複しているためスキップされました。`)
+          setAucnetImageFile(null)
+          setPendingCSV(null)
+          return
+        }
+
+        const { error } = await supabase.from('inventory').insert(newRecords)
         if (error) {
           console.error('インポートエラー:', error)
           alert(`エラー: ${error.message}`)
         } else {
-          alert(`オークネットCSVインポート完了: ${records.length}件`)
+          if (skippedCount > 0) {
+            alert(`オークネットCSVインポート完了: ${newRecords.length}件成功、${skippedCount}件スキップ（重複）`)
+          } else {
+            alert(`オークネットCSVインポート完了: ${newRecords.length}件`)
+          }
           setAucnetImageFile(null)
           fetchInventory()
         }
