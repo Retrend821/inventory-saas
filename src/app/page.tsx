@@ -3053,6 +3053,18 @@ export default function Home() {
       return firstLine.includes('箱番') && firstLine.includes('枝番') && firstLine.includes('金額')
     }
 
+    // スターバイヤーズ画像CSVかチェック（nanboya.comのURLを含む）
+    const checkStarBuyersImageCSV = (text: string): boolean => {
+      const lines = text.trim().split('\n').slice(0, 5)
+      return lines.some(line => line.includes('nanboya.com') || line.includes('Image URL'))
+    }
+
+    // スターバイヤーズメインCSVかチェック（管理番号と落札金額を含む）
+    const checkStarBuyersMainCSV = (text: string): boolean => {
+      const firstLine = text.trim().split('\n')[0] || ''
+      return firstLine.includes('管理番号') && firstLine.includes('落札金額')
+    }
+
     // ファイルを読み込んでテキストとして返す（エンコード自動判定）
     const readFileAsText = (file: File): Promise<string> => {
       return new Promise((resolve) => {
@@ -3084,6 +3096,10 @@ export default function Home() {
         alert('ものバンク画像CSVだけでは取り込めません。メインCSVも一緒に選択してください。')
         return
       }
+      if (checkStarBuyersImageCSV(text) && !checkStarBuyersMainCSV(text)) {
+        alert('スターバイヤーズ画像CSVだけでは取り込めません。メインCSVも一緒に選択してください。')
+        return
+      }
       handleCSVSelect(files[0])
       return
     }
@@ -3093,6 +3109,7 @@ export default function Home() {
     let imageFile: File | null = null
     let isMonobank = false
     let isAucnet = false
+    let isStarBuyers = false
 
     for (const file of files) {
       const text = await readFileAsText(file)
@@ -3102,15 +3119,29 @@ export default function Home() {
       } else if (checkMonobankImageCSV(text)) {
         imageFile = file
         isMonobank = true
+      } else if (checkStarBuyersImageCSV(text) && !checkStarBuyersMainCSV(text)) {
+        // 画像CSVのみ（Image URLヘッダーだけでメインCSVの特徴がない場合）
+        imageFile = file
+        isStarBuyers = true
       } else if (checkMonobankMainCSV(text)) {
         mainFile = file
         isMonobank = true
+      } else if (checkStarBuyersMainCSV(text)) {
+        mainFile = file
+        isStarBuyers = true
       } else {
         mainFile = file
       }
     }
 
-    if (mainFile && imageFile && isMonobank) {
+    console.log('Files detected:', { mainFile: mainFile?.name, imageFile: imageFile?.name, isMonobank, isAucnet, isStarBuyers })
+
+    if (mainFile && imageFile && isStarBuyers) {
+      // スターバイヤーズ2ファイルインポート
+      const imageMap = await parseImageCSV(imageFile)
+      console.log('StarBuyers image map:', imageMap.size, 'entries')
+      handleCSVUpload(mainFile, null, imageMap)
+    } else if (mainFile && imageFile && isMonobank) {
       // ものバンク2ファイルインポート
       const imageMap = await parseMonobankImageCSV(imageFile)
       handleCSVUpload(mainFile, null, imageMap)
