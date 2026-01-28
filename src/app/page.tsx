@@ -1118,7 +1118,6 @@ export default function Home() {
   // CSVの種類を判定
   const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'aucnet' | 'unknown'> => {
     return new Promise((resolve) => {
-      console.log('=== detectCSVType 開始 ===', file.name)
       // まずUTF-8でパースを試みる（ものバンク、スターバイヤーズ等）
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       Papa.parse<any>(file, {
@@ -1127,18 +1126,14 @@ export default function Home() {
         complete: (results) => {
           const firstRow = results.data[0]
           const headers = firstRow ? Object.keys(firstRow) : []
-          console.log('UTF-8 headers:', headers)
-          console.log('UTF-8 firstRow:', firstRow)
           // BOM除去後のヘッダーでもチェック
           const cleanHeaders = headers.map(h => h.replace(/^\ufeff/, ''))
-          console.log('cleanHeaders:', cleanHeaders)
 
           // ものバンクはUTF-8なので先にチェック
           const hasBoxNo = '箱番' in firstRow || cleanHeaders.includes('箱番')
           const hasBranchNo = '枝番' in firstRow || cleanHeaders.includes('枝番')
           const hasPrice = '金額' in firstRow || cleanHeaders.includes('金額')
           if (firstRow && hasBoxNo && hasBranchNo && hasPrice) {
-            console.log('→ monobank detected')
             resolve('monobank')
             return
           }
@@ -1146,9 +1141,7 @@ export default function Home() {
           // スターバイヤーズもUTF-8の場合があるのでチェック
           const hasKanriNo = '管理番号' in firstRow || cleanHeaders.includes('管理番号')
           const hasRakusatsuPrice = '落札金額' in firstRow || cleanHeaders.includes('落札金額')
-          console.log('hasKanriNo:', hasKanriNo, 'hasRakusatsuPrice:', hasRakusatsuPrice)
           if (firstRow && hasKanriNo && hasRakusatsuPrice) {
-            console.log('→ starbuyers detected (UTF-8)')
             resolve('starbuyers')
             return
           }
@@ -2150,19 +2143,8 @@ export default function Home() {
     if (utf8Check.type === 'starbuyers') {
       // スターバイヤーズ形式（UTF-8）の処理
       const source = 'スターバイヤーズ'
-      console.log('=== スターバイヤーズCSV デバッグ ===')
-      console.log('データ件数:', utf8Check.data.length)
-      console.log('最初の行のキー:', Object.keys(utf8Check.data[0] || {}))
-      console.log('最初の行:', utf8Check.data[0])
       const items = (utf8Check.data as StarBuyersCSV[])
-        .filter(row => {
-          const hasProductName = row['商品名'] && row['商品名'].trim() !== ''
-          const hasPrice = !!row['落札金額']
-          if (!hasProductName || !hasPrice) {
-            console.log('スキップ:', { 商品名: row['商品名'], 落札金額: row['落札金額'], keys: Object.keys(row) })
-          }
-          return hasProductName && hasPrice
-        })
+        .filter(row => row['商品名'] && row['商品名'].trim() !== '' && row['落札金額'])
         .map(row => {
           // 管理番号から画像URLを取得
           const kanriNo = (row['管理番号'] || '').replace(/^'+/, '').trim()
@@ -3134,12 +3116,9 @@ export default function Home() {
       }
     }
 
-    console.log('Files detected:', { mainFile: mainFile?.name, imageFile: imageFile?.name, isMonobank, isAucnet, isStarBuyers })
-
     if (mainFile && imageFile && isStarBuyers) {
       // スターバイヤーズ2ファイルインポート
       const imageMap = await parseImageCSV(imageFile)
-      console.log('StarBuyers image map:', imageMap.size, 'entries')
       handleCSVUpload(mainFile, null, imageMap)
     } else if (mainFile && imageFile && isMonobank) {
       // ものバンク2ファイルインポート
