@@ -2143,8 +2143,19 @@ export default function Home() {
     if (utf8Check.type === 'starbuyers') {
       // スターバイヤーズ形式（UTF-8）の処理
       const source = 'スターバイヤーズ'
+      console.log('=== スターバイヤーズCSV デバッグ ===')
+      console.log('データ件数:', utf8Check.data.length)
+      console.log('最初の行のキー:', Object.keys(utf8Check.data[0] || {}))
+      console.log('最初の行:', utf8Check.data[0])
       const items = (utf8Check.data as StarBuyersCSV[])
-        .filter(row => row['商品名'] && row['商品名'].trim() !== '' && row['落札金額'])
+        .filter(row => {
+          const hasProductName = row['商品名'] && row['商品名'].trim() !== ''
+          const hasPrice = !!row['落札金額']
+          if (!hasProductName || !hasPrice) {
+            console.log('スキップ:', { 商品名: row['商品名'], 落札金額: row['落札金額'], keys: Object.keys(row) })
+          }
+          return hasProductName && hasPrice
+        })
         .map(row => {
           // 管理番号から画像URLを取得
           const kanriNo = (row['管理番号'] || '').replace(/^'+/, '').trim()
