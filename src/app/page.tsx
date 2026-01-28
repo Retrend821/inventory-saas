@@ -2037,12 +2037,29 @@ export default function Home() {
     setPendingCSV(null)
     setStarBuyersImageCSV(null)
 
+    // ファイルをテキストとして読み込む（BOMを除去）
+    const readFileAsText = (file: File): Promise<string> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          let text = e.target?.result as string
+          // BOMを除去
+          if (text.charCodeAt(0) === 0xFEFF) {
+            text = text.slice(1)
+          }
+          resolve(text)
+        }
+        reader.readAsText(file, 'UTF-8')
+      })
+    }
+
     // まずUTF-8でパースしてものバンク/スターバイヤーズ形式かチェック
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const checkUtf8Format = (): Promise<{ type: 'monobank' | 'starbuyers' | null; data: any[] }> => {
+    const checkUtf8Format = async (): Promise<{ type: 'monobank' | 'starbuyers' | null; data: any[] }> => {
+      const text = await readFileAsText(file)
       return new Promise((resolve) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        Papa.parse<any>(file, {
+        Papa.parse<any>(text, {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
@@ -2052,22 +2069,15 @@ export default function Home() {
               return
             }
             const headers = Object.keys(firstRow)
-            // BOM除去後のヘッダーでもチェック
-            const cleanHeaders = headers.map(h => h.replace(/^\ufeff/, ''))
 
             // ものバンク形式チェック
-            const hasBoxNo = '箱番' in firstRow || cleanHeaders.includes('箱番')
-            const hasBranchNo = '枝番' in firstRow || cleanHeaders.includes('枝番')
-            const hasPrice = '金額' in firstRow || cleanHeaders.includes('金額')
-            if (hasBoxNo && hasBranchNo && hasPrice) {
+            if (headers.includes('箱番') && headers.includes('枝番') && headers.includes('金額')) {
               resolve({ type: 'monobank', data: results.data })
               return
             }
 
             // スターバイヤーズ形式チェック（UTF-8）
-            const hasKanriNo = '管理番号' in firstRow || cleanHeaders.includes('管理番号')
-            const hasRakusatsuPrice = '落札金額' in firstRow || cleanHeaders.includes('落札金額')
-            if (hasKanriNo && hasRakusatsuPrice) {
+            if (headers.includes('管理番号') && headers.includes('落札金額')) {
               resolve({ type: 'starbuyers', data: results.data })
               return
             }
