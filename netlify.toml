@@ -1,0 +1,15 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Next.js用のプラグイン
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# APIルートのキャッシュを無効化（クエリパラメータを考慮させる）
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    Pragma = "no-cache"
+    Vary = "*"
