@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Netlifyでキャッシュされないように動的ルートとして設定
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url')
 
@@ -27,7 +31,9 @@ export async function GET(request: NextRequest) {
         return new NextResponse(imageBuffer, {
           headers: {
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=86400',
+            'Cache-Control': 'private, no-store, must-revalidate',
+            'CDN-Cache-Control': 'no-store',
+            'Vary': 'url',
           },
         })
       }
@@ -45,7 +51,9 @@ export async function GET(request: NextRequest) {
         return new NextResponse(imageBuffer, {
           headers: {
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=86400',
+            'Cache-Control': 'private, no-store, must-revalidate',
+            'CDN-Cache-Control': 'no-store',
+            'Vary': 'url',
           },
         })
       }
@@ -54,7 +62,8 @@ export async function GET(request: NextRequest) {
       return new NextResponse(transparentGif, {
         headers: {
           'Content-Type': 'image/gif',
-          'Cache-Control': 'public, max-age=3600',
+          'Cache-Control': 'private, no-store, must-revalidate',
+          'CDN-Cache-Control': 'no-store',
         },
       })
     }
@@ -94,7 +103,8 @@ export async function GET(request: NextRequest) {
       return new NextResponse(transparentGif, {
         headers: {
           'Content-Type': 'image/gif',
-          'Cache-Control': 'public, max-age=3600',
+          'Cache-Control': 'private, no-store, must-revalidate',
+          'CDN-Cache-Control': 'no-store',
         },
       })
     }
@@ -107,7 +117,9 @@ export async function GET(request: NextRequest) {
     return new NextResponse(imageBuffer, {
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': 'private, no-store, must-revalidate',
+        'CDN-Cache-Control': 'no-store',
+        'Vary': 'url',
       },
     })
   } catch (error) {
@@ -117,7 +129,8 @@ export async function GET(request: NextRequest) {
     return new NextResponse(transparentGif, {
       headers: {
         'Content-Type': 'image/gif',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'private, no-store, must-revalidate',
+        'CDN-Cache-Control': 'no-store',
       },
     })
   }

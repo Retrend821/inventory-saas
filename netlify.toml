@@ -6,10 +6,20 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# APIルートのキャッシュを無効化（クエリパラメータを考慮させる）
+# APIルートのキャッシュを完全に無効化
 [[headers]]
   for = "/api/*"
   [headers.values]
-    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    Cache-Control = "private, no-store, no-cache, must-revalidate"
+    CDN-Cache-Control = "no-store"
+    Netlify-CDN-Cache-Control = "no-store"
     Pragma = "no-cache"
     Vary = "*"
+
+# 画像プロキシ専用の設定
+[[headers]]
+  for = "/api/image-proxy"
+  [headers.values]
+    Cache-Control = "private, no-store, no-cache, must-revalidate"
+    CDN-Cache-Control = "no-store"
+    Netlify-CDN-Cache-Control = "no-store"
