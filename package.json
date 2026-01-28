@@ -20,7 +20,8 @@
     "react-dom": "19.2.0",
     "react-window": "^2.2.3",
     "recharts": "^3.5.0",
-    "xlsx-populate": "^1.21.0"
+    "xlsx-populate": "^1.21.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
