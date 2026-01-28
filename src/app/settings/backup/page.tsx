@@ -84,11 +84,14 @@ export default function BackupPage() {
       const blob = new Blob([jsonString], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
 
-      // ファイル名に日時を含める
+      // ファイル名に日時を含める（日本語形式）
       const now = new Date()
-      const dateStr = now.toISOString().split('T')[0]
-      const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-')
-      const fileName = `inventory-backup_${dateStr}_${timeStr}.json`
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      const hour = String(now.getHours()).padStart(2, '0')
+      const minute = String(now.getMinutes()).padStart(2, '0')
+      const fileName = `在庫バックアップ_${year}年${month}月${day}日_${hour}時${minute}分.json`
 
       // ダウンロード実行
       const a = document.createElement('a')
