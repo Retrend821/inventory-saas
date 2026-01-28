@@ -1118,7 +1118,7 @@ export default function Home() {
   // CSVの種類を判定
   const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'aucnet' | 'unknown'> => {
     return new Promise((resolve) => {
-      // まずUTF-8でパースを試みる（ものバンク等）
+      // まずUTF-8でパースを試みる（ものバンク、スターバイヤーズ等）
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       Papa.parse<any>(file, {
         header: true,
@@ -1126,8 +1126,10 @@ export default function Home() {
         complete: (results) => {
           const firstRow = results.data[0]
           const headers = firstRow ? Object.keys(firstRow) : []
-          // ものバンクはUTF-8なので先にチェック（BOM除去後のヘッダーでもチェック）
+          // BOM除去後のヘッダーでもチェック
           const cleanHeaders = headers.map(h => h.replace(/^\ufeff/, ''))
+
+          // ものバンクはUTF-8なので先にチェック
           const hasBoxNo = '箱番' in firstRow || cleanHeaders.includes('箱番')
           const hasBranchNo = '枝番' in firstRow || cleanHeaders.includes('枝番')
           const hasPrice = '金額' in firstRow || cleanHeaders.includes('金額')
@@ -1135,6 +1137,15 @@ export default function Home() {
             resolve('monobank')
             return
           }
+
+          // スターバイヤーズもUTF-8の場合があるのでチェック
+          const hasKanriNo = '管理番号' in firstRow || cleanHeaders.includes('管理番号')
+          const hasRakusatsuPrice = '落札金額' in firstRow || cleanHeaders.includes('落札金額')
+          if (firstRow && hasKanriNo && hasRakusatsuPrice) {
+            resolve('starbuyers')
+            return
+          }
+
           // UTF-8で認識できなければShift_JISで再パース
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           Papa.parse<any>(file, {
@@ -1717,23 +1728,51 @@ export default function Home() {
   const parseImageCSV = (file: File): Promise<Map<string, string>> => {
     return new Promise((resolve) => {
       const imageMap = new Map<string, string>()
+
+      // 画像マップを構築する共通関数
+      const buildImageMap = (results: Papa.ParseResult<Record<string, string>>) => {
+        for (const row of results.data as Record<string, string>[]) {
+          // Image URL列からURLを取得（BOM除去も考慮）
+          const headers = Object.keys(row)
+          const imageUrlKey = headers.find(h => h.replace(/^\ufeff/, '') === 'Image URL') || 'Image URL'
+          const url = row[imageUrlKey] || Object.values(row)[0] || ''
+          if (url && url.startsWith('http')) {
+            // URLから管理番号を抽出: https://image.nanboya.com/items/8357118/A3979810.JPG
+            const match = url.match(/\/([A-Z0-9]+)\.(JPG|jpg|jpeg|png|webp)/i)
+            if (match) {
+              imageMap.set(match[1], url)
+            }
+          }
+        }
+      }
+
+      // まずUTF-8でパースを試みる
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        encoding: 'Shift_JIS',
         complete: (results) => {
-          for (const row of results.data as Record<string, string>[]) {
-            // Image URL列からURLを取得
-            const url = row['Image URL'] || Object.values(row)[0] || ''
-            if (url && url.startsWith('http')) {
-              // URLから管理番号を抽出: https://image.nanboya.com/items/8357118/A3979810.JPG
-              const match = url.match(/\/([A-Z0-9]+)\.(JPG|jpg|jpeg|png|webp)/i)
-              if (match) {
-                imageMap.set(match[1], url)
-              }
-            }
+          // 最初の行がURLを含んでいるかチェック
+          const firstRow = results.data[0] as Record<string, string>
+          const values = firstRow ? Object.values(firstRow) : []
+          const hasUrl = values.some(v => v && v.startsWith('http'))
+
+          if (hasUrl) {
+            // UTF-8で正しくパースできた
+            buildImageMap(results as Papa.ParseResult<Record<string, string>>)
+            resolve(imageMap)
+          } else {
+            // UTF-8で失敗した場合、Shift_JISで再パース
+            Papa.parse(file, {
+              header: true,
+              skipEmptyLines: true,
+              encoding: 'Shift_JIS',
+              complete: (sjisResults) => {
+                buildImageMap(sjisResults as Papa.ParseResult<Record<string, string>>)
+                resolve(imageMap)
+              },
+              error: () => resolve(imageMap)
+            })
           }
-          resolve(imageMap)
         },
         error: () => resolve(imageMap)
       })
@@ -1998,9 +2037,9 @@ export default function Home() {
     setPendingCSV(null)
     setStarBuyersImageCSV(null)
 
-    // まずUTF-8でパースしてものバンク形式かチェック
+    // まずUTF-8でパースしてものバンク/スターバイヤーズ形式かチェック
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const checkMonobank = (): Promise<{ isMonobank: boolean; data: any[] }> => {
+    const checkUtf8Format = (): Promise<{ type: 'monobank' | 'starbuyers' | null; data: any[] }> => {
       return new Promise((resolve) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         Papa.parse<any>(file, {
@@ -2008,22 +2047,43 @@ export default function Home() {
           skipEmptyLines: true,
           complete: (results) => {
             const firstRow = results.data[0]
-            if (firstRow && '箱番' in firstRow && '枝番' in firstRow && '金額' in firstRow) {
-              resolve({ isMonobank: true, data: results.data })
-            } else {
-              resolve({ isMonobank: false, data: [] })
+            if (!firstRow) {
+              resolve({ type: null, data: [] })
+              return
             }
+            const headers = Object.keys(firstRow)
+            // BOM除去後のヘッダーでもチェック
+            const cleanHeaders = headers.map(h => h.replace(/^\ufeff/, ''))
+
+            // ものバンク形式チェック
+            const hasBoxNo = '箱番' in firstRow || cleanHeaders.includes('箱番')
+            const hasBranchNo = '枝番' in firstRow || cleanHeaders.includes('枝番')
+            const hasPrice = '金額' in firstRow || cleanHeaders.includes('金額')
+            if (hasBoxNo && hasBranchNo && hasPrice) {
+              resolve({ type: 'monobank', data: results.data })
+              return
+            }
+
+            // スターバイヤーズ形式チェック（UTF-8）
+            const hasKanriNo = '管理番号' in firstRow || cleanHeaders.includes('管理番号')
+            const hasRakusatsuPrice = '落札金額' in firstRow || cleanHeaders.includes('落札金額')
+            if (hasKanriNo && hasRakusatsuPrice) {
+              resolve({ type: 'starbuyers', data: results.data })
+              return
+            }
+
+            resolve({ type: null, data: [] })
           },
-          error: () => resolve({ isMonobank: false, data: [] })
+          error: () => resolve({ type: null, data: [] })
         })
       })
     }
 
-    const monobankCheck = await checkMonobank()
+    const utf8Check = await checkUtf8Format()
 
-    if (monobankCheck.isMonobank) {
+    if (utf8Check.type === 'monobank') {
       // ものバンク形式（UTF-8）の処理
-      const results = { data: monobankCheck.data }
+      const results = { data: utf8Check.data }
       let items: {
         product_name: string
         brand_name: string | null
@@ -2062,6 +2122,38 @@ export default function Home() {
             purchase_total: purchaseTotal,
             purchase_date: dateStr,
             purchase_source: 'モノバンク',
+            status: '在庫あり',
+          }
+        })
+
+      await processCSVItems(items, source)
+      return
+    }
+
+    if (utf8Check.type === 'starbuyers') {
+      // スターバイヤーズ形式（UTF-8）の処理
+      const source = 'スターバイヤーズ'
+      const items = (utf8Check.data as StarBuyersCSV[])
+        .filter(row => row['商品名'] && row['商品名'].trim() !== '' && row['落札金額'])
+        .map(row => {
+          // 管理番号から画像URLを取得
+          const kanriNo = (row['管理番号'] || '').replace(/^'+/, '').trim()
+          const imageUrl = imageMap?.get(kanriNo) || null
+
+          // 正味仕入値（落札金額・税抜）
+          const purchasePriceVal = row['落札金額'] ? parseInt(row['落札金額'].replace(/,/g, ''), 10) : null
+          // 仕入総額（合計・税込手数料込み）
+          const purchaseTotalVal = row['合計'] ? parseInt(row['合計'].replace(/,/g, ''), 10) : null
+
+          return {
+            product_name: row['商品名'],
+            brand_name: detectBrand(row['商品名']),
+            category: detectCategory(row['商品名']),
+            image_url: imageUrl,
+            purchase_price: purchasePriceVal,
+            purchase_total: purchaseTotalVal,
+            purchase_date: parseStarBuyersDate(row['開催日']),
+            purchase_source: 'スターバイヤーズ',
             status: '在庫あり',
           }
         })
