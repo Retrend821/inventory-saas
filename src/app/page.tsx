@@ -307,6 +307,11 @@ const getProxiedImageUrl = (url: string | null): string | null => {
     return url
   }
 
+  // Supabaseストレージはパブリックなのでそのまま返す（プロキシ不要）
+  if (url.includes('supabase.co/storage')) {
+    return url
+  }
+
   // 2ndstreetのサムネイルURLをCDNのフルサイズURLに変換
   let finalUrl = url
   if (url.includes('www.2ndstreet.jp')) {
