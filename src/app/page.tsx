@@ -954,6 +954,18 @@ export default function Home() {
       }
     }
 
+    // その他費用または原価が変更された場合、仕入総額を自動更新
+    if (field === 'other_cost' || field === 'purchase_price') {
+      const newPurchasePrice = field === 'purchase_price' ? (value as number || 0) : (currentItem.purchase_price || 0)
+      const newOtherCost = field === 'other_cost' ? (value as number || 0) : (currentItem.other_cost || 0)
+      const newPurchaseTotal = newPurchasePrice + newOtherCost
+      updateData.purchase_total = newPurchaseTotal
+      // メモも更新
+      if (currentItem.inventory_number) {
+        updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal}`
+      }
+    }
+
     // 仕入総額が更新された場合、メモを自動更新（管理番号）仕入総額）
     if (field === 'purchase_total' && currentItem.inventory_number) {
       const newPurchaseTotal = value as number | null
