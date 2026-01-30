@@ -506,11 +506,14 @@ export default function ManualSalesPage() {
   // 利益計算
   const calculateProfit = (sale: Partial<ManualSale>): number => {
     const salePrice = sale.sale_price || 0
-    const purchaseTotal = sale.purchase_total || sale.purchase_price || 0
+    const purchasePrice = sale.purchase_price || 0
+    const otherCost = sale.other_cost || 0
+    // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+    const purchaseTotal = sale.purchase_total ?? (purchasePrice + otherCost)
     const commission = sale.commission || 0
     const shippingCost = sale.shipping_cost || 0
-    const otherCost = sale.other_cost || 0
-    return salePrice - purchaseTotal - commission - shippingCost - otherCost
+    // 仕入総額を使うので、other_costは別途引かない
+    return salePrice - purchaseTotal - commission - shippingCost
   }
 
   // 利益率計算
@@ -697,6 +700,13 @@ export default function ManualSalesPage() {
     // ローカル状態を更新
     const updatedSale = { ...sale, [field]: newValue }
 
+    // その他費用または原価が変更された場合、仕入総額を更新
+    if (field === 'other_cost' || field === 'purchase_price') {
+      const newPurchasePrice = field === 'purchase_price' ? (newValue as number || 0) : (updatedSale.purchase_price || 0)
+      const newOtherCost = field === 'other_cost' ? (newValue as number || 0) : (updatedSale.other_cost || 0)
+      updatedSale.purchase_total = newPurchasePrice + newOtherCost
+    }
+
     // 販売先または売価が変更された場合、手数料を自動計算
     let autoCommission: number | null = updatedSale.commission
     if (field === 'sale_destination' || field === 'sale_price') {
@@ -728,6 +738,10 @@ export default function ManualSalesPage() {
     // 手数料が自動計算された場合は一緒に更新
     if (field === 'sale_destination' || field === 'sale_price') {
       updateData.commission = autoCommission
+    }
+    // その他費用または原価が変更された場合は仕入総額も更新
+    if (field === 'other_cost' || field === 'purchase_price') {
+      updateData.purchase_total = updatedSale.purchase_total
     }
 
     setSales(sales.map(s => s.id === id ? { ...s, ...updateData } as ManualSale : s))
@@ -1148,12 +1162,13 @@ export default function ManualSalesPage() {
       }
 
       // 元の仕入総額と利益を再計算
-      const originalPurchaseTotal = sale.purchase_price || 0
+      const purchasePrice = sale.purchase_price || 0
+      const otherCost = sale.other_cost || 0
+      const originalPurchaseTotal = purchasePrice + otherCost
       const salePrice = sale.sale_price || 0
       const commission = sale.commission || 0
       const shippingCost = sale.shipping_cost || 0
-      const otherCost = sale.other_cost || 0
-      const profit = salePrice - originalPurchaseTotal - commission - shippingCost - otherCost
+      const profit = salePrice - originalPurchaseTotal - commission - shippingCost
       let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
       // NaN/Infinityチェックとクランプ（NUMERIC(5,1)制限: -9999.9〜9999.9）
       if (!Number.isFinite(profitRate)) profitRate = 0
@@ -1911,10 +1926,17 @@ export default function ManualSalesPage() {
 
         // 利益と利益率を計算
         const salePrice = (record.sale_price as number) || 0
-        const purchaseTotal = (record.purchase_total as number) || (record.purchase_price as number) || 0
-        const shippingCost = (record.shipping_cost as number) || 0
+        const purchasePrice = (record.purchase_price as number) || 0
         const otherCost = (record.other_cost as number) || 0
-        const profit = salePrice - purchaseTotal - commission - shippingCost - otherCost
+        const shippingCost = (record.shipping_cost as number) || 0
+        // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+        const purchaseTotal = (record.purchase_total as number) ?? (purchasePrice + otherCost)
+        // 仕入総額がない場合はpurchase_totalを設定
+        if (record.purchase_total == null) {
+          record.purchase_total = purchaseTotal
+        }
+        // 仕入総額を使うので、other_costは別途引かない
+        const profit = salePrice - purchaseTotal - commission - shippingCost
         let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
         // NaN, Infinity, -Infinity をチェックして0にする
         if (!Number.isFinite(profitRate)) {

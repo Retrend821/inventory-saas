@@ -422,13 +422,15 @@ export default function AllSalesPage() {
           const key = `single:${item.id}`
           if (!existingKeys.has(key)) {
             const salePrice = item.sale_price || 0
-            const purchaseCost = item.purchase_total || 0
             const purchasePrice = item.purchase_price || 0
             const commission = item.commission || 0
             const shippingCost = item.shipping_cost || 0
             const otherCost = item.other_cost || 0
             const depositAmount = item.deposit_amount || 0
-            const profit = depositAmount - purchaseCost - otherCost
+            // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+            const purchaseCost = item.purchase_total ?? (purchasePrice + otherCost)
+            // 仕入総額を使うので、other_costは別途引かない
+            const profit = depositAmount - purchaseCost
             const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
 
             newRecords.push({
@@ -521,11 +523,13 @@ export default function AllSalesPage() {
           const key = `manual:${item.id}`
           if (!existingKeys.has(key)) {
             const salePrice = item.sale_price || 0
-            const purchaseCost = item.purchase_total || 0
             const commission = item.commission || 0
             const shippingCost = item.shipping_cost || 0
             const otherCost = item.other_cost || 0
-            const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost - otherCost)
+            // manual_salesでは仕入総額（purchase_total）を使用（すでにother_costを含む）
+            const purchaseCost = item.purchase_total || 0
+            // 仕入総額を使うので、other_costは別途引かない
+            const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost)
             const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
 
             newRecords.push({

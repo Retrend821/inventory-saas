@@ -516,9 +516,11 @@ export default function SummaryPage() {
     // 販売利益（ダッシュボードと同じ計算式）
     const invProfit = soldItems.reduce((sum, item) => {
       const depositAmount = item.deposit_amount || 0
+      const purchasePrice = item.purchase_price || 0
       const otherCost = item.other_cost || 0
-      const purchaseTotal = item.purchase_total || 0
-      return sum + (depositAmount - otherCost - purchaseTotal)
+      // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+      const purchaseTotal = item.purchase_total ?? (purchasePrice + otherCost)
+      return sum + (depositAmount - purchaseTotal)
     }, 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     // まとめ売上の利益（ダッシュボードと同じ計算式）
@@ -699,9 +701,11 @@ export default function SummaryPage() {
     // 販売利益（ダッシュボードと同じ計算式）
     const invProfit = soldItems.reduce((sum, item) => {
       const depositAmount = item.deposit_amount || 0
+      const purchasePrice = item.purchase_price || 0
       const otherCost = item.other_cost || 0
-      const purchaseTotal = item.purchase_total || 0
-      return sum + (depositAmount - otherCost - purchaseTotal)
+      // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+      const purchaseTotal = item.purchase_total ?? (purchasePrice + otherCost)
+      return sum + (depositAmount - purchaseTotal)
     }, 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     // まとめ売上の利益（ダッシュボードと同じ計算式）
@@ -1003,9 +1007,11 @@ export default function SummaryPage() {
       // 販売利益（ダッシュボードと同じ計算式）
       const invProfit = soldItems.reduce((sum, item) => {
         const depositAmount = item.deposit_amount || 0
+        const purchasePrice = item.purchase_price || 0
         const otherCost = item.other_cost || 0
-        const purchaseTotal = item.purchase_total || 0
-        return sum + (depositAmount - otherCost - purchaseTotal)
+        // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+        const purchaseTotal = item.purchase_total ?? (purchasePrice + otherCost)
+        return sum + (depositAmount - purchaseTotal)
       }, 0)
       const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
       // まとめ売上の利益（ダッシュボードと同じ計算式）

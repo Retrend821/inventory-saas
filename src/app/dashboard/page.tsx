@@ -251,7 +251,8 @@ export default function DashboardPage() {
     const inventorySales = inventory.filter(item => isThisMonth(item.sale_date) && item.status === '売却済み' && item.sale_destination && item.sale_destination !== '返品')
     const inventorySalesCount = inventorySales.length
     const inventorySalesTotal = inventorySales.reduce((sum, item) => sum + (item.sale_price || 0), 0)
-    const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total || 0) + (item.other_cost || 0), 0)
+    // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+    const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))), 0)
     const inventoryProfit = inventorySales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0) - inventorySalesCost
 
     // 今月の販売（まとめ売上）
@@ -335,7 +336,8 @@ export default function DashboardPage() {
       + wholesaleSalesManual.reduce((sum, item) => sum + (item.sale_price || 0), 0)
 
     const retailProfit = retailSalesInv.reduce((sum, item) => {
-      const cost = (item.purchase_total || 0) + (item.other_cost || 0)
+      // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+      const cost = item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))
       return sum + (item.deposit_amount || 0) - cost
     }, 0) + retailSalesBulk.reduce((sum, item) => {
       const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
@@ -347,7 +349,8 @@ export default function DashboardPage() {
     }, 0) + retailSalesManual.reduce((sum, item) => sum + (item.profit || 0), 0)
 
     const wholesaleProfit = wholesaleSalesInv.reduce((sum, item) => {
-      const cost = (item.purchase_total || 0) + (item.other_cost || 0)
+      // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+      const cost = item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))
       return sum + (item.deposit_amount || 0) - cost
     }, 0) + wholesaleSalesBulk.reduce((sum, item) => {
       const bp = bulkPurchaseMap.get(item.bulk_purchase_id)
@@ -389,7 +392,8 @@ export default function DashboardPage() {
     const inventorySales = inventory.filter(item => isToday(item.sale_date) && item.status === '売却済み' && item.sale_destination && item.sale_destination !== '返品')
     const inventorySalesCount = inventorySales.length
     const inventorySalesTotal = inventorySales.reduce((sum, item) => sum + (item.sale_price || 0), 0)
-    const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total || 0) + (item.other_cost || 0), 0)
+    // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+    const inventorySalesCost = inventorySales.reduce((sum, item) => sum + (item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))), 0)
     const inventoryProfit = inventorySales.reduce((sum, item) => sum + (item.deposit_amount || 0), 0) - inventorySalesCost
 
     // 本日の販売（まとめ仕入れ売上）
@@ -594,7 +598,8 @@ export default function DashboardPage() {
         sale_date: item.sale_date,
         sale_type: item.sale_type,
         sale_amount: item.sale_price || 0,
-        profit: (item.deposit_amount || 0) - (item.purchase_total || 0) - (item.other_cost || 0),
+        // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+        profit: (item.deposit_amount || 0) - (item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))),
         source: 'inventory' as const
       }))
 
