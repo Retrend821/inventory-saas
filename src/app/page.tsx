@@ -3516,8 +3516,10 @@ export default function Home() {
     // 売上日がある場合のみ計算（売却確定時）、返品は除外
     if (!item.sale_date || item.sale_date === '返品') return null
     // 入金額がある場合のみ計算
+    // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+    const purchaseTotal = item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))
     return item.deposit_amount !== null
-      ? Number(item.deposit_amount) - (item.purchase_total || 0) - (item.other_cost || 0)
+      ? Number(item.deposit_amount) - purchaseTotal
       : null
   }
 
@@ -3810,8 +3812,10 @@ export default function Home() {
     // 利益計算ヘルパー（ローカル）
     const getProfit = (item: InventoryItem): number | null => {
       if (!item.sale_date || item.sale_date === '返品') return null
+      // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+      const purchaseTotal = item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))
       return item.deposit_amount !== null
-        ? Number(item.deposit_amount) - (item.purchase_total || 0) - (item.other_cost || 0)
+        ? Number(item.deposit_amount) - purchaseTotal
         : null
     }
 
