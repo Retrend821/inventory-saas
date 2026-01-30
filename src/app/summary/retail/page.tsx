@@ -511,24 +511,24 @@ export default function RetailSalesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">小売販売実績</h1>
+      <div className="max-w-full mx-auto px-2 sm:px-4 py-4 sm:py-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">小売販売実績</h1>
 
         {/* タブ */}
-        <div className="flex gap-1 mb-6">
+        <div className="flex gap-1 mb-4 sm:mb-6 overflow-x-auto mobile-hide-scrollbar">
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-6 py-2 rounded-t-lg font-medium transition-colors ${
+            className={`px-4 sm:px-6 py-2 rounded-t-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap touch-target ${
               activeTab === 'history'
                 ? 'bg-slate-600 text-white'
                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
             }`}
           >
-            販売履歴
+            履歴
           </button>
           <button
             onClick={() => setActiveTab('summary')}
-            className={`px-6 py-2 rounded-t-lg font-medium transition-colors ${
+            className={`px-4 sm:px-6 py-2 rounded-t-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap touch-target ${
               activeTab === 'summary'
                 ? 'bg-slate-600 text-white'
                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
@@ -538,7 +538,7 @@ export default function RetailSalesPage() {
           </button>
           <button
             onClick={() => setActiveTab('graph')}
-            className={`px-6 py-2 rounded-t-lg font-medium transition-colors ${
+            className={`px-4 sm:px-6 py-2 rounded-t-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap touch-target ${
               activeTab === 'graph'
                 ? 'bg-slate-600 text-white'
                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
@@ -549,42 +549,44 @@ export default function RetailSalesPage() {
         </div>
 
         {/* 年月選択 */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">年:</label>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
-              >
-                {availableYears.map(year => (
-                  <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
-                ))}
-              </select>
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <label className="text-xs sm:text-sm text-gray-600">年:</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 text-sm touch-target"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <label className="text-xs sm:text-sm text-gray-600">月:</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 text-sm touch-target"
+                >
+                  {months.map(month => (
+                    <option key={month} value={month}>
+                      {month === 'all' ? '全月' : `${parseInt(month)}月`}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">月:</label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
-              >
-                {months.map(month => (
-                  <option key={month} value={month}>
-                    {month === 'all' ? '全月' : `${parseInt(month)}月`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="ml-auto flex items-center gap-4">
-              <span className="text-sm text-gray-500">
+            <div className="sm:ml-auto flex flex-wrap items-center gap-2 sm:gap-4">
+              <span className="text-xs sm:text-sm text-gray-500 hidden md:inline">
                 対象販路: {retailPlatformNames.join(', ') || 'なし'}
               </span>
               <div className="relative">
                 <button
                   onClick={() => setShowColumnSettings(!showColumnSettings)}
-                  className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors touch-target"
                 >
                   列の編集
                 </button>

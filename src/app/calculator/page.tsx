@@ -401,14 +401,14 @@ export default function CalculatorPage() {
   const showYahoo = showYahooYamato || showYahooYubin
 
   return (
-    <div className="min-h-screen bg-gray-100 pt-20 pb-10 px-4">
+    <div className="min-h-screen bg-gray-100 pt-16 sm:pt-20 pb-10 px-2 sm:px-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">利益計算機</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">利益計算機</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* 利益計算カード */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">利益計算</h2>
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">利益計算</h2>
 
             {/* 仕入情報 */}
             <div className="mb-6">

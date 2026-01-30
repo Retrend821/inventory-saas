@@ -79,27 +79,27 @@ export default function PasswordChangePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-20 px-4">
+    <div className="min-h-screen bg-gray-50 pt-16 sm:pt-20 px-2 sm:px-4">
       <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h1 className="text-xl font-bold text-gray-900 mb-6">パスワード変更</h1>
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">パスワード変更</h1>
 
           {user && (
-            <div className="mb-6 p-3 bg-gray-100 rounded-lg">
-              <p className="text-sm text-gray-600">ログイン中: {user.email}</p>
+            <div className="mb-4 sm:mb-6 p-2.5 sm:p-3 bg-gray-100 rounded-lg">
+              <p className="text-xs sm:text-sm text-gray-600">ログイン中: {user.email}</p>
             </div>
           )}
 
           {!isAdmin ? (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-700">
+            <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-xs sm:text-sm text-red-700">
                 パスワードの変更は管理者のみ可能です。
               </p>
             </div>
           ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
             <div>
-              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-900">
+              <label htmlFor="currentPassword" className="block text-xs sm:text-sm font-medium text-gray-900">
                 現在のパスワード
               </label>
               <input
@@ -108,13 +108,13 @@ export default function PasswordChangePage() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                className="mt-1 block w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-base sm:text-sm"
                 placeholder="現在のパスワードを入力"
               />
             </div>
 
             <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-900">
+              <label htmlFor="newPassword" className="block text-xs sm:text-sm font-medium text-gray-900">
                 新しいパスワード
               </label>
               <input
@@ -124,13 +124,13 @@ export default function PasswordChangePage() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 minLength={6}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                className="mt-1 block w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-base sm:text-sm"
                 placeholder="6文字以上"
               />
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-900">
+              <label htmlFor="confirmPassword" className="block text-xs sm:text-sm font-medium text-gray-900">
                 新しいパスワード（確認）
               </label>
               <input
@@ -140,13 +140,13 @@ export default function PasswordChangePage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={6}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                className="mt-1 block w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-base sm:text-sm"
                 placeholder="もう一度入力"
               />
             </div>
 
             {message && (
-              <div className={`text-sm p-3 rounded-md ${
+              <div className={`text-xs sm:text-sm p-2.5 sm:p-3 rounded-md ${
                 message.type === 'success'
                   ? 'bg-green-50 text-green-700'
                   : 'bg-red-50 text-red-700'
@@ -158,7 +158,7 @@ export default function PasswordChangePage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              className="w-full py-2.5 sm:py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 touch-target"
             >
               {loading ? '変更中...' : 'パスワードを変更'}
             </button>

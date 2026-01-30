@@ -701,20 +701,20 @@ export default function PlatformsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-full mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-8">
+      <div className="max-w-full mx-auto space-y-4 sm:space-y-6">
         {/* ===== 販路マスタ ===== */}
         <div>
           {/* アコーディオンヘッダー */}
           <button
             onClick={() => setPlatformIsOpen(!platformIsOpen)}
-            className="w-full flex items-center justify-between bg-slate-800 rounded-lg shadow px-6 py-4 mb-4 hover:bg-slate-700 transition-colors"
+            className="w-full flex items-center justify-between bg-slate-800 rounded-lg shadow px-4 sm:px-6 py-3 sm:py-4 mb-3 sm:mb-4 hover:bg-slate-700 transition-colors touch-target"
           >
-            <h1 className="text-xl font-bold text-white">販路マスタ設定</h1>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-300">{platforms.length}件</span>
+            <h1 className="text-lg sm:text-xl font-bold text-white">販路マスタ設定</h1>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-xs sm:text-sm text-slate-300">{platforms.length}件</span>
               <svg
-                className={`w-6 h-6 text-white transition-transform ${platformIsOpen ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 sm:w-6 sm:h-6 text-white transition-transform ${platformIsOpen ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

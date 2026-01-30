@@ -194,17 +194,17 @@ export default function ShippingPage() {
   const showYahoo = showYahooYamato || showYahooYubin
 
   return (
-    <div className="min-h-screen bg-gray-100 pt-20 pb-10 px-4">
+    <div className="min-h-screen bg-gray-100 pt-16 sm:pt-20 pb-10 px-2 sm:px-4">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">送料表</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">送料表</h1>
 
         {/* 絞り込みフィルター */}
-        <div className="mb-8 bg-white rounded-lg shadow p-4">
+        <div className="mb-6 sm:mb-8 bg-white rounded-lg shadow p-3 sm:p-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">配送方法で絞り込み</label>
           <select
             value={selectedCategory}
             onChange={(e) => handleCategoryChange(e.target.value)}
-            className="block w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className="block w-full sm:max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 touch-target"
           >
             {shippingCategories.map(cat => (
               <option key={cat} value={cat}>{cat}</option>

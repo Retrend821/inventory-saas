@@ -84,3 +84,51 @@ input[type="number"]::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+/* レスポンシブテーブルコンテナ */
+.responsive-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* モバイルでスクロールバー非表示 */
+@media (max-width: 767px) {
+  .mobile-hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .mobile-hide-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+/* タッチターゲット（最小44px確保） */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* モバイル用のスナップスクロール */
+.snap-scroll-x {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-scroll-x > * {
+  scroll-snap-align: start;
+}
+
+/* モバイルでのスティッキー列 */
+@media (max-width: 767px) {
+  .sticky-col-mobile {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: inherit;
+  }
+
+  .sticky-col-mobile-2 {
+    position: sticky;
+    left: 40px;
+    z-index: 10;
+    background: inherit;
+  }
+}

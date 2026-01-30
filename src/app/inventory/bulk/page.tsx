@@ -1159,12 +1159,12 @@ export default function BulkInventoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full px-4 py-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">まとめ仕入れ在庫一覧</h1>
+      <div className="w-full px-2 sm:px-4 py-4 sm:py-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">まとめ仕入れ在庫一覧</h1>
           <button
             onClick={handleAddGenre}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base touch-target"
           >
             ジャンルを追加
           </button>
@@ -1172,12 +1172,12 @@ export default function BulkInventoryPage() {
 
         {/* 表示モード切替 */}
         {!loading && bulkPurchases.length > 0 && (
-          <div className="mb-6 flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-600">原価回収モード:</span>
+          <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <span className="text-xs sm:text-sm font-medium text-gray-600">原価回収モード:</span>
             <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
               <button
                 onClick={() => setViewMode('sales')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors touch-target ${
                   viewMode === 'sales'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
@@ -1187,7 +1187,7 @@ export default function BulkInventoryPage() {
               </button>
               <button
                 onClick={() => setViewMode('purchases')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors touch-target ${
                   viewMode === 'purchases'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
@@ -1201,10 +1201,10 @@ export default function BulkInventoryPage() {
 
         {/* ジャンルタブ */}
         {!loading && genres.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
+          <div className="mb-4 flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto mobile-hide-scrollbar pb-1">
             <button
               onClick={() => setSelectedGenre('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap touch-target ${
                 selectedGenre === 'all'
                   ? 'bg-slate-700 text-white'
                   : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -1219,7 +1219,7 @@ export default function BulkInventoryPage() {
                 <div key={genre} className="relative group">
                   <button
                     onClick={() => setSelectedGenre(genre)}
-                    className={`px-4 py-2 pr-8 rounded-lg text-sm font-medium transition-colors ${
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 pr-7 sm:pr-8 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap touch-target ${
                       selectedGenre === genre
                         ? 'bg-slate-700 text-white'
                         : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -1239,7 +1239,7 @@ export default function BulkInventoryPage() {
                       if (selectedGenre === genre) setSelectedGenre('all')
                       fetchData()
                     }}
-                    className={`absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white transition-colors ${
+                    className={`absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-500 hover:text-white transition-colors touch-target ${
                       selectedGenre === genre ? 'text-white/70' : 'text-gray-400'
                     }`}
                   >
@@ -1255,12 +1255,12 @@ export default function BulkInventoryPage() {
 
         {/* ジャンルサマリー */}
         {!loading && filteredPurchases.length > 0 && (
-          <div className="mb-4 bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">
+          <div className="mb-4 bg-white rounded-xl border border-gray-200 p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-700">
                 {selectedGenre === 'all' ? '全体' : selectedGenre} サマリー
               </h3>
-              <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+              <span className={`text-xs sm:text-sm font-bold px-2 sm:px-3 py-1 rounded-full self-start sm:self-auto ${
                 genreSummary.recoveryRate >= 100
                   ? 'bg-green-100 text-green-700'
                   : genreSummary.recoveryRate >= 50
@@ -1270,40 +1270,40 @@ export default function BulkInventoryPage() {
                 回収率 {genreSummary.recoveryRate}%
               </span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-sm">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">仕入総額</div>
-                <div className="font-bold text-gray-900">¥{genreSummary.totalPurchaseAmount.toLocaleString()}</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-4 text-sm">
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">仕入総額</div>
+                <div className="font-bold text-gray-900 text-sm sm:text-base">¥{genreSummary.totalPurchaseAmount.toLocaleString()}</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">総数量</div>
-                <div className="font-bold text-gray-900">{genreSummary.totalQuantity}点</div>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">総数量</div>
+                <div className="font-bold text-gray-900 text-sm sm:text-base">{genreSummary.totalQuantity}点</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">販売済</div>
-                <div className="font-bold text-blue-600">{genreSummary.soldQuantity}点</div>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">販売済</div>
+                <div className="font-bold text-blue-600 text-sm sm:text-base">{genreSummary.soldQuantity}点</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">残り</div>
-                <div className="font-bold text-orange-600">{genreSummary.remainingQuantity}点</div>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">残り</div>
+                <div className="font-bold text-orange-600 text-sm sm:text-base">{genreSummary.remainingQuantity}点</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">売上総額</div>
-                <div className="font-bold text-gray-900">¥{genreSummary.totalSales.toLocaleString()}</div>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">売上総額</div>
+                <div className="font-bold text-gray-900 text-sm sm:text-base">¥{genreSummary.totalSales.toLocaleString()}</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">入金総額</div>
-                <div className="font-bold text-blue-600">¥{genreSummary.totalDeposit.toLocaleString()}</div>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">入金総額</div>
+                <div className="font-bold text-blue-600 text-sm sm:text-base">¥{genreSummary.totalDeposit.toLocaleString()}</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">純利益</div>
-                <div className={`font-bold ${genreSummary.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">純利益</div>
+                <div className={`font-bold text-sm sm:text-base ${genreSummary.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   ¥{genreSummary.netProfit.toLocaleString()}
                 </div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="text-gray-500 text-xs">利益率</div>
-                <div className={`font-bold ${genreSummary.profitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">利益率</div>
+                <div className={`font-bold text-sm sm:text-base ${genreSummary.profitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {genreSummary.profitRate}%
                 </div>
               </div>

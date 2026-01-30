@@ -11,6 +11,7 @@ export default function Navigation() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [inventoryOpen, setInventoryOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const summaryDropdownRef = useRef<HTMLDivElement>(null)
   const inventoryDropdownRef = useRef<HTMLDivElement>(null)
@@ -31,22 +32,59 @@ export default function Navigation() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // モバイルメニューが開いている時はスクロールを無効化
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
+
+  // ページ遷移時にモバイルメニューを閉じる
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
+
   // スタイルの共通化
   const baseLinkStyle = "font-medium text-white hover:text-blue-300 transition-colors duration-200";
   const activeLinkStyle = "font-bold text-blue-300 border-b-2 border-blue-300 pb-1";
   const dropdownItemStyle = "block px-4 py-2 text-sm text-white hover:bg-slate-600";
+  // モバイル用スタイル
+  const mobileBaseLinkStyle = "block px-4 py-3 text-base font-medium text-white hover:bg-slate-600 transition-colors touch-target";
+  const mobileActiveLinkStyle = "block px-4 py-3 text-base font-bold text-blue-300 bg-slate-600 touch-target";
+  const mobileSubLinkStyle = "block pl-8 pr-4 py-2.5 text-sm text-white/90 hover:bg-slate-600 transition-colors touch-target";
 
   return (
     <nav className="bg-slate-700 shadow-lg border-b border-black/20 fixed top-0 left-0 right-0 z-[100]">
       <div className="max-w-full mx-auto px-4">
         <div className="flex items-center h-14 gap-6">
+          {/* モバイル: ハンバーガーメニューボタン */}
+          <button
+            className="md:hidden p-2 -ml-2 text-white hover:text-blue-300 transition-colors touch-target"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="メニューを開く"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {mobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+
+          {/* デスクトップ: 従来のナビゲーション */}
           <Link
             href="/dashboard"
-            className={pathname === '/dashboard' ? activeLinkStyle : baseLinkStyle}
+            className={`hidden md:block ${pathname === '/dashboard' ? activeLinkStyle : baseLinkStyle}`}
           >
             ダッシュボード
           </Link>
-          <div className="relative" ref={summaryDropdownRef}>
+          <div className="relative hidden md:block" ref={summaryDropdownRef}>
             <button
               onClick={() => {
                 setSummaryOpen(!summaryOpen)
@@ -66,7 +104,7 @@ export default function Navigation() {
               </div>
             )}
           </div>
-          <div className="relative" ref={inventoryDropdownRef}>
+          <div className="relative hidden md:block" ref={inventoryDropdownRef}>
             <button
               onClick={() => {
                 setInventoryOpen(!inventoryOpen)
@@ -86,25 +124,25 @@ export default function Navigation() {
           </div>
           <Link
             href="/ledger"
-            className={pathname === '/ledger' ? activeLinkStyle : baseLinkStyle}
+            className={`hidden md:block ${pathname === '/ledger' ? activeLinkStyle : baseLinkStyle}`}
           >
             古物台帳
           </Link>
           <Link
             href="/calculator"
-            className={pathname === '/calculator' ? activeLinkStyle : baseLinkStyle}
+            className={`hidden md:block ${pathname === '/calculator' ? activeLinkStyle : baseLinkStyle}`}
           >
             計算ツール
           </Link>
           <Link
             href="/shipping"
-            className={pathname === '/shipping' ? activeLinkStyle : baseLinkStyle}
+            className={`hidden md:block ${pathname === '/shipping' ? activeLinkStyle : baseLinkStyle}`}
           >
             送料表
           </Link>
           {/* 閲覧専用ユーザーには設定メニューを非表示 */}
           {!isViewerUser && (
-          <div className="relative" ref={dropdownRef}>
+          <div className="relative hidden md:block" ref={dropdownRef}>
             <button
               onClick={() => {
                 setSettingsOpen(!settingsOpen)
@@ -128,9 +166,9 @@ export default function Navigation() {
           )}
           {/* スペーサー */}
           <div className="flex-grow" />
-          {/* ユーザー情報・ログアウト */}
+          {/* ユーザー情報・ログアウト（デスクトップのみ） */}
           {user && (
-            <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3">
               <span className="text-sm text-white/80">{user.email}</span>
               <button
                 onClick={() => signOut()}
@@ -140,7 +178,143 @@ export default function Navigation() {
               </button>
             </div>
           )}
+          {/* モバイル: 現在のページ名を表示 */}
+          <span className="md:hidden text-sm font-medium text-white truncate">
+            {pathname === '/dashboard' && 'ダッシュボード'}
+            {pathname === '/' && '在庫一覧'}
+            {pathname === '/inventory/bulk' && 'まとめ仕入れ'}
+            {pathname === '/ledger' && '古物台帳'}
+            {pathname === '/calculator' && '計算ツール'}
+            {pathname === '/shipping' && '送料表'}
+            {pathname.startsWith('/summary') && '売上'}
+            {pathname.startsWith('/sales') && '売上入力'}
+            {pathname.startsWith('/settings') && '設定'}
+          </span>
         </div>
+      </div>
+
+      {/* モバイル: スライドアウトドロワー */}
+      <div className={`fixed inset-0 z-50 md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}>
+        {/* バックドロップ */}
+        <div
+          className="absolute inset-0 bg-black/50 transition-opacity"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+        {/* ドロワー本体 */}
+        <nav className={`absolute left-0 top-0 bottom-0 w-72 bg-slate-700 shadow-xl transform transition-transform duration-300 ease-out overflow-y-auto ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          {/* ヘッダー */}
+          <div className="flex items-center justify-between px-4 h-14 border-b border-slate-600">
+            <span className="font-semibold text-white">メニュー</span>
+            <button
+              className="p-2 text-white hover:text-blue-300 transition-colors touch-target"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="メニューを閉じる"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* メニュー項目 */}
+          <div className="py-2">
+            <Link
+              href="/dashboard"
+              className={pathname === '/dashboard' ? mobileActiveLinkStyle : mobileBaseLinkStyle}
+            >
+              ダッシュボード
+            </Link>
+
+            {/* 売上メニュー */}
+            <div className="border-t border-slate-600 mt-2 pt-2">
+              <span className="block px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">売上</span>
+              <Link href="/summary" className={pathname === '/summary' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                売上レポート
+              </Link>
+              <Link href="/summary/all" className={pathname === '/summary/all' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                売上明細
+              </Link>
+              <Link href="/summary/analysis" className={pathname === '/summary/analysis' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                売上分析
+              </Link>
+              <Link href="/sales/manual" className={pathname === '/sales/manual' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                売上入力
+              </Link>
+            </div>
+
+            {/* 在庫管理メニュー */}
+            <div className="border-t border-slate-600 mt-2 pt-2">
+              <span className="block px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">在庫管理</span>
+              <Link href="/" className={pathname === '/' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                単品仕入在庫一覧
+              </Link>
+              <Link href="/inventory/bulk" className={pathname === '/inventory/bulk' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                まとめ仕入れ在庫一覧
+              </Link>
+            </div>
+
+            {/* その他メニュー */}
+            <div className="border-t border-slate-600 mt-2 pt-2">
+              <Link
+                href="/ledger"
+                className={pathname === '/ledger' ? mobileActiveLinkStyle : mobileBaseLinkStyle}
+              >
+                古物台帳
+              </Link>
+              <Link
+                href="/calculator"
+                className={pathname === '/calculator' ? mobileActiveLinkStyle : mobileBaseLinkStyle}
+              >
+                計算ツール
+              </Link>
+              <Link
+                href="/shipping"
+                className={pathname === '/shipping' ? mobileActiveLinkStyle : mobileBaseLinkStyle}
+              >
+                送料表
+              </Link>
+            </div>
+
+            {/* 設定メニュー（閲覧専用ユーザー以外） */}
+            {!isViewerUser && (
+              <div className="border-t border-slate-600 mt-2 pt-2">
+                <span className="block px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">設定</span>
+                <Link href="/settings/platforms" className={pathname === '/settings/platforms' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                  仕入先・販路マスタ設定
+                </Link>
+                <Link href="/settings/ledger" className={pathname === '/settings/ledger' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                  古物台帳マスタ設定
+                </Link>
+                <Link href="/settings/google-drive" className={pathname === '/settings/google-drive' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                  Googleドライブ連携
+                </Link>
+                <Link href="/settings/backup" className={pathname === '/settings/backup' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                  データバックアップ
+                </Link>
+                <Link href="/settings/password" className={pathname === '/settings/password' ? mobileActiveLinkStyle : mobileSubLinkStyle}>
+                  パスワード変更
+                </Link>
+              </div>
+            )}
+
+            {/* ユーザー情報・ログアウト */}
+            {user && (
+              <div className="border-t border-slate-600 mt-2 pt-4 px-4">
+                <div className="text-xs text-white/60 mb-2">ログイン中</div>
+                <div className="text-sm text-white/90 truncate mb-3">{user.email}</div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    signOut()
+                  }}
+                  className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors touch-target"
+                >
+                  ログアウト
+                </button>
+              </div>
+            )}
+          </div>
+        </nav>
       </div>
     </nav>
   )

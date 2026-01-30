@@ -252,16 +252,16 @@ export default function LedgerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-100 p-2 sm:p-4 md:p-6">
       <div className="max-w-full mx-auto">
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">古物台帳</h1>
-            <div className="flex items-center gap-4">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">古物台帳</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-900"
+                className="px-2 sm:px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-900 touch-target"
               >
                 {availableYears.length > 0 ? (
                   availableYears.map(year => (
@@ -274,7 +274,7 @@ export default function LedgerPage() {
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-900"
+                className="px-2 sm:px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-900 touch-target"
               >
                 <option value="all">全月</option>
                 {[...Array(12)].map((_, i) => (
@@ -283,15 +283,15 @@ export default function LedgerPage() {
               </select>
               <button
                 onClick={exportCSV}
-                className="px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-3 sm:px-4 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 touch-target"
               >
-                CSVエクスポート
+                <span className="hidden sm:inline">CSV</span>出力
               </button>
             </div>
           </div>
 
           {/* 古物台帳テーブル */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto responsive-table mobile-hide-scrollbar">
             <table className="w-full text-xs border-collapse">
               <thead>
                 {/* ヘッダー行1 - グループヘッダー */}
@@ -395,16 +395,16 @@ export default function LedgerPage() {
           </div>
 
           {/* 件数サマリー */}
-          <div className="mt-4 text-sm text-gray-600">
+          <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-gray-600 flex flex-wrap gap-2 sm:gap-0">
             <span>受入: {ledgerData.length}件</span>
-            <span className="mx-4">|</span>
+            <span className="mx-2 sm:mx-4 hidden sm:inline">|</span>
             <span>払出: {ledgerData.filter(item => item.isSold).length}件</span>
           </div>
 
           {/* 注記 */}
-          <div className="mt-6 text-xs text-gray-500">
+          <div className="mt-4 sm:mt-6 text-[10px] sm:text-xs text-gray-500">
             <p>* 相手方情報は「設定」→「仕入先・販路マスタ設定」で登録できます。</p>
-            <p>* 匿名取引（フリマアプリ等）の場合は、販路/仕入先の情報のみ記録されます。</p>
+            <p className="hidden sm:block">* 匿名取引（フリマアプリ等）の場合は、販路/仕入先の情報のみ記録されます。</p>
           </div>
         </div>
       </div>

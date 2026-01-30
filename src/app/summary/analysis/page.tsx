@@ -897,14 +897,14 @@ export default function SalesAnalysisPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">売上分析</h1>
+      <div className="max-w-full mx-auto px-2 sm:px-4 py-4 sm:py-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">売上分析</h1>
 
         {/* タブ */}
-        <div className="flex gap-1 mb-6">
+        <div className="flex gap-1 mb-4 sm:mb-6 overflow-x-auto mobile-hide-scrollbar">
           <button
             onClick={() => handleTabChange('summary')}
-            className={`px-6 py-2 rounded-t-lg font-medium transition-colors ${
+            className={`px-4 sm:px-6 py-2 rounded-t-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap touch-target ${
               activeTab === 'summary'
                 ? 'bg-slate-600 text-white'
                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
@@ -914,7 +914,7 @@ export default function SalesAnalysisPage() {
           </button>
           <button
             onClick={() => handleTabChange('graph')}
-            className={`px-6 py-2 rounded-t-lg font-medium transition-colors ${
+            className={`px-4 sm:px-6 py-2 rounded-t-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap touch-target ${
               activeTab === 'graph'
                 ? 'bg-slate-600 text-white'
                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
@@ -924,7 +924,7 @@ export default function SalesAnalysisPage() {
           </button>
           <button
             onClick={() => handleTabChange('ranking')}
-            className={`px-6 py-2 rounded-t-lg font-medium transition-colors ${
+            className={`px-4 sm:px-6 py-2 rounded-t-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap touch-target ${
               activeTab === 'ranking'
                 ? 'bg-slate-600 text-white'
                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
@@ -935,22 +935,22 @@ export default function SalesAnalysisPage() {
         </div>
 
         {/* 年月選択・フィルター */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex flex-wrap items-center gap-4">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4">
             {/* 検索入力欄 */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
                 <input
                   type="text"
-                  placeholder="商品名・ブランド・販路で検索"
+                  placeholder="検索..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+                  className="w-full sm:w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 touch-target"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-target"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -959,22 +959,23 @@ export default function SalesAnalysisPage() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">年:</label>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
-              >
-                {availableYears.map(year => (
-                  <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">月:</label>
-              <select
-                value={selectedMonth}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <label className="text-xs sm:text-sm text-gray-600">年:</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 text-sm touch-target"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-2">
+                <label className="text-xs sm:text-sm text-gray-600">月:</label>
+                <select
+                  value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
               >

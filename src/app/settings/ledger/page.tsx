@@ -311,37 +311,37 @@ export default function LedgerSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-full mx-auto space-y-8">
-        <h1 className="text-2xl font-bold text-black">古物台帳マスタ設定</h1>
-        <p className="text-sm text-black">
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-8">
+      <div className="max-w-full mx-auto space-y-4 sm:space-y-6 md:space-y-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-black">古物台帳マスタ設定</h1>
+        <p className="text-xs sm:text-sm text-black">
           仕入先・販路ごとの取引相手方情報を設定します。ここで設定した情報は古物台帳に自動的に反映されます。
         </p>
 
         {/* 仕入先（受入時の相手方） */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-bold text-black mb-4 border-b pb-2">仕入先（受入時の取引相手方）</h2>
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4 md:p-6">
+          <h2 className="text-base sm:text-lg font-bold text-black mb-3 sm:mb-4 border-b pb-2">仕入先（受入時の取引相手方）</h2>
 
           {/* ボタン類 */}
-          <div className="mb-4 flex gap-4 items-center flex-wrap">
+          <div className="mb-3 sm:mb-4 flex flex-wrap gap-2 sm:gap-4 items-center">
             <button
               onClick={() => setShowAddSupplierForm(!showAddSupplierForm)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs sm:text-sm touch-target"
             >
               {showAddSupplierForm ? '閉じる' : '新規追加'}
             </button>
             <button
               onClick={deleteSupplierSelected}
               disabled={supplierSelectedIds.size === 0}
-              className={`px-4 py-2 rounded text-sm ${
+              className={`px-3 sm:px-4 py-2 rounded text-xs sm:text-sm touch-target ${
                 supplierSelectedIds.size > 0
                   ? 'bg-red-600 text-white hover:bg-red-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              {supplierSelectedIds.size > 0 ? `選択した${supplierSelectedIds.size}件を削除` : '削除'}
+              {supplierSelectedIds.size > 0 ? `${supplierSelectedIds.size}件削除` : '削除'}
             </button>
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer ml-auto">
+            <label className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 cursor-pointer sm:ml-auto">
               <input
                 type="checkbox"
                 checked={showHiddenSuppliers}

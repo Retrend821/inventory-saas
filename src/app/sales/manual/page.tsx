@@ -2354,17 +2354,17 @@ export default function ManualSalesPage() {
   return (
     <div className={`min-h-screen ${t.bg}`} style={{ paddingBottom: modalEdit ? '128px' : '20px' }}>
       <Navigation />
-      <div className="pt-14 px-4 py-2">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold text-gray-900">手入力売上表</h1>
-          <div className="flex items-center gap-3">
+      <div className="pt-14 px-2 sm:px-4 py-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">手入力売上表</h1>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* 列の編集ボタン */}
             <div className="relative">
               <button
                 onClick={() => setShowColumnSettings(!showColumnSettings)}
-                className="px-3 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                className="px-2 sm:px-3 py-2 text-xs sm:text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors touch-target"
               >
-                列の編集
+                <span className="hidden sm:inline">列の編集</span><span className="sm:hidden">列</span>
               </button>
               {showColumnSettings && (
                 <>
@@ -2414,36 +2414,36 @@ export default function ManualSalesPage() {
             />
             <button
               onClick={() => csvInputRef.current?.click()}
-              className="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+              className="px-2 sm:px-3 py-2 text-xs sm:text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors touch-target"
             >
-              CSVインポート
+              <span className="hidden sm:inline">CSV</span>インポート
             </button>
             <button
               onClick={handleBulkDelete}
               disabled={selectedIds.size === 0}
-              className={`px-3 py-2 text-sm rounded transition-colors ${
+              className={`px-2 sm:px-3 py-2 text-xs sm:text-sm rounded transition-colors touch-target ${
                 selectedIds.size > 0
                   ? 'bg-red-600 text-white hover:bg-red-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              {selectedIds.size > 0 ? `${selectedIds.size}件を削除` : '削除'}
+              {selectedIds.size > 0 ? `${selectedIds.size}件削除` : '削除'}
             </button>
             <button
               onClick={handleAddNewRow}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-2 sm:px-4 py-2 text-xs sm:text-sm bg-blue-600 text-white rounded hover:bg-blue-700 touch-target"
             >
-              新規追加
+              <span className="hidden sm:inline">新規</span>追加
             </button>
           </div>
         </div>
 
         {/* フィルター */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
-            className={`px-3 py-2 ${t.input} border rounded`}
+            className={`px-2 sm:px-3 py-2 ${t.input} border rounded text-sm touch-target`}
           >
             <option value="">全年</option>
             {availableYears.map(year => (
@@ -2453,7 +2453,7 @@ export default function ManualSalesPage() {
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className={`px-3 py-2 ${t.input} border rounded`}
+            className={`px-2 sm:px-3 py-2 ${t.input} border rounded text-sm touch-target`}
           >
             <option value="">全月</option>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
@@ -2463,7 +2463,7 @@ export default function ManualSalesPage() {
           <select
             value={sortByImage}
             onChange={(e) => setSortByImage(e.target.value as 'none' | 'hasImage' | 'noImage')}
-            className={`px-3 py-2 ${t.input} border rounded`}
+            className={`px-2 sm:px-3 py-2 ${t.input} border rounded text-sm touch-target hidden sm:block`}
           >
             <option value="none">画像：指定なし</option>
             <option value="hasImage">画像あり優先</option>
@@ -2472,28 +2472,28 @@ export default function ManualSalesPage() {
         </div>
 
         {/* 集計 */}
-        <div className="grid grid-cols-5 gap-4 mb-6">
-          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
-            <div className={`${t.textMuted} text-sm`}>件数</div>
-            <div className={`${t.text} text-xl font-bold`}>{summary.count}件</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
+          <div className={`${t.cardBg} p-3 sm:p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-xs sm:text-sm`}>件数</div>
+            <div className={`${t.text} text-lg sm:text-xl font-bold`}>{summary.count}件</div>
           </div>
-          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
-            <div className={`${t.textMuted} text-sm`}>売上合計</div>
-            <div className={`${t.text} text-xl font-bold`}>¥{summary.totalSales.toLocaleString()}</div>
+          <div className={`${t.cardBg} p-3 sm:p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-xs sm:text-sm`}>売上合計</div>
+            <div className={`${t.text} text-lg sm:text-xl font-bold`}>¥{summary.totalSales.toLocaleString()}</div>
           </div>
-          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
-            <div className={`${t.textMuted} text-sm`}>仕入合計</div>
-            <div className={`${t.text} text-xl font-bold`}>¥{summary.totalPurchase.toLocaleString()}</div>
+          <div className={`${t.cardBg} p-3 sm:p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-xs sm:text-sm`}>仕入合計</div>
+            <div className={`${t.text} text-lg sm:text-xl font-bold`}>¥{summary.totalPurchase.toLocaleString()}</div>
           </div>
-          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
-            <div className={`${t.textMuted} text-sm`}>利益合計</div>
-            <div className={`text-xl font-bold ${summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <div className={`${t.cardBg} p-3 sm:p-4 rounded-lg shadow-sm border ${t.border}`}>
+            <div className={`${t.textMuted} text-xs sm:text-sm`}>利益合計</div>
+            <div className={`text-lg sm:text-xl font-bold ${summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               ¥{summary.totalProfit.toLocaleString()}
             </div>
           </div>
-          <div className={`${t.cardBg} p-4 rounded-lg shadow-sm border ${t.border}`}>
-            <div className={`${t.textMuted} text-sm`}>平均利益率</div>
-            <div className={`text-xl font-bold ${summary.avgProfitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <div className={`${t.cardBg} p-3 sm:p-4 rounded-lg shadow-sm border ${t.border} col-span-2 sm:col-span-1`}>
+            <div className={`${t.textMuted} text-xs sm:text-sm`}>平均利益率</div>
+            <div className={`text-lg sm:text-xl font-bold ${summary.avgProfitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {summary.avgProfitRate}%
             </div>
           </div>
@@ -2503,7 +2503,7 @@ export default function ManualSalesPage() {
         {/* テーブル */}
         <div
           ref={tableContainerRef}
-          className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border}`}
+          className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-240px)] sm:max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border} responsive-table`}
         >
           <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: `${tableWidth}px` }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>

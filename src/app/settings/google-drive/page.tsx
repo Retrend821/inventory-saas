@@ -55,7 +55,7 @@ function GoogleDrivePageContent() {
 
   if (googleDriveLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
           <p>読み込み中...</p>
         </div>
@@ -64,31 +64,33 @@ function GoogleDrivePageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         {/* ヘッダー */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-            <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7.71 3.5L1.15 15l3.43 5.5h6.28l3.43-5.5L7.71 3.5zm9.58 0L10.71 15l3.43 5.5h6.28L17.29 3.5h-.01zm-9.58 2.08L11.14 12H5.29l2.42-6.42zM12 12l2.43 6.42H8.57L12 12zm1.71-6.42L16.14 12H22l-5.57-6.42h-2.72z"/>
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Googleドライブ連携</h1>
-            <p className="text-gray-500">画像ストレージの設定</p>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7.71 3.5L1.15 15l3.43 5.5h6.28l3.43-5.5L7.71 3.5zm9.58 0L10.71 15l3.43 5.5h6.28L17.29 3.5h-.01zm-9.58 2.08L11.14 12H5.29l2.42-6.42zM12 12l2.43 6.42H8.57L12 12zm1.71-6.42L16.14 12H22l-5.57-6.42h-2.72z"/>
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Googleドライブ連携</h1>
+              <p className="text-xs sm:text-sm text-gray-500">画像ストレージの設定</p>
+            </div>
           </div>
           {/* ステータスバッジ */}
-          <div className="ml-auto">
+          <div className="sm:ml-auto">
             {googleDriveConnected ? (
-              <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full font-medium">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-green-100 text-green-800 rounded-full font-medium text-xs sm:text-sm">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 連携済み
               </span>
             ) : (
-              <span className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full font-medium">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <span className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-yellow-100 text-yellow-800 rounded-full font-medium text-xs sm:text-sm">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 未連携

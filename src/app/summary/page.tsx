@@ -1159,18 +1159,18 @@ export default function SummaryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">集計・分析</h1>
+      <div className="mx-auto px-2 sm:px-4 py-4 sm:py-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">集計・分析</h1>
 
         {/* 年月選択 */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex items-center gap-4">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">年:</label>
+              <label className="text-xs sm:text-sm text-gray-600">年:</label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
+                className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 text-sm touch-target"
               >
                 {availableYears.map(year => (
                   <option key={year} value={year}>{year}年</option>
@@ -1178,11 +1178,11 @@ export default function SummaryPage() {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">月:</label>
+              <label className="text-xs sm:text-sm text-gray-600">月:</label>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
+                className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 text-sm touch-target"
               >
                 {months.map(month => (
                   <option key={month} value={month}>

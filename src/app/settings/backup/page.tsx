@@ -217,26 +217,26 @@ export default function BackupPage() {
   const isProcessing = isExporting || isImporting
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-8">
+      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
         {/* エクスポートセクション */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h1 className="text-xl font-bold text-gray-900 mb-6">データバックアップ</h1>
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">データバックアップ</h1>
 
           <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h2 className="font-semibold text-blue-800 mb-2">バックアップについて</h2>
-              <p className="text-sm text-blue-700">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+              <h2 className="font-semibold text-blue-800 mb-2 text-sm sm:text-base">バックアップについて</h2>
+              <p className="text-xs sm:text-sm text-blue-700">
                 すべてのデータをJSON形式でダウンロードします。
                 定期的にバックアップを取ることで、万が一のデータ消失に備えることができます。
               </p>
             </div>
 
             <div>
-              <h2 className="font-semibold text-gray-800 mb-3">バックアップ対象</h2>
-              <ul className="grid grid-cols-2 gap-2">
+              <h2 className="font-semibold text-gray-800 mb-2 sm:mb-3 text-sm sm:text-base">バックアップ対象</h2>
+              <ul className="grid grid-cols-2 gap-1.5 sm:gap-2">
                 {BACKUP_TABLES.map((table) => (
-                  <li key={table.name} className="flex items-center gap-2 text-sm text-gray-600">
+                  <li key={table.name} className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600">
                     <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
@@ -247,8 +247,8 @@ export default function BackupPage() {
             </div>
 
             {lastBackup && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-700">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-green-700">
                   <span className="font-semibold">最後のバックアップ:</span> {lastBackup}
                 </p>
               </div>
@@ -257,7 +257,7 @@ export default function BackupPage() {
             <button
               onClick={exportAllData}
               disabled={isProcessing}
-              className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors ${
+              className={`w-full py-2.5 sm:py-3 px-4 rounded-lg font-semibold text-white transition-colors touch-target text-sm sm:text-base ${
                 isProcessing
                   ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
@@ -269,13 +269,13 @@ export default function BackupPage() {
         </div>
 
         {/* インポートセクション */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h1 className="text-xl font-bold text-gray-900 mb-6">データ復元</h1>
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 sm:mb-6">データ復元</h1>
 
           <div className="space-y-6">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h2 className="font-semibold text-yellow-800 mb-2">復元について</h2>
-              <p className="text-sm text-yellow-700">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
+              <h2 className="font-semibold text-yellow-800 mb-2 text-sm sm:text-base">復元について</h2>
+              <p className="text-xs sm:text-sm text-yellow-700">
                 バックアップファイルからデータを復元します。
                 <strong>現在のデータは上書きされます</strong>のでご注意ください。
               </p>
@@ -293,7 +293,7 @@ export default function BackupPage() {
                 />
                 <label
                   htmlFor="backup-file"
-                  className={`block w-full py-3 px-4 rounded-lg font-semibold text-center cursor-pointer transition-colors ${
+                  className={`block w-full py-2.5 sm:py-3 px-4 rounded-lg font-semibold text-center cursor-pointer transition-colors touch-target text-sm sm:text-base ${
                     isProcessing
                       ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-dashed border-gray-300'
@@ -303,17 +303,17 @@ export default function BackupPage() {
                 </label>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-800 mb-2">復元するデータ</h3>
-                  <p className="text-sm text-gray-600 mb-3">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
+                  <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">復元するデータ</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">
                     バックアップ日時: {new Date(importPreview.exportedAt).toLocaleString('ja-JP')}
                   </p>
                   <ul className="space-y-1">
                     {BACKUP_TABLES.map((table) => {
                       const tableData = importPreview.tables[table.name]
                       return (
-                        <li key={table.name} className="flex justify-between text-sm">
+                        <li key={table.name} className="flex justify-between text-xs sm:text-sm">
                           <span className="text-gray-600">{table.label}</span>
                           <span className="text-gray-900 font-medium">
                             {tableData?.count ?? 0}件
@@ -324,18 +324,18 @@ export default function BackupPage() {
                   </ul>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <button
                     onClick={() => setImportPreview(null)}
                     disabled={isImporting}
-                    className="flex-1 py-3 px-4 rounded-lg font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors"
+                    className="flex-1 py-2.5 sm:py-3 px-4 rounded-lg font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors touch-target text-sm sm:text-base"
                   >
                     キャンセル
                   </button>
                   <button
                     onClick={executeRestore}
                     disabled={isImporting}
-                    className={`flex-1 py-3 px-4 rounded-lg font-semibold text-white transition-colors ${
+                    className={`flex-1 py-2.5 sm:py-3 px-4 rounded-lg font-semibold text-white transition-colors touch-target text-sm sm:text-base ${
                       isImporting
                         ? 'bg-gray-400 cursor-not-allowed'
                         : 'bg-red-600 hover:bg-red-700'
@@ -348,8 +348,8 @@ export default function BackupPage() {
             )}
 
             {lastRestore && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-700">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-green-700">
                   <span className="font-semibold">最後の復元:</span> {lastRestore}
                 </p>
               </div>
@@ -359,19 +359,19 @@ export default function BackupPage() {
 
         {/* エラー・進捗表示 */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-red-700">{error}</p>
           </div>
         )}
 
         {progress && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-sm text-gray-700">{progress}</span>
+              <span className="text-xs sm:text-sm text-gray-700">{progress}</span>
             </div>
           </div>
         )}

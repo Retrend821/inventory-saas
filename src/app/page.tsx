@@ -4779,10 +4779,10 @@ export default function Home() {
 
   return (
       <div className="min-h-screen bg-gray-50">
-      <main className={`px-4 py-6 ${modalEdit ? 'pb-32' : ''}`}>
+      <main className={`px-2 sm:px-4 py-4 sm:py-6 ${modalEdit ? 'pb-32' : ''}`}>
         {/* CSVアップロードエリア */}
         <div
-          className={`mb-6 border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          className={`mb-4 sm:mb-6 border-2 border-dashed rounded-lg p-4 sm:p-8 text-center transition-colors ${
             dragActive
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-300 hover:border-gray-400'
@@ -4794,7 +4794,7 @@ export default function Home() {
         >
           {uploading ? (
             <div className="space-y-3">
-              <p className="text-gray-600 font-medium">
+              <p className="text-gray-600 font-medium text-sm sm:text-base">
                 {uploadProgress ? uploadProgress.stage : 'アップロード中...'}
               </p>
               {uploadProgress && (
@@ -4805,7 +4805,7 @@ export default function Home() {
                       style={{ width: `${Math.round((uploadProgress.current / uploadProgress.total) * 100)}%` }}
                     />
                   </div>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-gray-500">
                     {uploadProgress.current} / {uploadProgress.total} ({Math.round((uploadProgress.current / uploadProgress.total) * 100)}%)
                   </p>
                 </>
@@ -4813,12 +4813,12 @@ export default function Home() {
             </div>
           ) : (
             <>
-              <p className="text-gray-600 mb-2">
+              <p className="text-gray-600 mb-2 text-sm sm:text-base">
                 CSVファイルをドラッグ&ドロップ
               </p>
-              <p className="text-gray-400 text-sm mb-4">または</p>
-              <div className="flex justify-center gap-3">
-                <label className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors">
+              <p className="text-gray-400 text-xs sm:text-sm mb-3 sm:mb-4">または</p>
+              <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
+                <label className="inline-block px-4 py-2.5 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors text-sm sm:text-base touch-target">
                   ファイルを選択
                   <input
                     type="file"
@@ -4830,7 +4830,7 @@ export default function Home() {
                 </label>
                 <button
                   onClick={() => setShowAddItemModal(true)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base touch-target"
                 >
                   手動で追加
                 </button>
@@ -4841,12 +4841,12 @@ export default function Home() {
 
         {/* 在庫テーブル */}
         <div className="rounded-lg shadow bg-white">
-          {/* タブ */}
-          <div className="border-b border-gray-200 overflow-x-auto">
+          {/* タブ - モバイルでスクロール可能 */}
+          <div className="border-b border-gray-200 overflow-x-auto mobile-hide-scrollbar snap-scroll-x">
             <div className="flex min-w-max">
               <button
                 onClick={() => updateQuickFilter('all')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-target ${
                   quickFilter === 'all'
                     ? 'border-blue-600 text-blue-600 bg-blue-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -4856,7 +4856,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => updateQuickFilter('unsold')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-target ${
                   quickFilter === 'unsold'
                     ? 'border-blue-600 text-blue-600 bg-blue-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -4866,7 +4866,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => updateQuickFilter('unlisted')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-target ${
                   quickFilter === 'unlisted'
                     ? 'border-orange-600 text-orange-600 bg-orange-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -4876,27 +4876,27 @@ export default function Home() {
               </button>
               <button
                 onClick={() => updateQuickFilter('stale30')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-target ${
                   quickFilter === 'stale30'
                     ? 'border-yellow-600 text-yellow-600 bg-yellow-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                滞留30日以上 ({inventoryStats.stale30Count})
+                <span className="hidden sm:inline">滞留</span>30日+
               </button>
               <button
                 onClick={() => updateQuickFilter('stale90')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-target ${
                   quickFilter === 'stale90'
                     ? 'border-red-600 text-red-600 bg-red-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                滞留90日以上 ({inventoryStats.stale90Count})
+                <span className="hidden sm:inline">滞留</span>90日+
               </button>
               <button
                 onClick={() => updateQuickFilter('returns')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-target ${
                   quickFilter === 'returns'
                     ? 'border-purple-600 text-purple-600 bg-purple-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -4907,7 +4907,7 @@ export default function Home() {
               <button
                 onClick={() => setShowSelectedOnly(!showSelectedOnly)}
                 disabled={selectedIds.size === 0}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap touch-target ${
                   showSelectedOnly
                     ? 'border-green-600 text-green-600 bg-green-50'
                     : selectedIds.size > 0
@@ -4917,8 +4917,8 @@ export default function Home() {
               >
                 選択中 ({selectedIds.size})
               </button>
-              {/* タブに応じた金額表示 */}
-              <div className="ml-auto flex items-center gap-4 pr-4 text-sm">
+              {/* タブに応じた金額表示 - デスクトップのみ */}
+              <div className="ml-auto hidden md:flex items-center gap-4 pr-4 text-sm">
                 {quickFilter === 'all' && (
                   <span className="text-gray-600">
                     {sortedInventory.length !== inventory.length ? (
@@ -4976,16 +4976,48 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="px-4 py-3 border-b bg-gray-50 overflow-x-auto">
-            <div className="flex items-center justify-between gap-4 min-w-max">
-            <div className="flex items-center gap-3 flex-shrink-0">
+          {/* モバイル: 金額サマリーバー */}
+          <div className="md:hidden px-3 py-2 border-b bg-gray-100 text-xs">
+            {quickFilter === 'all' && (
+              <span className="text-gray-600">
+                {sortedInventory.length !== inventory.length ? (
+                  <>絞り込み: <span className="font-semibold text-blue-600">{sortedInventory.length}</span> / {inventory.length}件</>
+                ) : (
+                  <>累計: <span className="font-semibold text-gray-900">{inventory.length}件</span></>
+                )}
+              </span>
+            )}
+            {quickFilter === 'unsold' && (
+              <span className="text-gray-600">
+                在庫総額: <span className="font-semibold text-blue-600">¥{inventoryStats.totalPurchaseValue.toLocaleString()}</span>
+              </span>
+            )}
+            {quickFilter === 'unlisted' && (
+              <span className="text-gray-600">
+                未出品在庫額: <span className="font-semibold text-orange-600">¥{inventoryStats.unlistedStockValue.toLocaleString()}</span>
+              </span>
+            )}
+            {quickFilter === 'stale30' && (
+              <span className="text-gray-600">
+                滞留在庫額: <span className="font-semibold text-yellow-600">¥{inventoryStats.stale30StockValue.toLocaleString()}</span>
+              </span>
+            )}
+            {quickFilter === 'stale90' && (
+              <span className="text-gray-600">
+                滞留在庫額: <span className="font-semibold text-red-600">¥{inventoryStats.stale90StockValue.toLocaleString()}</span>
+              </span>
+            )}
+          </div>
+          <div className="px-2 sm:px-4 py-2 sm:py-3 border-b bg-gray-50 overflow-x-auto mobile-hide-scrollbar">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 min-w-max">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
                   setItemsPerPage(Number(e.target.value))
                   updateCurrentPage(1)
                 }}
-                className="px-2 py-1.5 border border-gray-300 rounded text-sm text-gray-900 bg-white"
+                className="px-2 py-1.5 border border-gray-300 rounded text-xs sm:text-sm text-gray-900 bg-white touch-target"
               >
                 <option value={50}>50件</option>
                 <option value={100}>100件</option>
@@ -4994,25 +5026,25 @@ export default function Home() {
                 <option value={1000}>1000件</option>
                 <option value={-1}>全件</option>
               </select>
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-none">
                 <input
                   type="text"
-                  placeholder="管理番号・商品名・ブランドで検索"
+                  placeholder="検索..."
                   value={searchQuery}
                   onChange={(e) => updateSearchQuery(e.target.value)}
-                  className="w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+                  className="w-full sm:w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 touch-target"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => updateSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-target"
                   >
                     ✕
                   </button>
                 )}
               </div>
-              {/* 期間フィルター */}
-              <div className="flex items-center gap-2 border-l pl-3 ml-1">
+              {/* 期間フィルター - デスクトップのみ表示 */}
+              <div className="hidden lg:flex items-center gap-2 border-l pl-3 ml-1">
                 <select
                   value={dateRangeFilter.dateType}
                   onChange={(e) => setDateRangeFilter(prev => ({ ...prev, dateType: e.target.value as 'purchase_date' | 'listing_date' | 'sale_date' }))}
@@ -5061,10 +5093,10 @@ export default function Home() {
                   setDateRangeFilter(prev => ({ ...prev, startDate: '', endDate: '' }))
                   setTurnoverDaysFilter('')
                 }}
-                className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 touch-target hidden sm:block"
                 title="全フィルターをリセット"
               >
-                フィルター全解除
+                リセット
               </button>
               {/* Undo/Redoボタン */}
               <div className="flex items-center gap-1">
@@ -5100,31 +5132,31 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            {/* アクションボタン */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            {/* アクションボタン - モバイルでは折り返し */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <button
                 onClick={handleAddRow}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded hover:bg-blue-700 touch-target"
               >
-                + 行追加
+                + <span className="hidden sm:inline">行追加</span>
               </button>
               <button
                 onClick={handleAutoUpdate}
                 disabled={isAutoUpdating}
-                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed touch-target"
               >
-                {isAutoUpdating ? '更新中...' : 'データ更新'}
+                {isAutoUpdating ? '...' : <span className="hidden sm:inline">データ</span>}更新
               </button>
               <button
                 onClick={handleBulkDelete}
                 disabled={selectedIds.size === 0}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded transition-colors touch-target ${
                   selectedIds.size > 0
                     ? 'bg-red-600 text-white hover:bg-red-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {selectedIds.size > 0 ? `${selectedIds.size}件を削除` : '削除'}
+                {selectedIds.size > 0 ? `${selectedIds.size}件削除` : '削除'}
               </button>
               <button
                 onClick={() => {
@@ -5135,13 +5167,13 @@ export default function Home() {
                   setShowAuctionExportModal(true)
                 }}
                 disabled={selectedIds.size === 0}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                className={`hidden sm:block px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded transition-colors touch-target ${
                   selectedIds.size > 0
                     ? 'bg-orange-500 text-white hover:bg-orange-600'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {selectedIds.size > 0 ? `${selectedIds.size}件をオークション出品` : 'オークション出品'}
+                {selectedIds.size > 0 ? `出品` : '出品'}
               </button>
               <button
                 onClick={() => {
@@ -5149,16 +5181,16 @@ export default function Home() {
                   setRakumaModalRate('')
                   setShowRakumaSettingsModal(true)
                 }}
-                className="px-3 py-1.5 text-sm bg-pink-500 text-white rounded hover:bg-pink-600 transition-colors"
+                className="hidden md:block px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-pink-500 text-white rounded hover:bg-pink-600 transition-colors touch-target"
               >
-                ラクマ手数料
+                ラクマ
               </button>
               <div className="relative">
                 <button
                   onClick={() => setShowColumnSettings(!showColumnSettings)}
-                  className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                  className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors touch-target"
                 >
-                  列の編集
+                  <span className="hidden sm:inline">列の編集</span><span className="sm:hidden">列</span>
                 </button>
                 {showColumnSettings && (
                   <>
@@ -5202,7 +5234,7 @@ export default function Home() {
               データがありません。CSVをアップロードしてください。
             </div>
           ) : (
-            <div ref={tableContainerRef} className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] table-scroll-container">
+            <div ref={tableContainerRef} className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] sm:max-h-[calc(100vh-280px)] table-scroll-container responsive-table">
               <table className="divide-y divide-gray-200 select-none" style={{ tableLayout: 'fixed', width: `${tableWidth}px`, minWidth: `${tableWidth}px` }}>
                 <colgroup>
                   {columnWidths.map((width, index) => (
