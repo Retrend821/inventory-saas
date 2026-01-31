@@ -1450,14 +1450,14 @@ export default function SalesAnalysisPage() {
           <div className="space-y-6">
             {/* 商品別ランキング */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 bg-gradient-to-r from-yellow-500 to-amber-500 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                  <span className="text-xl">🏆</span> 商品別ランキング TOP10
+              <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-yellow-500 to-amber-500 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+                  <span className="text-lg sm:text-xl">🏆</span> 商品別ランキング TOP10
                 </h2>
-                <div className="flex gap-1">
+                <div className="flex gap-1 overflow-x-auto mobile-hide-scrollbar">
                   <button
                     onClick={() => setItemSortBy('sales')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                    className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                       itemSortBy === 'sales'
                         ? 'bg-white text-amber-600'
                         : 'bg-amber-400 text-white hover:bg-amber-300'
@@ -1467,7 +1467,7 @@ export default function SalesAnalysisPage() {
                   </button>
                   <button
                     onClick={() => setItemSortBy('profit')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                    className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                       itemSortBy === 'profit'
                         ? 'bg-white text-amber-600'
                         : 'bg-amber-400 text-white hover:bg-amber-300'
@@ -1477,7 +1477,7 @@ export default function SalesAnalysisPage() {
                   </button>
                   <button
                     onClick={() => setItemSortBy('profitRate')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                    className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                       itemSortBy === 'profitRate'
                         ? 'bg-white text-amber-600'
                         : 'bg-amber-400 text-white hover:bg-amber-300'
@@ -1487,8 +1487,8 @@ export default function SalesAnalysisPage() {
                   </button>
                 </div>
               </div>
-              <div className="p-4">
-                <table className="w-full text-sm">
+              <div className="p-2 sm:p-4 overflow-x-auto mobile-hide-scrollbar">
+                <table className="w-full text-xs sm:text-sm min-w-[600px]">
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
@@ -1528,16 +1528,16 @@ export default function SalesAnalysisPage() {
             </div>
 
             {/* ブランド別売上ランキング */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                    <span className="text-xl">👑</span> ブランド別ランキング
+                <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-purple-500 to-pink-500 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                  <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+                    <span className="text-lg sm:text-xl">👑</span> ブランド別ランキング
                   </h2>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 overflow-x-auto mobile-hide-scrollbar">
                     <button
                       onClick={() => setBrandSortBy('sales')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         brandSortBy === 'sales'
                           ? 'bg-white text-purple-600'
                           : 'bg-purple-400 text-white hover:bg-purple-300'
@@ -1547,7 +1547,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setBrandSortBy('profit')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         brandSortBy === 'profit'
                           ? 'bg-white text-purple-600'
                           : 'bg-purple-400 text-white hover:bg-purple-300'
@@ -1557,7 +1557,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setBrandSortBy('profitPerUnit')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         brandSortBy === 'profitPerUnit'
                           ? 'bg-white text-purple-600'
                           : 'bg-purple-400 text-white hover:bg-purple-300'
@@ -1567,7 +1567,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setBrandSortBy('profitRate')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         brandSortBy === 'profitRate'
                           ? 'bg-white text-purple-600'
                           : 'bg-purple-400 text-white hover:bg-purple-300'
@@ -1577,8 +1577,8 @@ export default function SalesAnalysisPage() {
                     </button>
                   </div>
                 </div>
-                <div className="p-4">
-                  <table className="w-full text-sm">
+                <div className="p-2 sm:p-4 overflow-x-auto mobile-hide-scrollbar">
+                  <table className="w-full text-xs sm:text-sm min-w-[500px]">
                     <thead>
                       <tr className="bg-gray-50">
                         <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
@@ -1640,14 +1640,14 @@ export default function SalesAnalysisPage() {
 
               {/* 販路別売上ランキング */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                    <span className="text-xl">🏪</span> 販路別ランキング
+                <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-teal-500 to-cyan-500 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                  <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+                    <span className="text-lg sm:text-xl">🏪</span> 販路別ランキング
                   </h2>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 overflow-x-auto mobile-hide-scrollbar">
                     <button
                       onClick={() => setDestinationSortBy('sales')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         destinationSortBy === 'sales'
                           ? 'bg-white text-teal-600'
                           : 'bg-teal-400 text-white hover:bg-teal-300'
@@ -1657,7 +1657,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setDestinationSortBy('profit')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         destinationSortBy === 'profit'
                           ? 'bg-white text-teal-600'
                           : 'bg-teal-400 text-white hover:bg-teal-300'
@@ -1667,7 +1667,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setDestinationSortBy('profitPerUnit')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         destinationSortBy === 'profitPerUnit'
                           ? 'bg-white text-teal-600'
                           : 'bg-teal-400 text-white hover:bg-teal-300'
@@ -1677,7 +1677,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setDestinationSortBy('profitRate')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         destinationSortBy === 'profitRate'
                           ? 'bg-white text-teal-600'
                           : 'bg-teal-400 text-white hover:bg-teal-300'
@@ -1687,8 +1687,8 @@ export default function SalesAnalysisPage() {
                     </button>
                   </div>
                 </div>
-                <div className="p-4">
-                  <table className="w-full text-sm">
+                <div className="p-2 sm:p-4 overflow-x-auto mobile-hide-scrollbar">
+                  <table className="w-full text-xs sm:text-sm min-w-[500px]">
                     <thead>
                       <tr className="bg-gray-50">
                         <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
@@ -1747,17 +1747,17 @@ export default function SalesAnalysisPage() {
             </div>
 
             {/* カテゴリ別・仕入先別ランキング（横並び） */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* カテゴリ別売上ランキング */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                  <span className="text-xl">📦</span> カテゴリ別ランキング
+                <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-orange-500 to-red-500 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+                  <span className="text-lg sm:text-xl">📦</span> カテゴリ別ランキング
                 </h2>
-                <div className="flex gap-1">
+                <div className="flex gap-1 overflow-x-auto mobile-hide-scrollbar">
                   <button
                     onClick={() => setCategorySortBy('sales')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                    className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                       categorySortBy === 'sales'
                         ? 'bg-white text-orange-600'
                         : 'bg-orange-400 text-white hover:bg-orange-300'
@@ -1767,7 +1767,7 @@ export default function SalesAnalysisPage() {
                   </button>
                   <button
                     onClick={() => setCategorySortBy('profit')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                    className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                       categorySortBy === 'profit'
                         ? 'bg-white text-orange-600'
                         : 'bg-orange-400 text-white hover:bg-orange-300'
@@ -1777,7 +1777,7 @@ export default function SalesAnalysisPage() {
                   </button>
                   <button
                     onClick={() => setCategorySortBy('profitPerUnit')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                    className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                       categorySortBy === 'profitPerUnit'
                         ? 'bg-white text-orange-600'
                         : 'bg-orange-400 text-white hover:bg-orange-300'
@@ -1787,7 +1787,7 @@ export default function SalesAnalysisPage() {
                   </button>
                   <button
                     onClick={() => setCategorySortBy('profitRate')}
-                    className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                    className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                       categorySortBy === 'profitRate'
                         ? 'bg-white text-orange-600'
                         : 'bg-orange-400 text-white hover:bg-orange-300'
@@ -1797,8 +1797,8 @@ export default function SalesAnalysisPage() {
                   </button>
                 </div>
               </div>
-              <div className="p-4">
-                <table className="w-full text-sm">
+              <div className="p-2 sm:p-4 overflow-x-auto mobile-hide-scrollbar">
+                <table className="w-full text-xs sm:text-sm min-w-[500px]">
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
@@ -1857,14 +1857,14 @@ export default function SalesAnalysisPage() {
 
               {/* 仕入先別売上ランキング */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-emerald-500 to-green-500 flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                    <span className="text-xl">🏭</span> 仕入先別ランキング
+                <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-emerald-500 to-green-500 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                  <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+                    <span className="text-lg sm:text-xl">🏭</span> 仕入先別ランキング
                   </h2>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 overflow-x-auto mobile-hide-scrollbar">
                     <button
                       onClick={() => setSourceSortBy('sales')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         sourceSortBy === 'sales'
                           ? 'bg-white text-emerald-600'
                           : 'bg-emerald-400 text-white hover:bg-emerald-300'
@@ -1874,7 +1874,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setSourceSortBy('profit')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         sourceSortBy === 'profit'
                           ? 'bg-white text-emerald-600'
                           : 'bg-emerald-400 text-white hover:bg-emerald-300'
@@ -1884,7 +1884,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setSourceSortBy('profitPerUnit')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         sourceSortBy === 'profitPerUnit'
                           ? 'bg-white text-emerald-600'
                           : 'bg-emerald-400 text-white hover:bg-emerald-300'
@@ -1894,7 +1894,7 @@ export default function SalesAnalysisPage() {
                     </button>
                     <button
                       onClick={() => setSourceSortBy('profitRate')}
-                      className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
+                      className={`px-2 sm:px-3 py-1 text-xs rounded font-medium transition-colors whitespace-nowrap ${
                         sourceSortBy === 'profitRate'
                           ? 'bg-white text-emerald-600'
                           : 'bg-emerald-400 text-white hover:bg-emerald-300'
@@ -1904,8 +1904,8 @@ export default function SalesAnalysisPage() {
                     </button>
                   </div>
                 </div>
-              <div className="p-4">
-                <table className="w-full text-sm">
+              <div className="p-2 sm:p-4 overflow-x-auto mobile-hide-scrollbar">
+                <table className="w-full text-xs sm:text-sm min-w-[500px]">
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
