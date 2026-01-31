@@ -1488,16 +1488,16 @@ export default function SalesAnalysisPage() {
                 </div>
               </div>
               <div className="p-2 sm:p-4 overflow-x-auto mobile-hide-scrollbar">
-                <table className="w-full text-xs sm:text-sm min-w-[600px]">
+                <table className="w-full text-xs sm:text-sm">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-12">順位</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">商品名</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-24">ブランド</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-20">販売先</th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">売値</th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">利益</th>
-                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-16">利益率</th>
+                      <th className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-xs font-semibold text-gray-600 w-8 sm:w-12">順位</th>
+                      <th className="px-1.5 sm:px-3 py-1 sm:py-2 text-left text-xs font-semibold text-gray-600">商品名</th>
+                      <th className="hidden sm:table-cell px-3 py-2 text-left text-xs font-semibold text-gray-600 w-24">ブランド</th>
+                      <th className="hidden md:table-cell px-3 py-2 text-left text-xs font-semibold text-gray-600 w-20">販売先</th>
+                      <th className="hidden sm:table-cell px-3 py-2 text-right text-xs font-semibold text-gray-600 w-24">売値</th>
+                      <th className="px-1.5 sm:px-3 py-1 sm:py-2 text-right text-xs font-semibold text-gray-600 w-16 sm:w-24">利益</th>
+                      <th className="px-1.5 sm:px-3 py-1 sm:py-2 text-right text-xs font-semibold text-gray-600 w-12 sm:w-16">利益率</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1511,15 +1511,15 @@ export default function SalesAnalysisPage() {
                       .slice(0, 10)
                       .map((sale, idx) => (
                         <tr key={sale.id} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-yellow-50' : ''}`}>
-                          <td className="px-3 py-2 text-center font-bold">
+                          <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-center font-bold text-xs sm:text-sm">
                             {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                           </td>
-                          <td className="px-3 py-2 text-gray-900 truncate max-w-xs" title={sale.product_name}>{sale.product_name}</td>
-                          <td className="px-3 py-2 text-gray-600 truncate">{sale.brand_name || '-'}</td>
-                          <td className="px-3 py-2 text-gray-600">{sale.sale_destination || '-'}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">¥{(sale.sale_price || 0).toLocaleString()}</td>
-                          <td className={`px-3 py-2 text-right tabular-nums font-semibold ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{(sale.profit || 0).toLocaleString()}</td>
-                          <td className={`px-3 py-2 text-right tabular-nums ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{sale.profit_rate || 0}%</td>
+                          <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-gray-900 truncate max-w-[120px] sm:max-w-xs text-xs sm:text-sm" title={sale.product_name}>{sale.product_name}</td>
+                          <td className="hidden sm:table-cell px-3 py-2 text-gray-600 truncate">{sale.brand_name || '-'}</td>
+                          <td className="hidden md:table-cell px-3 py-2 text-gray-600">{sale.sale_destination || '-'}</td>
+                          <td className="hidden sm:table-cell px-3 py-2 text-right tabular-nums">¥{(sale.sale_price || 0).toLocaleString()}</td>
+                          <td className={`px-1.5 sm:px-3 py-1 sm:py-2 text-right tabular-nums font-semibold text-xs sm:text-sm ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>¥{(sale.profit || 0).toLocaleString()}</td>
+                          <td className={`px-1.5 sm:px-3 py-1 sm:py-2 text-right tabular-nums text-xs sm:text-sm ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{sale.profit_rate || 0}%</td>
                         </tr>
                       ))}
                   </tbody>
