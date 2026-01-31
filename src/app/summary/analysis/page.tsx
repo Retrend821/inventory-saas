@@ -1709,9 +1709,17 @@ export default function SalesAnalysisPage() {
                     </thead>
                     <tbody>
                       {(() => {
+                        // 販路名を正規化（大文字小文字統一、空白除去）
+                        const normalizeDest = (dest: string | null): string => {
+                          if (!dest) return '(未設定)'
+                          const trimmed = dest.trim()
+                          if (!trimmed) return '(未設定)'
+                          // 小文字に統一してから先頭大文字に
+                          return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
+                        }
                         const destStats = new Map<string, { count: number; sales: number; profit: number }>()
                         filteredSales.forEach(sale => {
-                          const dest = sale.sale_destination || '(未設定)'
+                          const dest = normalizeDest(sale.sale_destination)
                           const current = destStats.get(dest) || { count: 0, sales: 0, profit: 0 }
                           destStats.set(dest, {
                             count: current.count + sale.quantity,
