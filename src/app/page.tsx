@@ -4780,9 +4780,9 @@ export default function Home() {
   return (
       <div className="min-h-screen bg-gray-50">
       <main className={`px-2 sm:px-4 py-4 sm:py-6 ${modalEdit ? 'pb-32' : ''}`}>
-        {/* CSVアップロードエリア */}
+        {/* CSVアップロードエリア - モバイルでは非表示 */}
         <div
-          className={`mb-4 sm:mb-6 border-2 border-dashed rounded-lg p-4 sm:p-8 text-center transition-colors ${
+          className={`hidden sm:block mb-4 sm:mb-6 border-2 border-dashed rounded-lg p-4 sm:p-8 text-center transition-colors ${
             dragActive
               ? 'border-blue-500 bg-blue-50'
               : 'border-gray-300 hover:border-gray-400'

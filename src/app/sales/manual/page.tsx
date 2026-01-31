@@ -2397,7 +2397,7 @@ export default function ManualSalesPage() {
                 </>
               )}
             </div>
-            {/* CSVインポートボタン（複数ファイル選択可能） */}
+            {/* CSVインポートボタン（複数ファイル選択可能）- モバイルでは非表示 */}
             <input
               type="file"
               accept=".csv"
@@ -2414,9 +2414,9 @@ export default function ManualSalesPage() {
             />
             <button
               onClick={() => csvInputRef.current?.click()}
-              className="px-2 sm:px-3 py-2 text-xs sm:text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors touch-target"
+              className="hidden sm:block px-2 sm:px-3 py-2 text-xs sm:text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors touch-target"
             >
-              <span className="hidden sm:inline">CSV</span>インポート
+              CSVインポート
             </button>
             <button
               onClick={handleBulkDelete}
