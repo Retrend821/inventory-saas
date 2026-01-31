@@ -1504,9 +1504,15 @@ export default function SalesAnalysisPage() {
                     {[...filteredSales]
                       .filter(s => s.profit !== null && s.brand_name?.trim())
                       .sort((a, b) => {
-                        if (itemSortBy === 'sales') return (b.sale_price || 0) - (a.sale_price || 0)
-                        if (itemSortBy === 'profit') return (b.profit || 0) - (a.profit || 0)
-                        return (b.profit_rate || 0) - (a.profit_rate || 0)
+                        switch (itemSortBy) {
+                          case 'sales':
+                            return (b.sale_price || 0) - (a.sale_price || 0)
+                          case 'profit':
+                            return (b.profit || 0) - (a.profit || 0)
+                          case 'profitRate':
+                          default:
+                            return (b.profit_rate || 0) - (a.profit_rate || 0)
+                        }
                       })
                       .slice(0, 10)
                       .map((sale, idx) => (
