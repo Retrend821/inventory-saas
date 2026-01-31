@@ -1605,6 +1605,7 @@ export default function SalesAnalysisPage() {
                           })
                         })
                         return [...brandStats.entries()]
+                          .filter(([, stats]) => stats.count >= 10) // 10個以上のみ
                           .sort((a, b) => {
                             if (brandSortBy === 'sales') return b[1].sales - a[1].sales
                             if (brandSortBy === 'profit') return b[1].profit - a[1].profit
