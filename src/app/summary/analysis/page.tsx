@@ -936,21 +936,21 @@ export default function SalesAnalysisPage() {
 
         {/* 年月選択・フィルター */}
         <div className="bg-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-4">
             {/* 検索入力欄 */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:flex-none">
+            <div className="flex items-center gap-2">
+              <div className="relative">
                 <input
                   type="text"
-                  placeholder="検索..."
+                  placeholder="商品名・ブランド・販路で検索"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full sm:w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 touch-target"
+                  className="w-64 px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 touch-target"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -959,23 +959,22 @@ export default function SalesAnalysisPage() {
                 )}
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-              <div className="flex items-center gap-1 sm:gap-2">
-                <label className="text-xs sm:text-sm text-gray-600">年:</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 text-sm touch-target"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-1 sm:gap-2">
-                <label className="text-xs sm:text-sm text-gray-600">月:</label>
-                <select
-                  value={selectedMonth}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">年:</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
+              >
+                {availableYears.map(year => (
+                  <option key={year} value={year}>{year === 'all' ? '全年' : `${year}年`}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">月:</label>
+              <select
+                value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500"
               >
