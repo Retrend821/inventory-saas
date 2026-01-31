@@ -1827,9 +1827,18 @@ export default function SalesAnalysisPage() {
                   </thead>
                   <tbody>
                     {(() => {
+                      // カテゴリ名を正規化
+                      const normalizeCategory = (cat: string | null): string => {
+                        if (!cat) return '(未設定)'
+                        const trimmed = cat.trim()
+                        if (!trimmed) return '(未設定)'
+                        // カテゴリの統一マッピング
+                        if (trimmed === 'メガネサングラス') return 'サングラス'
+                        return trimmed
+                      }
                       const catStats = new Map<string, { count: number; sales: number; profit: number }>()
                       filteredSales.forEach(sale => {
-                        const cat = sale.category || '(未設定)'
+                        const cat = normalizeCategory(sale.category)
                         const current = catStats.get(cat) || { count: 0, sales: 0, profit: 0 }
                         catStats.set(cat, {
                           count: current.count + sale.quantity,
