@@ -467,7 +467,7 @@ export default function ManualSalesPage() {
     count: filteredSales.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => 41, // 行の高さ（px）
-    overscan: 10, // 画面外に余分にレンダリングする行数
+    overscan: 20, // 画面外に余分にレンダリングする行数（多めで滑らかに）
   })
 
   // カテゴリオプション（既存データから動的に生成）
@@ -2616,7 +2616,6 @@ export default function ManualSalesPage() {
         <div
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-240px)] sm:max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border} responsive-table`}
-          style={{ WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
         >
           <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: `${tableWidth}px` }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
