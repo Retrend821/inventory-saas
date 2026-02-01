@@ -89,6 +89,16 @@ input[type="number"] {
 .responsive-table {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+/* スマホでのスムーズスクロール強化 */
+@media (max-width: 767px) {
+  .responsive-table {
+    scroll-snap-type: none;
+    touch-action: pan-x pan-y;
+  }
 }
 
 /* モバイルでスクロールバー非表示 */

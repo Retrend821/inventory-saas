@@ -609,6 +609,9 @@ export default function ManualSalesPage() {
       case 'オークネット':
         // 5%
         return Math.round(price * 0.05)
+      case 'エコトレ':
+        // 10% + 440円
+        return Math.round(price * 0.1) + 440
       default:
         return null
     }
@@ -2613,6 +2616,7 @@ export default function ManualSalesPage() {
         <div
           ref={tableContainerRef}
           className={`overflow-x-auto overflow-y-auto max-h-[calc(100vh-240px)] sm:max-h-[calc(100vh-180px)] ${t.cardBg} rounded-lg shadow-sm border ${t.border} responsive-table`}
+          style={{ WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
         >
           <table style={{ tableLayout: 'fixed', borderCollapse: 'collapse', width: `${tableWidth}px` }}>
             <thead className="sticky top-0 z-10" style={{ backgroundColor: '#334155' }}>
