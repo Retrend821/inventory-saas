@@ -40,6 +40,7 @@ type Platform = {
   id: string
   name: string
   color_class: string
+  sales_type: 'toB' | 'toC'
 }
 
 type Supplier = {
@@ -133,6 +134,22 @@ export default function ManualSalesPage() {
   const [transferModal, setTransferModal] = useState<{ sale: ManualSale; bulkPurchases: { id: string; genre: string; purchase_date: string }[] } | null>(null)
   // Undo履歴
   const [undoHistory, setUndoHistory] = useState<{ id: string; field: keyof ManualSale; oldValue: unknown; newValue: unknown }[]>([])
+
+  // 新規追加モーダル用の状態
+  const [addModal, setAddModal] = useState<{
+    product_name: string
+    brand_name: string
+    category: string
+    purchase_source: string
+    sale_destination: string
+    sale_price: string
+    purchase_price: string
+    purchase_date: string
+    listing_date: string
+    sale_date: string
+    memo: string
+  } | null>(null)
+  const [isAddingNew, setIsAddingNew] = useState(false)
 
   // 一括選択用
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -292,7 +309,7 @@ export default function ManualSalesPage() {
       // プラットフォーム（販路）取得
       const { data: platformData } = await supabase
         .from('platforms')
-        .select('id, name, color_class')
+        .select('id, name, color_class, sales_type')
         .eq('is_active', true)
         .order('sort_order')
       if (platformData) {
@@ -691,6 +708,17 @@ export default function ManualSalesPage() {
       newValue = null
     }
 
+    // 売価入力時：業販（toB）の場合は税抜き価格を税込み価格に自動変換（×1.1）
+    if (field === 'sale_price' && typeof newValue === 'number' && newValue > 0) {
+      const destination = sale.sale_destination
+      if (destination) {
+        const platform = platforms.find(p => p.name === destination)
+        if (platform?.sales_type === 'toB') {
+          newValue = Math.round(newValue * 1.1)
+        }
+      }
+    }
+
     // 日付フィールドの正規化
     const dateFields: (keyof ManualSale)[] = ['purchase_date', 'listing_date', 'sale_date']
     if (dateFields.includes(field) && newValue) {
@@ -966,17 +994,97 @@ export default function ManualSalesPage() {
     return () => document.removeEventListener('keydown', handleGlobalKeyDown)
   }, [selectedCell, editingCell, filteredSales, editableColumns, imageEditModal, modalEdit])
 
-  // 新規追加（空の行をDBに追加）
-  const handleAddNewRow = async () => {
+  // 新規追加モーダルを開く
+  const handleOpenAddModal = () => {
+    // 今日の日付をデフォルト値に
+    const today = new Date().toISOString().split('T')[0]
+    setAddModal({
+      product_name: '',
+      brand_name: '',
+      category: '',
+      purchase_source: '',
+      sale_destination: '',
+      sale_price: '',
+      purchase_price: '',
+      purchase_date: '',
+      listing_date: '',
+      sale_date: today,
+      memo: '',
+    })
+  }
+
+  // 新規追加モーダルからデータを保存
+  const handleSaveNewSale = async () => {
+    if (!addModal) return
+    if (!addModal.product_name.trim()) {
+      alert('商品名を入力してください')
+      return
+    }
+
+    setIsAddingNew(true)
+
+    // 数値変換
+    const salePrice = addModal.sale_price ? parseInt(addModal.sale_price) || 0 : null
+    const purchasePrice = addModal.purchase_price ? parseInt(addModal.purchase_price) || 0 : null
+
+    // 手数料自動計算
+    const commission = calculateCommission(
+      addModal.sale_destination || null,
+      salePrice,
+      addModal.sale_date || null
+    )
+
+    // 売価入力時：業販（toB）の場合は税抜き価格を税込み価格に自動変換（×1.1）
+    let finalSalePrice = salePrice
+    if (salePrice && addModal.sale_destination) {
+      const platform = platforms.find(p => p.name === addModal.sale_destination)
+      if (platform?.sales_type === 'toB') {
+        finalSalePrice = Math.round(salePrice * 1.1)
+      }
+    }
+
+    // 仕入総額（原価のみ、その他費用は後で編集）
+    const purchaseTotal = purchasePrice || 0
+
+    // 利益計算用のデータ
+    const saleData = {
+      sale_price: finalSalePrice,
+      purchase_price: purchasePrice,
+      purchase_total: purchaseTotal,
+      commission: commission,
+      shipping_cost: null,
+      other_cost: null,
+      listing_date: addModal.listing_date || null,
+      sale_date: addModal.sale_date || null,
+    }
+    const profit = calculateProfit(saleData)
+    const profitRate = calculateProfitRate(saleData)
+    const turnoverDays = calculateTurnoverDays(saleData)
+
     const { data, error } = await supabase
       .from('manual_sales')
       .insert([{
-        product_name: '（新規）',
+        product_name: addModal.product_name.trim(),
+        brand_name: addModal.brand_name.trim() || null,
+        category: addModal.category || null,
+        purchase_source: addModal.purchase_source || null,
+        sale_destination: addModal.sale_destination || null,
+        sale_price: finalSalePrice,
+        purchase_price: purchasePrice,
+        purchase_total: purchaseTotal,
+        commission: commission,
+        purchase_date: addModal.purchase_date || null,
+        listing_date: addModal.listing_date || null,
+        sale_date: addModal.sale_date || null,
+        memo: addModal.memo.trim() || null,
         sale_type: 'main',
-        profit: 0,
-        profit_rate: 0,
+        profit: profit,
+        profit_rate: profitRate,
+        turnover_days: turnoverDays,
       }])
       .select()
+
+    setIsAddingNew(false)
 
     if (error) {
       console.error('Error adding new row:', error)
@@ -986,6 +1094,7 @@ export default function ManualSalesPage() {
 
     if (data && data.length > 0) {
       setSales(prev => [data[0], ...prev])
+      setAddModal(null)
     }
   }
 
@@ -2430,7 +2539,7 @@ export default function ManualSalesPage() {
               {selectedIds.size > 0 ? `${selectedIds.size}件削除` : '削除'}
             </button>
             <button
-              onClick={handleAddNewRow}
+              onClick={handleOpenAddModal}
               className="px-2 sm:px-4 py-2 text-xs sm:text-sm bg-blue-600 text-white rounded hover:bg-blue-700 touch-target"
             >
               <span className="hidden sm:inline">新規</span>追加
@@ -3401,6 +3510,209 @@ export default function ManualSalesPage() {
                 className="w-full px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
               >
                 キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 新規追加モーダル */}
+      {addModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          onClick={() => setAddModal(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white">
+              <h3 className="text-lg font-semibold text-gray-900">新規売上を追加</h3>
+              <button
+                onClick={() => setAddModal(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
+              {/* 商品名 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  商品名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={addModal.product_name}
+                  onChange={(e) => setAddModal({ ...addModal, product_name: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base"
+                  placeholder="商品名を入力"
+                  autoFocus
+                />
+              </div>
+
+              {/* ブランド名 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ブランド名</label>
+                <input
+                  type="text"
+                  value={addModal.brand_name}
+                  onChange={(e) => setAddModal({ ...addModal, brand_name: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base"
+                  placeholder="ブランド名を入力"
+                  list="brand-suggestions"
+                />
+                <datalist id="brand-suggestions">
+                  {availableBrands.map(brand => (
+                    <option key={brand} value={brand} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* ジャンル */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ジャンル</label>
+                <select
+                  value={addModal.category}
+                  onChange={(e) => setAddModal({ ...addModal, category: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base"
+                >
+                  <option value="">選択してください</option>
+                  {categoryOptions.map(cat => (
+                    <option key={cat.id} value={cat.name}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 販売先と仕入先を横並び */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* 販売先 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">販売先</label>
+                  <select
+                    value={addModal.sale_destination}
+                    onChange={(e) => setAddModal({ ...addModal, sale_destination: e.target.value })}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base"
+                  >
+                    <option value="">選択</option>
+                    {salePlatforms.map(p => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 仕入先 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入先</label>
+                  <select
+                    value={addModal.purchase_source}
+                    onChange={(e) => setAddModal({ ...addModal, purchase_source: e.target.value })}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base"
+                  >
+                    <option value="">選択</option>
+                    {purchasePlatforms.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 売価と原価を横並び */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* 売価 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">売価</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={addModal.sale_price}
+                    onChange={(e) => setAddModal({ ...addModal, sale_price: e.target.value })}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base"
+                    placeholder="0"
+                  />
+                </div>
+
+                {/* 原価 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">原価</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={addModal.purchase_price}
+                    onChange={(e) => setAddModal({ ...addModal, purchase_price: e.target.value })}
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* 日付入力 */}
+              <div className="grid grid-cols-3 gap-3">
+                {/* 仕入日 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">仕入日</label>
+                  <input
+                    type="date"
+                    value={addModal.purchase_date}
+                    onChange={(e) => setAddModal({ ...addModal, purchase_date: e.target.value })}
+                    className="w-full px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                  />
+                </div>
+
+                {/* 出品日 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">出品日</label>
+                  <input
+                    type="date"
+                    value={addModal.listing_date}
+                    onChange={(e) => setAddModal({ ...addModal, listing_date: e.target.value })}
+                    className="w-full px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                  />
+                </div>
+
+                {/* 売却日 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">売却日</label>
+                  <input
+                    type="date"
+                    value={addModal.sale_date}
+                    onChange={(e) => setAddModal({ ...addModal, sale_date: e.target.value })}
+                    className="w-full px-2 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* メモ */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+                <textarea
+                  value={addModal.memo}
+                  onChange={(e) => setAddModal({ ...addModal, memo: e.target.value })}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black text-base resize-none"
+                  rows={2}
+                  placeholder="メモを入力"
+                />
+              </div>
+            </div>
+
+            {/* フッターボタン */}
+            <div className="p-4 border-t bg-gray-50 flex gap-3 sticky bottom-0">
+              <button
+                onClick={() => setAddModal(null)}
+                className="flex-1 px-4 py-3 text-base text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg font-medium"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSaveNewSale}
+                disabled={isAddingNew || !addModal.product_name.trim()}
+                className="flex-1 px-4 py-3 text-base text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isAddingNew ? '追加中...' : '追加する'}
               </button>
             </div>
           </div>
