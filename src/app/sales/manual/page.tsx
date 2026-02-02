@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Papa from 'papaparse'
-import { useVirtualizer } from '@tanstack/react-virtual'
+// import { useVirtualizer } from '@tanstack/react-virtual' // 仮想スクロール無効化
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Navigation from '@/components/Navigation'
@@ -462,13 +462,13 @@ export default function ManualSalesPage() {
     return result
   }, [sales, selectedYear, selectedMonth, saleTypeFilter, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations, sortByImage])
 
-  // 仮想スクロール用のvirtualizer
-  const rowVirtualizer = useVirtualizer({
-    count: filteredSales.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 41, // 行の高さ（px）
-    overscan: 20, // 画面外に余分にレンダリングする行数（多めで滑らかに）
-  })
+  // 仮想スクロールは無効化（慣性スクロールのため）
+  // const rowVirtualizer = useVirtualizer({
+  //   count: filteredSales.length,
+  //   getScrollElement: () => tableContainerRef.current,
+  //   estimateSize: () => 41,
+  //   overscan: 20,
+  // })
 
   // カテゴリオプション（既存データから動的に生成）
   const categoryOptions = useMemo(() => {
@@ -2741,16 +2741,7 @@ export default function ManualSalesPage() {
               </tr>
             </thead>
             <tbody>
-              {/* 上部のスペーサー */}
-              {rowVirtualizer.getVirtualItems().length > 0 && rowVirtualizer.getVirtualItems()[0].start > 0 && (
-                <tr style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px` }}>
-                  <td colSpan={visibleColumns.length}></td>
-                </tr>
-              )}
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const rowIndex = virtualRow.index
-                const sale = filteredSales[rowIndex]
-                if (!sale) return null
+              {filteredSales.map((sale, rowIndex) => {
                 // セルのレンダリング用ヘルパー関数
                 const renderEditableCell = (field: keyof ManualSale, colIndex: number, value: React.ReactNode, inputType: 'text' | 'number' | 'date' = 'text') => {
                   const isEditing = editingCell?.id === sale.id && editingCell?.field === field
@@ -3215,19 +3206,11 @@ export default function ManualSalesPage() {
                 }
 
                 return (
-                  <tr key={sale.id} data-index={virtualRow.index} className={t.tableRowHover}>
+                  <tr key={sale.id} className={t.tableRowHover}>
                     {visibleColumns.map((col, colIndex) => renderColumnCell(col.key, colIndex))}
                   </tr>
                 )
               })}
-              {/* 下部のスペーサー */}
-              {rowVirtualizer.getVirtualItems().length > 0 && (
-                <tr style={{
-                  height: `${rowVirtualizer.getTotalSize() - (rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1]?.end || 0)}px`
-                }}>
-                  <td colSpan={visibleColumns.length}></td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
