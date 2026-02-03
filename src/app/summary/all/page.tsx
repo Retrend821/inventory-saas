@@ -1719,10 +1719,23 @@ export default function AllSalesPage() {
     return `¥${amount.toLocaleString()}`
   }
 
+  // 日付を年と月日で改行して表示
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-'
-    const date = new Date(dateStr)
-    return `${date.getMonth() + 1}/${date.getDate()}`
+    const match = dateStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+    if (match) {
+      const year = match[1]
+      const month = match[2].padStart(2, '0')
+      const day = match[3].padStart(2, '0')
+      return (
+        <span>
+          <span className="text-[10px] text-gray-400">{year}</span>
+          <br />
+          <span>{month}/{day}</span>
+        </span>
+      )
+    }
+    return dateStr
   }
 
   return (
