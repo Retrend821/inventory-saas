@@ -565,7 +565,7 @@ export default function Home() {
   })
 
   // 販路マスタのデータ
-  const [masterPlatforms, setMasterPlatforms] = useState<{ name: string; color_class: string; is_active: boolean; sort_order: number }[]>([])
+  const [masterPlatforms, setMasterPlatforms] = useState<{ name: string; color_class: string; is_active: boolean; sort_order: number; sales_type: 'toB' | 'toC' }[]>([])
 
   // 非表示のプラットフォーム選択肢
   const [hiddenPlatforms, setHiddenPlatforms] = useState<Set<string>>(() => {
@@ -706,7 +706,7 @@ export default function Home() {
   const fetchPlatforms = useCallback(async () => {
     const { data, error } = await supabase
       .from('platforms')
-      .select('name, color_class, is_active, sort_order')
+      .select('name, color_class, is_active, sort_order, sales_type')
       .order('sort_order', { ascending: true })
 
     if (!error && data) {
@@ -893,7 +893,7 @@ export default function Home() {
     if (field === 'sale_price' && typeof value === 'number' && value > 0) {
       const destination = currentItem.sale_destination
       if (destination) {
-        const platform = platforms.find(p => p.name === destination)
+        const platform = masterPlatforms.find(p => p.name === destination)
         if (platform?.sales_type === 'toB') {
           value = Math.round(value * 1.1)
         }
