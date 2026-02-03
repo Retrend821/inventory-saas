@@ -84,41 +84,53 @@ export default function Navigation() {
           >
             ダッシュボード
           </Link>
-          <div className="relative hidden md:block" ref={summaryDropdownRef}>
+          <div
+            className="relative hidden md:block"
+            ref={summaryDropdownRef}
+            onMouseEnter={() => {
+              setSummaryOpen(true)
+              setSettingsOpen(false)
+              setInventoryOpen(false)
+            }}
+            onMouseLeave={() => setSummaryOpen(false)}
+          >
             <button
-              onClick={() => {
-                setSummaryOpen(!summaryOpen)
-                setSettingsOpen(false)
-                setInventoryOpen(false)
-              }}
               className={pathname === '/summary' || pathname.startsWith('/summary/') || pathname.startsWith('/sales') ? activeLinkStyle : baseLinkStyle}
             >
               売上
             </button>
             {summaryOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上レポート</Link>
-                <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上明細</Link>
-                <Link href="/summary/analysis" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上分析</Link>
-                <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上入力</Link>
+              <div className="absolute top-full left-0 pt-1">
+                <div className="bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                  <Link href="/summary" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上レポート</Link>
+                  <Link href="/summary/all" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上明細</Link>
+                  <Link href="/summary/analysis" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上分析</Link>
+                  <Link href="/sales/manual" className={dropdownItemStyle} onClick={() => setSummaryOpen(false)}>売上入力</Link>
+                </div>
               </div>
             )}
           </div>
-          <div className="relative hidden md:block" ref={inventoryDropdownRef}>
+          <div
+            className="relative hidden md:block"
+            ref={inventoryDropdownRef}
+            onMouseEnter={() => {
+              setInventoryOpen(true)
+              setSummaryOpen(false)
+              setSettingsOpen(false)
+            }}
+            onMouseLeave={() => setInventoryOpen(false)}
+          >
             <button
-              onClick={() => {
-                setInventoryOpen(!inventoryOpen)
-                setSummaryOpen(false)
-                setSettingsOpen(false)
-              }}
               className={pathname === '/' || pathname.startsWith('/inventory') ? activeLinkStyle : baseLinkStyle}
             >
               在庫管理
             </button>
             {inventoryOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>単品仕入在庫一覧</Link>
-                <Link href="/inventory/bulk" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>まとめ仕入れ在庫一覧</Link>
+              <div className="absolute top-full left-0 pt-1">
+                <div className="bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                  <Link href="/" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>単品仕入在庫一覧</Link>
+                  <Link href="/inventory/bulk" className={dropdownItemStyle} onClick={() => setInventoryOpen(false)}>まとめ仕入れ在庫一覧</Link>
+                </div>
               </div>
             )}
           </div>
@@ -142,24 +154,30 @@ export default function Navigation() {
           </Link>
           {/* 閲覧専用ユーザーには設定メニューを非表示 */}
           {!isViewerUser && (
-          <div className="relative hidden md:block" ref={dropdownRef}>
+          <div
+            className="relative hidden md:block"
+            ref={dropdownRef}
+            onMouseEnter={() => {
+              setSettingsOpen(true)
+              setSummaryOpen(false)
+              setInventoryOpen(false)
+            }}
+            onMouseLeave={() => setSettingsOpen(false)}
+          >
             <button
-              onClick={() => {
-                setSettingsOpen(!settingsOpen)
-                setSummaryOpen(false)
-                setInventoryOpen(false)
-              }}
               className={pathname.startsWith('/settings') ? activeLinkStyle : baseLinkStyle}
             >
               設定
             </button>
             {settingsOpen && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
-                <Link href="/settings/platforms" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>仕入先・販路マスタ設定</Link>
-                <Link href="/settings/ledger" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>古物台帳マスタ設定</Link>
-                <Link href="/settings/google-drive" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>Googleドライブ連携</Link>
-                <Link href="/settings/backup" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>データバックアップ</Link>
-                <Link href="/settings/password" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>パスワード変更</Link>
+              <div className="absolute top-full left-0 pt-1">
+                <div className="bg-slate-700 border border-slate-600 rounded-md shadow-lg py-1 whitespace-nowrap">
+                  <Link href="/settings/platforms" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>仕入先・販路マスタ設定</Link>
+                  <Link href="/settings/ledger" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>古物台帳マスタ設定</Link>
+                  <Link href="/settings/google-drive" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>Googleドライブ連携</Link>
+                  <Link href="/settings/backup" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>データバックアップ</Link>
+                  <Link href="/settings/password" className={dropdownItemStyle} onClick={() => setSettingsOpen(false)}>パスワード変更</Link>
+                </div>
               </div>
             )}
           </div>
