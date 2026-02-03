@@ -107,7 +107,7 @@ export default function SummaryPage() {
     gmroi_goal: 0,
   })
 
-  // 目標値を取得
+  // 目標値を取得（当月がなければ前月から引き継ぐ）
   const fetchGoal = useCallback(async (year: string, month: string) => {
     if (!year || month === 'all') {
       setMonthlyGoal(null)
@@ -116,12 +116,16 @@ export default function SummaryPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    const currentYear = parseInt(year)
+    const currentMonth = parseInt(month)
+
+    // 当月の目標を取得
     const { data, error } = await supabase
       .from('monthly_goals')
       .select('*')
       .eq('user_id', user.id)
-      .eq('year', parseInt(year))
-      .eq('month', parseInt(month))
+      .eq('year', currentYear)
+      .eq('month', currentMonth)
       .single()
 
     if (error && error.code !== 'PGRST116') {
@@ -131,25 +135,47 @@ export default function SummaryPage() {
     if (data) {
       setGoalForm(data)
     } else {
-      setGoalForm({
-        year: parseInt(year),
-        month: parseInt(month),
-        sales_goal: 0,
-        profit_goal: 0,
-        sold_count_goal: 0,
-        purchase_count_goal: 0,
-        listed_count_goal: 0,
-        purchase_total_goal: 0,
-        profit_rate_goal: 0,
-        avg_sale_price_goal: 0,
-        avg_profit_goal: 0,
-        avg_purchase_price_goal: 0,
-        stock_count_turnover_goal: 0,
-        cost_turnover_goal: 0,
-        sales_turnover_goal: 0,
-        overall_profitability_goal: 0,
-        gmroi_goal: 0,
-      })
+      // 当月の目標がない場合、前月の目標を取得して引き継ぐ
+      const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1
+      const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear
+
+      const { data: prevData } = await supabase
+        .from('monthly_goals')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('year', prevYear)
+        .eq('month', prevMonth)
+        .single()
+
+      if (prevData) {
+        // 前月の目標を引き継ぐ（年月は当月に更新）
+        setGoalForm({
+          ...prevData,
+          year: currentYear,
+          month: currentMonth,
+        })
+      } else {
+        // 前月もない場合は0で初期化
+        setGoalForm({
+          year: currentYear,
+          month: currentMonth,
+          sales_goal: 0,
+          profit_goal: 0,
+          sold_count_goal: 0,
+          purchase_count_goal: 0,
+          listed_count_goal: 0,
+          purchase_total_goal: 0,
+          profit_rate_goal: 0,
+          avg_sale_price_goal: 0,
+          avg_profit_goal: 0,
+          avg_purchase_price_goal: 0,
+          stock_count_turnover_goal: 0,
+          cost_turnover_goal: 0,
+          sales_turnover_goal: 0,
+          overall_profitability_goal: 0,
+          gmroi_goal: 0,
+        })
+      }
     }
   }, [])
 
