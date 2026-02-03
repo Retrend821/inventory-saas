@@ -889,6 +889,17 @@ export default function Home() {
     const currentItem = inventory.find(item => item.id === id)
     if (!currentItem) return
 
+    // 売価入力時：業販（toB）の場合は税抜き価格を税込み価格に自動変換（×1.1）
+    if (field === 'sale_price' && typeof value === 'number' && value > 0) {
+      const destination = currentItem.sale_destination
+      if (destination) {
+        const platform = platforms.find(p => p.name === destination)
+        if (platform?.sales_type === 'toB') {
+          value = Math.round(value * 1.1)
+        }
+      }
+    }
+
     // 更新後の値を計算するためのオブジェクト
     let updateData: Record<string, string | number | null> = { [field]: value }
 
