@@ -2352,7 +2352,7 @@ export default function Home() {
             image_url: row['オークション画像URL'] || null,
             purchase_price: netPrice,
             purchase_total: totalPrice,
-            purchase_date: (row['仕入日'] || row['終了日時']) ? parseYahooDate(row['仕入日'] || row['終了日時']) : null,
+            purchase_date: (row['仕入日'] || row['終了日時']) ? parseYahooDate((row['仕入日'] || row['終了日時']) as string) : null,
             purchase_source: 'ヤフオク',
             status: '在庫あり',
           }
@@ -2454,7 +2454,7 @@ export default function Home() {
                 image_url: row['オークション画像URL'] || null,
                 purchase_price: netPrice,
                 purchase_total: totalPrice,
-                purchase_date: (row['仕入日'] || row['終了日時']) ? parseYahooDate(row['仕入日'] || row['終了日時']) : null,
+                purchase_date: (row['仕入日'] || row['終了日時']) ? parseYahooDate((row['仕入日'] || row['終了日時']) as string) : null,
                 purchase_source: 'ヤフオク',
                 status: '在庫あり',
               }
