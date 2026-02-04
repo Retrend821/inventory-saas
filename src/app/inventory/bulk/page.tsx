@@ -22,6 +22,7 @@ type BulkSale = {
   bulk_purchase_id: string
   sale_date: string
   sale_destination: string | null
+  purchase_source: string | null
   quantity: number
   sale_amount: number
   commission: number
@@ -212,30 +213,37 @@ export default function BulkInventoryPage() {
   const purchaseStats = useMemo(() => {
     const stats = new Map<string, {
       soldQuantity: number
+      totalQuantity: number
       totalSales: number
       totalCommission: number
       totalShipping: number
       totalDeposit: number
+      totalItemPurchase: number
     }>()
 
     bulkSales.forEach(sale => {
       const current = stats.get(sale.bulk_purchase_id) || {
         soldQuantity: 0,
+        totalQuantity: 0,
         totalSales: 0,
         totalCommission: 0,
         totalShipping: 0,
-        totalDeposit: 0
+        totalDeposit: 0,
+        totalItemPurchase: 0
       }
 
-      // 入金額は登録されていれば使用、なければ売値-手数料-送料
+      const isSold = !!sale.sale_destination
       const depositAmount = sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)
+      const itemPurchase = (sale.purchase_price || 0) + (sale.other_cost || 0)
 
       stats.set(sale.bulk_purchase_id, {
-        soldQuantity: current.soldQuantity + sale.quantity,
-        totalSales: current.totalSales + sale.sale_amount,
-        totalCommission: current.totalCommission + sale.commission,
-        totalShipping: current.totalShipping + sale.shipping_cost,
-        totalDeposit: current.totalDeposit + depositAmount
+        soldQuantity: current.soldQuantity + (isSold ? sale.quantity : 0),
+        totalQuantity: current.totalQuantity + sale.quantity,
+        totalSales: current.totalSales + (isSold ? sale.sale_amount : 0),
+        totalCommission: current.totalCommission + (isSold ? sale.commission : 0),
+        totalShipping: current.totalShipping + (isSold ? sale.shipping_cost : 0),
+        totalDeposit: current.totalDeposit + (isSold ? depositAmount : 0),
+        totalItemPurchase: current.totalItemPurchase + itemPurchase
       })
     })
 
@@ -281,15 +289,20 @@ export default function BulkInventoryPage() {
 
     targetPurchases.forEach(purchase => {
       totalPurchaseAmount += purchase.total_amount
-      totalQuantity += purchase.total_quantity
 
       const stats = purchaseStats.get(purchase.id)
       if (stats) {
+        // 個別アイテムの仕入額を加算
+        totalPurchaseAmount += stats.totalItemPurchase
+        // 数量はbulk_purchasesのtotal_quantityとbulk_salesの件数の大きい方を使用
+        totalQuantity += Math.max(purchase.total_quantity, stats.totalQuantity)
         soldQuantity += stats.soldQuantity
         totalSales += stats.totalSales
         totalCommission += stats.totalCommission
         totalShipping += stats.totalShipping
         totalDeposit += stats.totalDeposit
+      } else {
+        totalQuantity += purchase.total_quantity
       }
     })
 
@@ -368,7 +381,9 @@ export default function BulkInventoryPage() {
     // 販売行を追加
     filteredSales.forEach(sale => {
       const purchase = getPurchaseForSale(sale.bulk_purchase_id)
+      const isSold = !!sale.sale_destination
       const depositAmount = sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)
+      const purchaseCost = (sale.purchase_price || 0) + (sale.other_cost || 0)
       rows.push({
         id: `sale-${sale.id}`,
         type: 'sale',
@@ -377,11 +392,11 @@ export default function BulkInventoryPage() {
         brandName: sale.brand_name,
         productName: sale.product_name,
         saleDestination: sale.sale_destination,
-        purchaseAmount: 0,
-        saleAmount: sale.sale_amount,
-        commission: sale.commission,
-        shippingCost: sale.shipping_cost,
-        profit: depositAmount,
+        purchaseAmount: isSold ? 0 : purchaseCost,
+        saleAmount: isSold ? sale.sale_amount : 0,
+        commission: isSold ? sale.commission : 0,
+        shippingCost: isSold ? sale.shipping_cost : 0,
+        profit: isSold ? (depositAmount - purchaseCost) : -purchaseCost,
         saleData: sale,
         purchaseData: purchase
       })
@@ -1270,7 +1285,7 @@ export default function BulkInventoryPage() {
                 回収率 {genreSummary.recoveryRate}%
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-4 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-4 text-sm">
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                 <div className="text-gray-500 text-[10px] sm:text-xs">仕入総額</div>
                 <div className="font-bold text-gray-900 text-sm sm:text-base">¥{genreSummary.totalPurchaseAmount.toLocaleString()}</div>
@@ -1284,10 +1299,6 @@ export default function BulkInventoryPage() {
                 <div className="font-bold text-blue-600 text-sm sm:text-base">{genreSummary.soldQuantity}点</div>
               </div>
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
-                <div className="text-gray-500 text-[10px] sm:text-xs">残り</div>
-                <div className="font-bold text-orange-600 text-sm sm:text-base">{genreSummary.remainingQuantity}点</div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                 <div className="text-gray-500 text-[10px] sm:text-xs">売上総額</div>
                 <div className="font-bold text-gray-900 text-sm sm:text-base">¥{genreSummary.totalSales.toLocaleString()}</div>
               </div>
@@ -1296,9 +1307,9 @@ export default function BulkInventoryPage() {
                 <div className="font-bold text-blue-600 text-sm sm:text-base">¥{genreSummary.totalDeposit.toLocaleString()}</div>
               </div>
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
-                <div className="text-gray-500 text-[10px] sm:text-xs">純利益</div>
-                <div className={`font-bold text-sm sm:text-base ${genreSummary.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ¥{genreSummary.netProfit.toLocaleString()}
+                <div className="text-gray-500 text-[10px] sm:text-xs">未回収額</div>
+                <div className={`font-bold text-sm sm:text-base ${(genreSummary.totalPurchaseAmount - genreSummary.totalDeposit) <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ¥{(genreSummary.totalPurchaseAmount - genreSummary.totalDeposit).toLocaleString()}
                 </div>
               </div>
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
@@ -1400,7 +1411,7 @@ export default function BulkInventoryPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {mixedRows.map((row, index) => {
-                      const isPurchase = row.type === 'purchase'
+                      const isPurchase = row.type === 'purchase' || !row.saleDestination
                       const destColor = row.saleDestination ? platformColors[row.saleDestination] : null
                       const sale = row.saleData
                       const purchase = row.purchaseData
@@ -1518,7 +1529,7 @@ export default function BulkInventoryPage() {
                           {/* 画像 */}
                           {sale?.image_url ? (
                             <td className="px-2 py-1 border-r border-gray-100 text-center">
-                              <img src={sale.image_url} alt="" className="w-8 h-8 object-cover rounded mx-auto cursor-pointer" onClick={() => setEnlargedImage(sale.image_url)} />
+                              <img src={`/api/image-proxy?url=${encodeURIComponent(sale.image_url)}`} alt="" className="w-8 h-8 object-cover rounded mx-auto cursor-pointer" onClick={() => setEnlargedImage(sale.image_url)} />
                             </td>
                           ) : (
                             <td className="px-2 py-1 border-r border-gray-100 text-center text-gray-400">-</td>
@@ -1539,7 +1550,7 @@ export default function BulkInventoryPage() {
                               ? renderCell('memo', row.productName || '-', 'purchase', 'text', 'text-gray-900 truncate', 6)
                               : <td className="px-2 py-1 border-r border-gray-100">{row.productName || '-'}</td>}
                           {/* 仕入先 */}
-                          {isPurchase && purchase ? (() => {
+                          {row.type === 'purchase' && purchase ? (() => {
                             const isEditing = editingCell?.id === purchase.id && editingCell?.field === 'purchase_source' && editingCell?.type === 'purchase'
                             const isDropdownMode = isEditing && editingCell?.mode === 'dropdown'
                             const isTextMode = isEditing && editingCell?.mode === 'text'
@@ -1647,11 +1658,122 @@ export default function BulkInventoryPage() {
                                 )}
                               </td>
                             )
+                          })() : sale ? (() => {
+                            const saleSource = sale.purchase_source || purchase?.purchase_source || null
+                            const isEditing = editingCell?.id === sale.id && editingCell?.field === 'purchase_source' && editingCell?.type === 'sale'
+                            const isDropdownMode = isEditing && editingCell?.mode === 'dropdown'
+                            const isTextMode = isEditing && editingCell?.mode === 'text'
+                            const isSelected = isCellSelected(sale.id, 'purchase_source', 'sale') || isCellInRange(index, 7)
+                            const sourceColor = saleSource ? (platformColors[saleSource] || 'bg-gray-100 text-gray-800') : ''
+
+                            const handleDropdownClick = (e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              const target = e.currentTarget as HTMLElement
+                              const rect = target.closest('td')?.getBoundingClientRect()
+                              if (rect) {
+                                setDropdownPosition({ top: rect.bottom + 2, left: rect.left })
+                              }
+                              setTimeout(() => {
+                                setEditingCell({ id: sale.id, field: 'purchase_source', type: 'sale', mode: 'dropdown' })
+                                setEditValue(saleSource || '')
+                              }, 0)
+                            }
+
+                            const handleTextEdit = () => {
+                              setEditingCell({ id: sale.id, field: 'purchase_source', type: 'sale', mode: 'text' })
+                              setEditValue(saleSource || '')
+                            }
+
+                            return (
+                              <td
+                                className={`px-1 py-1 border-r border-gray-100 cursor-pointer select-none relative ${isDropdownMode ? 'overflow-visible' : 'overflow-hidden'} ${isEditing ? 'ring-2 ring-blue-500 ring-inset' : isSelected ? 'ring-2 ring-blue-500 ring-inset' : 'hover:bg-blue-50'}`}
+                                onMouseDown={(e) => {
+                                  if (!(e.target as HTMLElement).closest('.dropdown-trigger')) {
+                                    handleCellMouseDown(e, { id: sale.id, field: 'purchase_source', type: 'sale', rowIndex: index, colIndex: 7 }, handleTextEdit)
+                                  }
+                                }}
+                                onMouseEnter={() => handleCellMouseEnter({ id: sale.id, field: 'purchase_source', type: 'sale', rowIndex: index, colIndex: 7 })}
+                                ref={isEditing ? editCellRef : null}
+                              >
+                                {isDropdownMode ? (
+                                  <>
+                                    <div className="flex items-center justify-between gap-1">
+                                      <div className="flex-1 text-center overflow-hidden">
+                                        {saleSource ? (
+                                          <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${sourceColor}`}>{saleSource}</span>
+                                        ) : (
+                                          <span className="text-gray-400">-</span>
+                                        )}
+                                      </div>
+                                      <div className="dropdown-trigger flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                                        <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                    {dropdownPosition && createPortal(
+                                      <div
+                                        className="fixed z-[9999] w-32 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-auto"
+                                        style={{ top: dropdownPosition.top, left: dropdownPosition.left }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {suppliers.map(s => (
+                                          <div
+                                            key={s.id}
+                                            className="px-2 py-1 text-xs cursor-pointer hover:bg-blue-50"
+                                            onClick={() => {
+                                              handleSelectChange(sale.id, 'purchase_source' as keyof BulkSale, s.name)
+                                              setEditingCell(null)
+                                              setDropdownPosition(null)
+                                            }}
+                                          >
+                                            {s.name}
+                                          </div>
+                                        ))}
+                                      </div>,
+                                      document.body
+                                    )}
+                                  </>
+                                ) : isTextMode ? (
+                                  <input
+                                    type="text"
+                                    className="w-full text-xs text-center border-none outline-none bg-transparent"
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onBlur={() => { handleSelectChange(sale.id, 'purchase_source' as keyof BulkSale, editValue); setEditingCell(null) }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { handleSelectChange(sale.id, 'purchase_source' as keyof BulkSale, editValue); setEditingCell(null) } if (e.key === 'Escape') setEditingCell(null) }}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex-1 text-center overflow-hidden">
+                                      {saleSource ? (
+                                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full max-w-full truncate ${sourceColor}`}>{saleSource}</span>
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </div>
+                                    <div
+                                      className="dropdown-trigger flex-shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer hover:bg-gray-200 rounded"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleDropdownClick(e)
+                                      }}
+                                    >
+                                      <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                            )
                           })() : (
                             <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>
                           )}
                           {/* 販売先 */}
-                          {sale ? (() => {
+                          {sale && !isPurchase ? (() => {
                             const isEditing = editingCell?.id === sale.id && editingCell?.field === 'sale_destination' && editingCell?.type === 'sale'
                             const isDropdownMode = isEditing && editingCell?.mode === 'dropdown'
                             const isTextMode = isEditing && editingCell?.mode === 'text'
@@ -1763,33 +1885,35 @@ export default function BulkInventoryPage() {
                             <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>
                           )}
                           {/* 売値 */}
-                          {sale
+                          {sale && !isPurchase
                             ? renderCell('sale_amount', sale.sale_amount ? `¥${sale.sale_amount.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-900', 9)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 手数料 */}
-                          {sale
+                          {sale && !isPurchase
                             ? renderCell('commission', sale.commission ? `¥${sale.commission.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 10)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 送料 */}
-                          {sale
+                          {sale && !isPurchase
                             ? renderCell('shipping_cost', sale.shipping_cost ? `¥${sale.shipping_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 11)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* その他 */}
-                          {sale
+                          {sale && !isPurchase
                             ? renderCell('other_cost', sale.other_cost ? `¥${sale.other_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 12)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 正味仕入額 */}
                           {sale
                             ? renderCell('purchase_price', sale.purchase_price ? `¥${sale.purchase_price.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-red-600', 13)
-                            : isPurchase && purchase
+                            : row.type === 'purchase' && purchase
                               ? renderCell('purchase_price', purchase.purchase_price ? `¥${purchase.purchase_price.toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-red-600', 13)
                               : <td className="px-2 py-1 border-r border-gray-100 text-right text-gray-400">-</td>}
                           {/* 仕入総額 */}
-                          {isPurchase && purchase
+                          {row.type === 'purchase' && purchase
                             ? renderCell('total_amount', `¥${row.purchaseAmount.toLocaleString()}`, 'purchase', 'number', 'text-right text-red-600 font-medium', 14)
-                            : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
+                            : isPurchase && sale
+                              ? <td className="px-2 py-1 border-r border-gray-100 text-right text-red-600 font-medium">¥{((sale.purchase_price || 0) + (sale.other_cost || 0)).toLocaleString()}</td>
+                              : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 入金額 */}
-                          {sale
+                          {sale && !isPurchase
                             ? renderCell('deposit_amount', `¥${depositAmount.toLocaleString()}`, 'sale', 'number', 'text-right text-blue-600', 15)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 利益 */}
@@ -1797,7 +1921,7 @@ export default function BulkInventoryPage() {
                             {row.profit >= 0 ? '+' : ''}¥{row.profit.toLocaleString()}
                           </td>
                           {/* 利益率 */}
-                          {sale && sale.purchase_price ? (
+                          {sale && !isPurchase && sale.purchase_price ? (
                             <td className={`px-2 py-1 border-r border-gray-100 text-right font-bold ${profitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {profitRate >= 0 ? '+' : ''}{profitRate}%
                             </td>
@@ -1806,7 +1930,7 @@ export default function BulkInventoryPage() {
                           )}
                           {/* 削除 */}
                           <td className="px-2 py-1 text-center">
-                            {isPurchase ? (
+                            {row.type === 'purchase' ? (
                               <button
                                 onClick={async () => {
                                   if (!confirm('この仕入れを削除しますか？関連する売上も削除されます。')) return
@@ -1865,20 +1989,24 @@ export default function BulkInventoryPage() {
             {filteredPurchases.map(purchase => {
               const stats = purchaseStats.get(purchase.id) || {
                 soldQuantity: 0,
+                totalQuantity: 0,
                 totalSales: 0,
                 totalCommission: 0,
                 totalShipping: 0,
-                totalDeposit: 0
+                totalDeposit: 0,
+                totalItemPurchase: 0
               }
-              const unitCost = purchase.total_quantity > 0 ? Math.round(purchase.total_amount / purchase.total_quantity) : 0
+              const totalAmount = purchase.total_amount + stats.totalItemPurchase
+              const actualQuantity = Math.max(purchase.total_quantity, stats.totalQuantity)
+              const unitCost = actualQuantity > 0 ? Math.round(totalAmount / actualQuantity) : 0
               const costRecovered = stats.soldQuantity * unitCost
               // 残り金額は仕入額から入金額を引いた値
-              const remainingCost = Math.max(0, purchase.total_amount - stats.totalDeposit)
+              const remainingCost = Math.max(0, totalAmount - stats.totalDeposit)
               // 利益は入金額から回収済みコストを引いた値
-              const netProfit = stats.totalDeposit - Math.min(costRecovered, purchase.total_amount)
-              const remainingQuantity = purchase.total_quantity - stats.soldQuantity
+              const netProfit = stats.totalDeposit - Math.min(costRecovered, totalAmount)
+              const remainingQuantity = actualQuantity - stats.soldQuantity
               // 回収完了は入金額が仕入額を超えたかで判定
-              const isFullyRecovered = stats.totalDeposit >= purchase.total_amount
+              const isFullyRecovered = stats.totalDeposit >= totalAmount
               const isExpanded = expandedId === purchase.id
 
               return (
@@ -1926,11 +2054,11 @@ export default function BulkInventoryPage() {
                   <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 border-b border-gray-100">
                     <div>
                       <div className="text-xs text-gray-500">仕入総額</div>
-                      <div className="text-lg font-semibold text-gray-900">{formatCurrency(purchase.total_amount)}</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatCurrency(totalAmount)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">総数量</div>
-                      <div className="text-lg font-semibold text-gray-900">{purchase.total_quantity}個</div>
+                      <div className="text-lg font-semibold text-gray-900">{actualQuantity}個</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">単価</div>
@@ -2601,7 +2729,7 @@ export default function BulkInventoryPage() {
             onClick={() => setEnlargedImage(null)}
           >
             <img
-              src={enlargedImage}
+              src={`/api/image-proxy?url=${encodeURIComponent(enlargedImage)}`}
               alt=""
               className="max-w-[90vw] max-h-[90vh] object-contain"
             />

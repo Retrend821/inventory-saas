@@ -50,6 +50,7 @@ type InventoryItem = {
   commission: number | null
   shipping_cost: number | null
   other_cost: number | null
+  photography_fee: number | null
   deposit_amount: number | null
   status: string
   purchase_date: string | null
@@ -87,6 +88,7 @@ type BulkSale = {
   image_url: string | null
   purchase_price: number | null
   other_cost: number | null
+  photography_fee: number | null
   deposit_amount: number | null
   listing_date: string | null
 }
@@ -108,6 +110,7 @@ type ManualSale = {
   commission: number | null
   shipping_cost: number | null
   other_cost: number | null
+  photography_fee: number | null
   purchase_total: number | null
   profit: number | null
   profit_rate: number | null
@@ -136,6 +139,7 @@ type SalesSummaryRecord = {
   commission: number
   shipping_cost: number
   other_cost: number
+  photography_fee: number
   purchase_price: number
   purchase_cost: number
   deposit_amount: number | null
@@ -166,6 +170,7 @@ type UnifiedSale = {
   commission: number
   shipping_cost: number
   other_cost: number
+  photography_fee: number
   purchase_price: number
   purchase_cost: number
   deposit_amount: number | null
@@ -256,9 +261,10 @@ export default function AllSalesPage() {
     { key: 'purchase_source', label: '仕入先', width: 'w-24' },
     { key: 'sale_destination', label: '販売先', width: 'w-24' },
     { key: 'sale_price', label: '売値', width: 'w-20' },
-    { key: 'commission', label: '手数料', width: 'w-20' },
+    { key: 'commission', label: '販売手数料', width: 'w-24' },
     { key: 'shipping_cost', label: '送料', width: 'w-16' },
-    { key: 'other_cost', label: 'その他', width: 'w-16' },
+    { key: 'other_cost', label: '修理費', width: 'w-16' },
+    { key: 'photography_fee', label: '撮影手数料', width: 'w-24' },
     { key: 'purchase_price', label: '正味仕入値', width: 'w-24' },
     { key: 'purchase_total', label: '仕入総額', width: 'w-24' },
     { key: 'deposit_amount', label: '入金額', width: 'w-20' },
@@ -426,10 +432,11 @@ export default function AllSalesPage() {
             const commission = item.commission || 0
             const shippingCost = item.shipping_cost || 0
             const otherCost = item.other_cost || 0
-            const depositAmount = item.deposit_amount || 0
-            // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+            const photographyFee = item.photography_fee || 0
+            // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料
+            const depositAmount = item.deposit_amount || (salePrice - commission - shippingCost - photographyFee)
+            // 仕入総額がある場合はそれを使用、なければ原価+修理費（撮影手数料は入金額から引く）
             const purchaseCost = item.purchase_total ?? (purchasePrice + otherCost)
-            // 仕入総額を使うので、other_costは別途引かない
             const profit = depositAmount - purchaseCost
             const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
 
@@ -447,9 +454,10 @@ export default function AllSalesPage() {
               commission,
               shipping_cost: shippingCost,
               other_cost: otherCost,
+              photography_fee: photographyFee,
               purchase_price: purchasePrice,
               purchase_cost: purchaseCost,
-              deposit_amount: item.deposit_amount,
+              deposit_amount: depositAmount,
               profit,
               profit_rate: profitRate,
               purchase_date: item.purchase_date,
@@ -463,8 +471,8 @@ export default function AllSalesPage() {
         }
       })
 
-      // 2. bulk_sales（まとめ売り）の不足分を追加
-      bulkSaleData?.forEach(sale => {
+      // 2. bulk_sales（まとめ売り）の不足分を追加（販売先があるもののみ＝販売確定分）
+      bulkSaleData?.filter(sale => sale.sale_destination).forEach(sale => {
         const key = `bulk:${sale.id}`
         if (!existingKeys.has(key)) {
           const bulkPurchase = bpMap.get(sale.bulk_purchase_id)
@@ -475,7 +483,9 @@ export default function AllSalesPage() {
               : 0
             const purchasePrice = sale.purchase_price ?? unitCost * sale.quantity
             const otherCost = sale.other_cost ?? 0
-            const depositAmount = sale.deposit_amount || 0
+            const photographyFee = sale.photography_fee ?? 0
+            const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+            // 撮影手数料は入金額から引かれるので、利益計算では入金額 - 仕入総額（原価+修理費）
             const profit = depositAmount - purchasePrice - otherCost
             const profitRate = sale.sale_amount > 0 ? Math.round((profit / sale.sale_amount) * 100) : 0
 
@@ -495,7 +505,9 @@ export default function AllSalesPage() {
               commission: sale.commission,
               shipping_cost: sale.shipping_cost,
               other_cost: otherCost,
+              photography_fee: photographyFee,
               purchase_price: purchasePrice,
+              // 仕入総額 = 原価 + 修理費（撮影手数料は入金額から引くので含めない）
               purchase_cost: purchasePrice + otherCost,
               deposit_amount: sale.deposit_amount,
               profit,
@@ -526,10 +538,13 @@ export default function AllSalesPage() {
             const commission = item.commission || 0
             const shippingCost = item.shipping_cost || 0
             const otherCost = item.other_cost || 0
-            // manual_salesでは仕入総額（purchase_total）を使用（すでにother_costを含む）
+            const photographyFee = item.photography_fee || 0
+            // manual_salesでは仕入総額（purchase_total）を使用
             const purchaseCost = item.purchase_total || 0
-            // 仕入総額を使うので、other_costは別途引かない
-            const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost)
+            // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料（修理費は仕入側コストなので含めない）
+            const depositAmount = salePrice - commission - shippingCost - photographyFee
+            // 利益 = 入金額 - 仕入総額
+            const profit = item.profit ?? (depositAmount - purchaseCost)
             const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
 
             newRecords.push({
@@ -546,9 +561,10 @@ export default function AllSalesPage() {
               commission,
               shipping_cost: shippingCost,
               other_cost: otherCost,
+              photography_fee: photographyFee,
               purchase_price: purchaseCost,
               purchase_cost: purchaseCost,
-              deposit_amount: salePrice - commission - shippingCost - otherCost,
+              deposit_amount: depositAmount,
               profit,
               profit_rate: profitRate,
               purchase_date: item.purchase_date,
@@ -648,6 +664,7 @@ export default function AllSalesPage() {
         commission: record.commission,
         shipping_cost: record.shipping_cost,
         other_cost: record.other_cost,
+        photography_fee: record.photography_fee,
         purchase_price: record.purchase_price,
         purchase_cost: record.purchase_cost,
         deposit_amount: record.deposit_amount,
@@ -665,7 +682,7 @@ export default function AllSalesPage() {
 
   // 編集可能な列の定義
   const editableColumns = ['product_name', 'brand_name', 'category', 'purchase_source', 'sale_destination',
-    'sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'deposit_amount',
+    'sale_price', 'commission', 'shipping_cost', 'other_cost', 'photography_fee', 'purchase_price', 'deposit_amount',
     'purchase_date', 'listing_date', 'sale_date', 'memo']
 
   // セル編集開始
@@ -690,7 +707,7 @@ export default function AllSalesPage() {
     let newValue: string | number | null = editValue.trim()
 
     // 数値フィールドの処理
-    const numericFields = ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'deposit_amount']
+    const numericFields = ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'photography_fee', 'purchase_price', 'deposit_amount']
     if (numericFields.includes(field)) {
       if (newValue === '') {
         newValue = 0
@@ -1532,10 +1549,11 @@ export default function AllSalesPage() {
         // 仕入日が月末以前のもののみ
         if (!bp.purchase_date || normalizeDate(bp.purchase_date) > endDate) return
 
-        // このまとめ仕入れの売上数量を計算（月末以前に売れた分）
+        // このまとめ仕入れの売上数量を計算（月末以前に売れた分、販売先があるもののみ）
         const soldQuantity = bulkSales
           .filter(sale =>
             sale.bulk_purchase_id === bp.id &&
+            sale.sale_destination &&
             sale.sale_date &&
             normalizeDate(sale.sale_date) <= endDate
           )
@@ -2193,6 +2211,8 @@ export default function AllSalesPage() {
                             return renderEditableCell(sale, 'shipping_cost', sale.shipping_cost, formatCurrency(sale.shipping_cost), `px-2 py-2 text-right tabular-nums text-xs ${isExternalShipping(sale.shipping_cost) ? 'text-blue-600 font-semibold' : 'text-gray-700'}`, rowIdx, cellClass)
                           case 'other_cost':
                             return renderEditableCell(sale, 'other_cost', sale.other_cost, formatCurrency(sale.other_cost), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
+                          case 'photography_fee':
+                            return renderEditableCell(sale, 'photography_fee', sale.photography_fee, formatCurrency(sale.photography_fee), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'purchase_price':
                             return renderEditableCell(sale, 'purchase_price', sale.purchase_price, formatCurrency(sale.purchase_price), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'purchase_total':

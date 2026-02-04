@@ -22,6 +22,7 @@ type InventoryItem = {
   commission: number | null
   shipping_cost: number | null
   other_cost: number | null
+  photography_fee: number | null
   deposit_amount: number | null
   status: string
   purchase_date: string | null
@@ -43,7 +44,8 @@ type YahooAuctionCSV = {
   'オークション画像URL': string
   '商品名': string
   '落札価格': string
-  '終了日時': string
+  '終了日時'?: string
+  '仕入日'?: string
   '出品者ID': string
   '最新のメッセージ': string
 }
@@ -589,9 +591,10 @@ export default function Home() {
     { key: 'purchase_source', label: '仕入先', draggable: true, width: 'w-[140px]' },
     { key: 'sale_destination', label: '販売先', draggable: true, width: 'w-[140px]' },
     { key: 'sale_price', label: '売値', draggable: true, width: 'w-20' },
-    { key: 'commission', label: '手数料', draggable: true, width: 'w-16' },
+    { key: 'commission', label: '販売手数料', draggable: true, width: 'w-20' },
     { key: 'shipping_cost', label: '送料', draggable: true, width: 'w-16' },
-    { key: 'other_cost', label: 'その他', draggable: true, width: 'w-16' },
+    { key: 'other_cost', label: '修理費', draggable: true, width: 'w-16' },
+    { key: 'photography_fee', label: '撮影手数料', draggable: true, width: 'w-20' },
     { key: 'purchase_price', label: '原価', draggable: true, width: 'w-20' },
     { key: 'purchase_total', label: '仕入\n総額', draggable: true, width: 'w-20' },
     { key: 'deposit_amount', label: '入金額', draggable: true, width: 'w-20' },
@@ -621,7 +624,7 @@ export default function Home() {
   const [draggedCol, setDraggedCol] = useState<number | null>(null)
 
   // 全列に区切り線を入れる
-  const groupEndColumns = new Set(['checkbox', 'index', 'inventory_number', 'refund_status', 'image', 'category', 'brand_name', 'product_name', 'purchase_source', 'sale_destination', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'purchase_date', 'listing_date', 'sale_date', 'turnover_days'])
+  const groupEndColumns = new Set(['checkbox', 'index', 'inventory_number', 'refund_status', 'image', 'category', 'brand_name', 'product_name', 'purchase_source', 'sale_destination', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'photography_fee', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'purchase_date', 'listing_date', 'sale_date', 'turnover_days'])
 
   // 非表示列をlocalStorageに保存
   useEffect(() => {
@@ -932,6 +935,30 @@ export default function Home() {
         updateData.other_cost = null
         updateData.sale_price = null
       }
+
+      // 販売先がエコオクまたは多くネットに設定された場合、撮影手数料を自動追加
+      if (field === 'sale_destination' && (value === 'エコオク' || value === 'オークネット')) {
+        const autoFee = value === 'エコオク' ? 440 : 330
+        const currentPhotographyFee = currentItem.photography_fee || 0
+        // 既に撮影手数料が設定されていない場合のみ追加
+        if (currentPhotographyFee === 0) {
+          updateData.photography_fee = autoFee
+          // 撮影手数料は販売手数料と同じ扱い（入金額から引く）
+          // 入金額を再計算: 売値 - 販売手数料 - 送料 - 撮影手数料
+          const salePrice = currentItem.sale_price || 0
+          const commission = updateData.commission !== undefined ? (updateData.commission as number || 0) : (currentItem.commission || 0)
+          const shippingCost = currentItem.shipping_cost || 0
+          const newDepositAmount = salePrice - commission - shippingCost - autoFee
+          updateData.deposit_amount = newDepositAmount
+          // 利益も再計算
+          const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
+          const newProfit = newDepositAmount - purchaseTotal
+          updateData.profit = newProfit
+          if (salePrice > 0) {
+            updateData.profit_rate = Math.round((newProfit / salePrice) * 100)
+          }
+        }
+      }
     }
 
     // 販売先または売却日が入力されたらステータスを売却済みに自動変更
@@ -948,32 +975,69 @@ export default function Home() {
       }
     }
 
-    // 入金額を自動計算: 売値 - 手数料 - 送料（販売先から実際に入金される金額）
-    const autoCalcFields = ['sale_price', 'sale_destination', 'commission', 'shipping_cost']
+    // 入金額を自動計算: 売値 - 販売手数料 - 送料 - 撮影手数料（販売先から実際に入金される金額）
+    const autoCalcFields = ['sale_price', 'sale_destination', 'commission', 'shipping_cost', 'photography_fee']
     if (autoCalcFields.includes(field)) {
       const salePrice = getUpdatedValue('sale_price') as number | null
       const commission = updateData.commission !== undefined
         ? updateData.commission as number | null
         : currentItem.commission
       const shippingCost = getUpdatedValue('shipping_cost') as number | null
+      const photographyFee = updateData.photography_fee !== undefined
+        ? updateData.photography_fee as number | null
+        : currentItem.photography_fee
 
       if (salePrice !== null && salePrice !== 0) {
-        updateData.deposit_amount = salePrice - (commission || 0) - (shippingCost || 0)
+        updateData.deposit_amount = salePrice - (commission || 0) - (shippingCost || 0) - (photographyFee || 0)
       } else {
         // 売値が0またはnullの場合、入金額もリセット
         updateData.deposit_amount = null
       }
     }
 
-    // その他費用または原価が変更された場合、仕入総額を自動更新
+    // 修理費・原価が変更された場合、仕入総額を差分で更新
     if (field === 'other_cost' || field === 'purchase_price') {
-      const newPurchasePrice = field === 'purchase_price' ? (value as number || 0) : (currentItem.purchase_price || 0)
-      const newOtherCost = field === 'other_cost' ? (value as number || 0) : (currentItem.other_cost || 0)
-      const newPurchaseTotal = newPurchasePrice + newOtherCost
+      const oldPurchasePrice = currentItem.purchase_price || 0
+      const oldOtherCost = currentItem.other_cost || 0
+      const newPurchasePrice = field === 'purchase_price' ? (value as number || 0) : oldPurchasePrice
+      const newOtherCost = field === 'other_cost' ? (value as number || 0) : oldOtherCost
+
+      // 差分を計算して仕入総額に反映
+      const priceDiff = newPurchasePrice - oldPurchasePrice
+      const otherCostDiff = newOtherCost - oldOtherCost
+      const currentPurchaseTotal = currentItem.purchase_total || (oldPurchasePrice + oldOtherCost)
+      const newPurchaseTotal = currentPurchaseTotal + priceDiff + otherCostDiff
       updateData.purchase_total = newPurchaseTotal
+
+      // 利益も再計算（入金額 - 仕入総額）
+      const depositAmount = updateData.deposit_amount !== undefined
+        ? updateData.deposit_amount as number | null
+        : currentItem.deposit_amount
+      if (depositAmount !== null) {
+        const newProfit = depositAmount - newPurchaseTotal
+        updateData.profit = newProfit
+        // 利益率も更新
+        if (currentItem.sale_price && currentItem.sale_price > 0) {
+          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
+        }
+      }
+
       // メモも更新
       if (currentItem.inventory_number) {
         updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal}`
+      }
+    }
+
+    // 撮影手数料が変更された場合、利益を再計算（入金額から引く）
+    if (field === 'photography_fee') {
+      const depositAmount = updateData.deposit_amount as number | null
+      const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0) + (currentItem.other_cost || 0)
+      if (depositAmount !== null) {
+        const newProfit = depositAmount - purchaseTotal
+        updateData.profit = newProfit
+        if (currentItem.sale_price && currentItem.sale_price > 0) {
+          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
+        }
       }
     }
 
@@ -1011,14 +1075,22 @@ export default function Home() {
         .order('purchase_date', { ascending: false })
 
       if (bulkPurchases && bulkPurchases.length > 0) {
+        // ジャンルごとにまとめる（日付降順なので最初に出てくるのが最新）
+        const genreMap = new Map<string, typeof bulkPurchases[0]>()
+        for (const p of bulkPurchases) {
+          if (!genreMap.has(p.genre)) {
+            genreMap.set(p.genre, p)
+          }
+        }
+        const uniqueGenres = Array.from(genreMap.entries())
         // 確認ダイアログ
-        const purchaseOptions = bulkPurchases.map((p, i) => `${i + 1}. ${p.genre} (${p.purchase_date})`).join('\n')
+        const purchaseOptions = uniqueGenres.map(([genre], i) => `${i + 1}. ${genre}`).join('\n')
         const selectedIndex = prompt(`「まとめ」が含まれています。まとめ在庫に移動しますか？\n移動先の番号を入力してください（キャンセルで移動しない）:\n\n${purchaseOptions}`)
 
         if (selectedIndex !== null && selectedIndex !== '') {
           const idx = parseInt(selectedIndex) - 1
-          if (idx >= 0 && idx < bulkPurchases.length) {
-            const selectedPurchase = bulkPurchases[idx]
+          if (idx >= 0 && idx < uniqueGenres.length) {
+            const selectedPurchase = uniqueGenres[idx][1]
 
             // bulk_salesに追加
             const { error: insertError } = await supabase
@@ -1027,6 +1099,7 @@ export default function Home() {
                 bulk_purchase_id: selectedPurchase.id,
                 sale_date: currentItem.sale_date || new Date().toISOString().split('T')[0],
                 sale_destination: currentItem.sale_destination || null,
+                purchase_source: currentItem.purchase_source || null,
                 quantity: 1,
                 sale_amount: currentItem.sale_price || 0,
                 commission: currentItem.commission || 0,
@@ -1051,6 +1124,9 @@ export default function Home() {
               setEditValue('')
               alert('まとめ在庫に移動しました')
               return
+            } else {
+              console.error('bulk_sales insert error:', insertError)
+              alert('まとめ在庫への移動に失敗しました: ' + insertError.message)
             }
           }
         }
@@ -1132,6 +1208,11 @@ export default function Home() {
   }, [editingCell, saveEditingCell, openDateFilter, selectedCell])
 
   const parseYahooDate = (dateStr: string): string | null => {
+    // "2026-02-03" or "2026/02/03" -> "2026-02-03"
+    const isoMatch = dateStr.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`
+    }
     // "11月24日 23時36分" -> "2024-11-24"
     const match = dateStr.match(/(\d+)月(\d+)日/)
     if (match) {
@@ -1171,6 +1252,14 @@ export default function Home() {
           const hasRakusatsuPrice = '落札金額' in firstRow || cleanHeaders.includes('落札金額')
           if (firstRow && hasKanriNo && hasRakusatsuPrice) {
             resolve('starbuyers')
+            return
+          }
+
+          // ヤフオクCSV（BOM付きUTF-8）のチェック
+          const hasProductName = '商品名' in firstRow || cleanHeaders.includes('商品名')
+          const hasAuctionImageUrl = 'オークション画像URL' in firstRow || cleanHeaders.includes('オークション画像URL')
+          if (firstRow && hasProductName && hasAuctionImageUrl) {
+            resolve('yahoo')
             return
           }
 
@@ -2334,7 +2423,7 @@ export default function Home() {
                 image_url: row['オークション画像URL'] || null,
                 purchase_price: netPrice,
                 purchase_total: totalPrice,
-                purchase_date: row['終了日時'] ? parseYahooDate(row['終了日時']) : null,
+                purchase_date: (row['仕入日'] || row['終了日時']) ? parseYahooDate(row['仕入日'] || row['終了日時']) : null,
                 purchase_source: 'ヤフオク',
                 status: '在庫あり',
               }
@@ -2899,8 +2988,16 @@ export default function Home() {
 
         if (bulkPurchases && bulkPurchases.length > 0) {
           console.log('Showing prompt dialog...')
+          // ジャンルごとにまとめる（日付降順なので最初に出てくるのが最新）
+          const genreMap = new Map<string, typeof bulkPurchases[0]>()
+          for (const p of bulkPurchases) {
+            if (!genreMap.has(p.genre)) {
+              genreMap.set(p.genre, p)
+            }
+          }
+          const uniqueGenres = Array.from(genreMap.entries())
           // 確認ダイアログ
-          const purchaseOptions = bulkPurchases.map((p: { genre: string; purchase_date: string }, i: number) => `${i + 1}. ${p.genre} (${p.purchase_date})`).join('\n')
+          const purchaseOptions = uniqueGenres.map(([genre]: [string, unknown], i: number) => `${i + 1}. ${genre}`).join('\n')
           const selectedIndex = prompt(`「まとめ」が含まれています。まとめ在庫に移動しますか？\n移動先の番号を入力してください（キャンセルで移動しない）:\n\n${purchaseOptions}\n\n0. 新規まとめ仕入れを作成`)
 
           if (selectedIndex === null || selectedIndex === '') {
@@ -2946,8 +3043,8 @@ export default function Home() {
             }
           } else {
             const idx = parseInt(selectedIndex) - 1
-            if (idx >= 0 && idx < bulkPurchases.length) {
-              selectedPurchaseId = bulkPurchases[idx].id
+            if (idx >= 0 && idx < uniqueGenres.length) {
+              selectedPurchaseId = uniqueGenres[idx][1].id
             }
           }
         } else {
@@ -3005,6 +3102,7 @@ export default function Home() {
               bulk_purchase_id: selectedPurchaseId,
               sale_date: currentItem.sale_date || new Date().toISOString().split('T')[0],
               sale_destination: currentItem.sale_destination || null,
+              purchase_source: currentItem.purchase_source || null,
               quantity: 1,
               sale_amount: currentItem.sale_price || 0,
               commission: currentItem.commission || 0,
@@ -3028,6 +3126,9 @@ export default function Home() {
             setModalEdit(null)
             alert('まとめ在庫に移動しました')
             return
+          } else {
+            console.error('bulk_sales insert error:', insertError)
+            alert('まとめ在庫への移動に失敗しました: ' + insertError.message)
           }
         }
       }
@@ -3539,7 +3640,7 @@ export default function Home() {
     // 売上日がある場合のみ計算（売却確定時）、返品は除外
     if (!item.sale_date || item.sale_date === '返品') return null
     // 入金額がある場合のみ計算
-    // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
+    // 仕入総額がある場合はそれを使用、なければ原価+修理費（撮影手数料は入金額から引かれる）
     const purchaseTotal = item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))
     return item.deposit_amount !== null
       ? Number(item.deposit_amount) - purchaseTotal
@@ -4745,10 +4846,10 @@ export default function Home() {
         // 10%
         return Math.round(price * 0.1)
       case 'オークネット':
-        // 3% + 330円（最低770円+330円=1,100円）
+        // 3%（最低770円）※撮影手数料330円は別計上
         const base = price * 0.03
-        if (base >= 700) return Math.round(base + 330)
-        return Math.round(770 + 330) // 最低1,100円
+        if (base >= 770) return Math.round(base)
+        return 770 // 最低770円
       case 'エコトレ':
         // 10%
         return Math.round(price * 0.1)
@@ -4763,8 +4864,8 @@ export default function Home() {
     }
   }
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return '-'
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === null || price === undefined) return '-'
     return `¥${price.toLocaleString()}`
   }
 
@@ -5310,9 +5411,10 @@ export default function Home() {
                                     setDropdownPosition(null)
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
+                                    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 200))
                                     setDropdownPosition({
                                       top: rect.bottom + 4,
-                                      right: window.innerWidth - rect.right
+                                      left
                                     })
                                     setOpenDateFilter(col.key)
                                   }
@@ -5331,9 +5433,10 @@ export default function Home() {
                                     setDropdownPosition(null)
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
+                                    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 150))
                                     setDropdownPosition({
                                       top: rect.bottom + 4,
-                                      right: window.innerWidth - rect.right
+                                      left
                                     })
                                     setOpenDateFilter('turnover_days')
                                   }
@@ -5353,9 +5456,10 @@ export default function Home() {
                                     setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
+                                    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 240))
                                     setDropdownPosition({
                                       top: rect.bottom + 4,
-                                      right: window.innerWidth - rect.right
+                                      left
                                     })
                                     setOpenDateFilter('brand_filter')
                                     setDropdownSearchQuery('')
@@ -5376,9 +5480,10 @@ export default function Home() {
                                     setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
+                                    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 200))
                                     setDropdownPosition({
                                       top: rect.bottom + 4,
-                                      right: window.innerWidth - rect.right
+                                      left
                                     })
                                     setOpenDateFilter('category_filter')
                                     setDropdownSearchQuery('')
@@ -5399,9 +5504,10 @@ export default function Home() {
                                     setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
+                                    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 200))
                                     setDropdownPosition({
                                       top: rect.bottom + 4,
-                                      right: window.innerWidth - rect.right
+                                      left
                                     })
                                     setOpenDateFilter('purchase_source_filter')
                                     setDropdownSearchQuery('')
@@ -5422,9 +5528,10 @@ export default function Home() {
                                     setDropdownSearchQuery('')
                                   } else {
                                     const rect = e.currentTarget.getBoundingClientRect()
+                                    const left = Math.max(8, Math.min(rect.left, window.innerWidth - 200))
                                     setDropdownPosition({
                                       top: rect.bottom + 4,
-                                      right: window.innerWidth - rect.right
+                                      left
                                     })
                                     setOpenDateFilter('sale_destination_filter')
                                     setDropdownSearchQuery('')
@@ -5437,12 +5544,12 @@ export default function Home() {
                             )}
                           </span>
                           {/* 回転日数フィルタードロップダウン */}
-                          {isTurnoverDays && openDateFilter === 'turnover_days' && dropdownPosition && (
+                          {isTurnoverDays && openDateFilter === 'turnover_days' && dropdownPosition && createPortal(
                             <div
                               className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-[9999] min-w-[100px]"
                               style={{
                                 top: dropdownPosition.top,
-                                right: dropdownPosition.right,
+                                left: dropdownPosition.left,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -5478,15 +5585,15 @@ export default function Home() {
                                   <span className="text-xs text-gray-700">90日以上</span>
                                 </label>
                               </div>
-                            </div>
-                          )}
+                            </div>,
+                          document.body)}
                           {/* ブランドフィルタードロップダウン */}
-                          {isBrandColumn && openDateFilter === 'brand_filter' && dropdownPosition && (
+                          {isBrandColumn && openDateFilter === 'brand_filter' && dropdownPosition && createPortal(
                             <div
                               className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-56 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
-                                right: dropdownPosition.right,
+                                left: dropdownPosition.left,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -5544,15 +5651,15 @@ export default function Home() {
                                   </p>
                                 )}
                               </div>
-                            </div>
-                          )}
+                            </div>,
+                          document.body)}
                           {/* カテゴリフィルタードロップダウン */}
-                          {isCategoryColumn && openDateFilter === 'category_filter' && dropdownPosition && (
+                          {isCategoryColumn && openDateFilter === 'category_filter' && dropdownPosition && createPortal(
                             <div
                               className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
-                                right: dropdownPosition.right,
+                                left: dropdownPosition.left,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -5610,15 +5717,15 @@ export default function Home() {
                                   </p>
                                 )}
                               </div>
-                            </div>
-                          )}
+                            </div>,
+                          document.body)}
                           {/* 仕入先フィルタードロップダウン */}
-                          {isPurchaseSourceColumn && openDateFilter === 'purchase_source_filter' && dropdownPosition && (
+                          {isPurchaseSourceColumn && openDateFilter === 'purchase_source_filter' && dropdownPosition && createPortal(
                             <div
                               className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
-                                right: dropdownPosition.right,
+                                left: dropdownPosition.left,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -5676,15 +5783,15 @@ export default function Home() {
                                   </p>
                                 )}
                               </div>
-                            </div>
-                          )}
+                            </div>,
+                          document.body)}
                           {/* 販売先フィルタードロップダウン */}
-                          {isSaleDestinationColumn && openDateFilter === 'sale_destination_filter' && dropdownPosition && (
+                          {isSaleDestinationColumn && openDateFilter === 'sale_destination_filter' && dropdownPosition && createPortal(
                             <div
                               className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-[9999] w-48 max-h-80 overflow-hidden flex flex-col"
                               style={{
                                 top: dropdownPosition.top,
-                                right: dropdownPosition.right,
+                                left: dropdownPosition.left,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -5742,15 +5849,15 @@ export default function Home() {
                                   </p>
                                 )}
                               </div>
-                            </div>
-                          )}
+                            </div>,
+                          document.body)}
                           {/* 日付フィルタードロップダウン */}
-                          {isDateColumn && openDateFilter === col.key && dropdownPosition && (
+                          {isDateColumn && openDateFilter === col.key && dropdownPosition && createPortal(
                             <div
                               className="date-filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-[9999] min-w-[120px]"
                               style={{
                                 top: dropdownPosition.top,
-                                right: dropdownPosition.right,
+                                left: dropdownPosition.left,
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -5832,8 +5939,8 @@ export default function Home() {
                                   </label>
                                 </div>
                               </div>
-                            </div>
-                          )}
+                            </div>,
+                          document.body)}
                         </th>
                       )
                     })}
@@ -5928,7 +6035,7 @@ export default function Home() {
                                         const newCommission = calculateCommission(item.sale_destination, item.sale_price, val)
                                         updateData.commission = newCommission
                                         if (item.sale_price !== null) {
-                                          updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0)
+                                          updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0) - (item.photography_fee || 0)
                                         }
                                       }
                                       // セッション中に編集されたアイテムとして記録（フィルタから除外されない）
@@ -5952,7 +6059,7 @@ export default function Home() {
                                         const newCommission = calculateCommission(item.sale_destination, item.sale_price, val)
                                         updateData.commission = newCommission
                                         if (item.sale_price !== null) {
-                                          updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0)
+                                          updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0) - (item.photography_fee || 0)
                                         }
                                       } else if (!val) {
                                         updateData.status = '在庫あり'
@@ -5988,7 +6095,7 @@ export default function Home() {
                                       const newCommission = calculateCommission(item.sale_destination, item.sale_price, val)
                                       updateData.commission = newCommission
                                       if (item.sale_price !== null) {
-                                        updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0)
+                                        updateData.deposit_amount = item.sale_price - (newCommission || 0) - (item.shipping_cost || 0) - (item.photography_fee || 0)
                                       }
                                     } else if (!val) {
                                       updateData.status = '在庫あり'
@@ -6668,7 +6775,25 @@ export default function Home() {
                                                   if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value, listing_date: null, sale_date: null } : inv))
                                                 } else {
                                                   const { error } = await supabase.from('inventory').update({ sale_destination: value }).eq('id', item.id)
-                                                  if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value } : inv))
+                                                  if (!error) {
+                                                    setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: value } : inv))
+                                                    if (value === 'オークネット' || value === 'エコオク') {
+                                                      const fee = value === 'オークネット' ? 330 : 440
+                                                      const feeUpdate: Record<string, number> = { photography_fee: fee }
+                                                      if (item.sale_price) {
+                                                        feeUpdate.deposit_amount = item.sale_price - (item.commission || 0) - (item.shipping_cost || 0) - fee
+                                                      }
+                                                      await supabase.from('inventory').update(feeUpdate).eq('id', item.id)
+                                                      setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...feeUpdate } : inv))
+                                                    } else if (item.photography_fee) {
+                                                      const clearFee: Record<string, number | null> = { photography_fee: null }
+                                                      if (item.sale_price) {
+                                                        clearFee.deposit_amount = item.sale_price - (item.commission || 0) - (item.shipping_cost || 0)
+                                                      }
+                                                      await supabase.from('inventory').update(clearFee).eq('id', item.id)
+                                                      setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...clearFee } : inv))
+                                                    }
+                                                  }
                                                 }
                                               }
                                             }
@@ -6741,8 +6866,38 @@ export default function Home() {
                                                   if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option, listing_date: null, sale_date: null } : inv))
                                                 } else {
                                                   const { error } = await supabase.from('inventory').update({ sale_destination: option }).eq('id', item.id)
-                                                  if (!error) setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option } : inv))
+                                                  if (!error) {
+                                                    setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, sale_destination: option } : inv))
+                                                    // オークネット→330円、エコオク→440円の撮影手数料を自動設定、それ以外はクリア
+                                                    if (option === 'オークネット' || option === 'エコオク') {
+                                                      const fee = option === 'オークネット' ? 330 : 440
+                                                      const feeUpdate: Record<string, number> = { photography_fee: fee }
+                                                      if (item.sale_price) {
+                                                        feeUpdate.deposit_amount = item.sale_price - (item.commission || 0) - (item.shipping_cost || 0) - fee
+                                                      }
+                                                      await supabase.from('inventory').update(feeUpdate).eq('id', item.id)
+                                                      setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...feeUpdate } : inv))
+                                                    } else if (item.photography_fee) {
+                                                      const clearFee: Record<string, number | null> = { photography_fee: null }
+                                                      if (item.sale_price) {
+                                                        clearFee.deposit_amount = item.sale_price - (item.commission || 0) - (item.shipping_cost || 0)
+                                                      }
+                                                      await supabase.from('inventory').update(clearFee).eq('id', item.id)
+                                                      setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...clearFee } : inv))
+                                                    }
+                                                  }
                                                 }
+                                              }
+                                            } else {
+                                              // 同じ販売先を再選択した場合も撮影手数料を更新
+                                              if (option === 'オークネット' || option === 'エコオク') {
+                                                const fee = option === 'オークネット' ? 330 : 440
+                                                const feeUpdate: Record<string, number> = { photography_fee: fee }
+                                                if (item.sale_price) {
+                                                  feeUpdate.deposit_amount = item.sale_price - (item.commission || 0) - (item.shipping_cost || 0) - fee
+                                                }
+                                                await supabase.from('inventory').update(feeUpdate).eq('id', item.id)
+                                                setInventory(prev => prev.map(inv => inv.id === item.id ? { ...inv, ...feeUpdate } : inv))
                                               }
                                             }
                                             setEditingCell(null)
@@ -6793,6 +6948,8 @@ export default function Home() {
                           return renderCell('shipping_cost', <span className="text-sm text-gray-900">{formatPrice(item.shipping_cost)}</span>, 'number', undefined, colIndex)
                         case 'other_cost':
                           return renderCell('other_cost', <span className="text-sm text-gray-900">{formatPrice(item.other_cost)}</span>, 'number', undefined, colIndex)
+                        case 'photography_fee':
+                          return renderCell('photography_fee', <span className="text-sm text-gray-900">{formatPrice(item.photography_fee)}</span>, 'number', undefined, colIndex)
                         case 'deposit_amount':
                           return renderCell('deposit_amount', <span className="text-sm text-gray-900">{formatPrice(item.deposit_amount)}</span>, 'number', undefined, colIndex)
                         case 'profit':

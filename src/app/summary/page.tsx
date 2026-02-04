@@ -69,8 +69,11 @@ type BulkSale = {
   id: string
   bulk_purchase_id: string
   sale_date: string
+  sale_destination: string | null
   quantity: number
   sale_amount: number | null
+  commission: number | null
+  shipping_cost: number | null
   deposit_amount: number | null
   purchase_price: number | null
   other_cost: number | null
@@ -294,7 +297,7 @@ export default function SummaryPage() {
       // bulk_salesを取得
       const { data: bulkSaleData, error: bulkSaleError } = await supabase
         .from('bulk_sales')
-        .select('id, bulk_purchase_id, sale_date, quantity, sale_amount, deposit_amount, purchase_price, other_cost, product_name')
+        .select('id, bulk_purchase_id, sale_date, sale_destination, quantity, sale_amount, commission, shipping_cost, deposit_amount, purchase_price, other_cost, product_name')
 
       if (bulkSaleError) {
         console.error('Error fetching bulk_sales:', bulkSaleError)
@@ -404,6 +407,7 @@ export default function SummaryPage() {
       const soldQuantity = bulkSales
         .filter(sale =>
           sale.bulk_purchase_id === bp.id &&
+          sale.sale_destination &&
           sale.sale_date &&
           normalizeDate(sale.sale_date) <= endDate
         )
@@ -463,8 +467,9 @@ export default function SummaryPage() {
         : normalized === yearMonth
     })
 
-    // まとめ売上の売却日が選択年月のアイテム
+    // まとめ売上の売却日が選択年月のアイテム（販売先があるもののみ＝販売確定分）
     const bulkSoldItems = bulkSales.filter(item => {
+      if (!item.sale_destination) return false
       if (!isValidDate(item.sale_date)) return false
       const normalized = normalizeYearMonth(item.sale_date!)
       return isYearly
@@ -555,7 +560,7 @@ export default function SummaryPage() {
       const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
       const purchasePrice = item.purchase_price ?? unitCost * item.quantity
       const otherCost = item.other_cost ?? 0
-      const depositAmount = item.deposit_amount || 0
+      const depositAmount = item.deposit_amount ?? ((item.sale_amount || 0) - (item.commission || 0) - (item.shipping_cost || 0))
       return sum + (depositAmount - purchasePrice - otherCost)
     }, 0)
     const totalProfit = invProfit + manualProfit + bulkProfit
@@ -640,8 +645,9 @@ export default function SummaryPage() {
         : normalized === yearMonth
     })
 
-    // まとめ売上の売却日が選択年月のアイテム
+    // まとめ売上の売却日が選択年月のアイテム（販売先があるもののみ＝販売確定分）
     const bulkSoldItems = bulkSales.filter(item => {
+      if (!item.sale_destination) return false
       if (!isValidDate(item.sale_date)) return false
       const normalized = normalizeYearMonth(item.sale_date!)
       return isYearly
@@ -716,13 +722,15 @@ export default function SummaryPage() {
       + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
       + bulkSoldPurchase
 
-    // 手数料の合計（単品 + 手入力）
+    // 手数料の合計（単品 + 手入力 + まとめ売上）
     const totalCommission = soldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
+      + bulkSoldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
 
-    // 送料の合計（単品 + 手入力）
+    // 送料の合計（単品 + 手入力 + まとめ売上）
     const totalShipping = soldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
       + manualSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
+      + bulkSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
 
     // 販売利益（ダッシュボードと同じ計算式）
     const invProfit = soldItems.reduce((sum, item) => {
@@ -740,7 +748,7 @@ export default function SummaryPage() {
       const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
       const purchasePrice = item.purchase_price ?? unitCost * item.quantity
       const otherCost = item.other_cost ?? 0
-      const depositAmount = item.deposit_amount || 0
+      const depositAmount = item.deposit_amount ?? ((item.sale_amount || 0) - (item.commission || 0) - (item.shipping_cost || 0))
       return sum + (depositAmount - purchasePrice - otherCost)
     }, 0)
     const totalProfit = invProfit + manualProfit + bulkProfit
@@ -884,10 +892,11 @@ export default function SummaryPage() {
         // 仕入日が月末以前のもののみ
         if (!bp.purchase_date || normalizeDate(bp.purchase_date) > endDate) return
 
-        // このまとめ仕入れの売上数量を計算（月末以前に売れた分）
+        // このまとめ仕入れの売上数量を計算（月末以前に売れた分、販売先があるもののみ）
         const soldQuantity = bulkSales
           .filter(sale =>
             sale.bulk_purchase_id === bp.id &&
+            sale.sale_destination &&
             sale.sale_date &&
             normalizeDate(sale.sale_date) <= endDate
           )
@@ -939,8 +948,9 @@ export default function SummaryPage() {
         return normalizeYearMonth(item.sale_date!) === yearMonth
       })
 
-      // まとめ売上の当月販売
+      // まとめ売上の当月販売（販売先があるもののみ＝販売確定分）
       const bulkSoldItems = bulkSales.filter(item => {
+        if (!item.sale_destination) return false
         if (!isValidDate(item.sale_date)) return false
         return normalizeYearMonth(item.sale_date!) === yearMonth
       })
@@ -1024,11 +1034,13 @@ export default function SummaryPage() {
         + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
         + bulkSoldPurchase
 
-      // 手数料・送料（単品 + 手入力）
+      // 手数料・送料（単品 + 手入力 + まとめ売上）
       const totalCommission = soldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
         + manualSoldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
+        + bulkSoldItems.reduce((sum, item) => sum + (item.commission || 0), 0)
       const totalShipping = soldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
         + manualSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
+        + bulkSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
 
       // 販売利益（ダッシュボードと同じ計算式）
       const invProfit = soldItems.reduce((sum, item) => {
@@ -1046,7 +1058,7 @@ export default function SummaryPage() {
         const unitCost = bp && bp.total_quantity > 0 ? Math.round(bp.total_amount / bp.total_quantity) : 0
         const purchasePrice = item.purchase_price ?? unitCost * item.quantity
         const otherCost = item.other_cost ?? 0
-        const depositAmount = item.deposit_amount || 0
+        const depositAmount = item.deposit_amount ?? ((item.sale_amount || 0) - (item.commission || 0) - (item.shipping_cost || 0))
         return sum + (depositAmount - purchasePrice - otherCost)
       }, 0)
       const totalProfit = invProfit + manualProfit + bulkProfit

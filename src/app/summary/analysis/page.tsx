@@ -1293,7 +1293,7 @@ export default function SalesAnalysisPage() {
                     <XAxis dataKey="month" tickFormatter={(value) => `${value}月`} />
                     <YAxis tickFormatter={(value) => `¥${(value / 10000).toFixed(0)}万`} />
                     <Tooltip
-                      formatter={(value: number) => `¥${value.toLocaleString()}`}
+                      formatter={(value) => `¥${(value as number).toLocaleString()}`}
                       labelFormatter={(label) => `${label}月`}
                     />
                     <Legend />
@@ -1333,7 +1333,7 @@ export default function SalesAnalysisPage() {
                                   <Cell key={`cell-${index}`} fill={['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8]} />
                                 ))}
                               </Pie>
-                              <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                              <Tooltip formatter={(value) => `¥${(value as number).toLocaleString()}`} />
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
@@ -1390,7 +1390,7 @@ export default function SalesAnalysisPage() {
                                   <Cell key={`cell-${index}`} fill={['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][index % 8]} />
                                 ))}
                               </Pie>
-                              <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
+                              <Tooltip formatter={(value) => `¥${(value as number).toLocaleString()}`} />
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
@@ -1433,7 +1433,7 @@ export default function SalesAnalysisPage() {
                     <XAxis dataKey="month" tickFormatter={(value) => `${value}月`} />
                     <YAxis tickFormatter={(value) => `¥${(value / 10000).toFixed(0)}万`} />
                     <Tooltip
-                      formatter={(value: number) => `¥${value.toLocaleString()}`}
+                      formatter={(value) => `¥${(value as number).toLocaleString()}`}
                       labelFormatter={(label) => `${label}月`}
                     />
                     <Legend />
