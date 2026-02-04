@@ -2013,6 +2013,26 @@ export default function Home() {
         offset += batchSize
       }
 
+      // bulk_purchasesテーブルも確認（まとめ仕入れに振り分けられたアイテムの重複防止）
+      let bulkOffset = 0
+      while (true) {
+        const { data } = await supabase
+          .from('bulk_purchases')
+          .select('memo, purchase_date, total_amount')
+          .range(bulkOffset, bulkOffset + batchSize - 1)
+        if (!data || data.length === 0) break
+        for (const row of data) {
+          existingItems.push({
+            product_name: row.memo || '',
+            purchase_date: row.purchase_date,
+            purchase_total: row.total_amount,
+            image_url: null
+          })
+        }
+        if (data.length < batchSize) break
+        bulkOffset += batchSize
+      }
+
       // 重複チェック用のキーを生成
       const existingImageUrls = new Set(
         (existingItems || []).filter(item => item.image_url).map(item => item.image_url)
@@ -2255,6 +2275,11 @@ export default function Home() {
     }
 
     const utf8Check = await checkUtf8Format()
+    console.log('=== CSV UTF-8チェック結果 ===', utf8Check.type, utf8Check.data.length, '件')
+    if (utf8Check.data[0]) {
+      console.log('ヘッダー:', Object.keys(utf8Check.data[0]))
+      console.log('1行目:', JSON.stringify(utf8Check.data[0]))
+    }
 
     if (utf8Check.type === 'monobank') {
       // ものバンク形式（UTF-8）の処理
@@ -2339,12 +2364,16 @@ export default function Home() {
 
     if (utf8Check.type === 'yahoo') {
       // ヤフオク形式（BOM付きUTF-8）の処理
+      console.log('=== ヤフオクCSV UTF-8パス ===')
       const source = 'ヤフオク'
       const items = (utf8Check.data as YahooAuctionCSV[])
         .filter(row => row['商品名'] && row['商品名'].trim() !== '')
         .map(row => {
           const totalPrice = row['落札価格'] ? parseInt(row['落札価格'], 10) : null
           const netPrice = totalPrice ? Math.round(totalPrice / 1.1) : null
+          const dateRaw = row['仕入日'] || row['終了日時']
+          const dateParsed = dateRaw ? parseYahooDate(dateRaw) : null
+          console.log(`  ${row['商品名']?.substring(0, 20)}... 仕入日raw="${row['仕入日']}" 終了日時raw="${row['終了日時']}" → dateRaw="${dateRaw}" → dateParsed="${dateParsed}" price=${totalPrice}`)
           return {
             product_name: row['商品名'],
             brand_name: detectBrand(row['商品名']),
@@ -2352,11 +2381,14 @@ export default function Home() {
             image_url: row['オークション画像URL'] || null,
             purchase_price: netPrice,
             purchase_total: totalPrice,
-            purchase_date: (row['仕入日'] || row['終了日時']) ? parseYahooDate((row['仕入日'] || row['終了日時']) as string) : null,
+            purchase_date: dateParsed,
             purchase_source: 'ヤフオク',
             status: '在庫あり',
           }
         })
+
+      console.log('=== ヤフオク処理結果 ===', items.length, '件')
+      if (items[0]) console.log('  最初のアイテム:', JSON.stringify({ name: items[0].product_name?.substring(0, 20), date: items[0].purchase_date, price: items[0].purchase_total }))
 
       await processCSVItems(items, source)
       return
