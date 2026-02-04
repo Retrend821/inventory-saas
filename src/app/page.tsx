@@ -2214,7 +2214,7 @@ export default function Home() {
 
     // まずUTF-8でパースしてものバンク/スターバイヤーズ形式かチェック
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const checkUtf8Format = async (): Promise<{ type: 'monobank' | 'starbuyers' | null; data: any[] }> => {
+    const checkUtf8Format = async (): Promise<{ type: 'monobank' | 'starbuyers' | 'yahoo' | null; data: any[] }> => {
       const text = await readFileAsText(file)
       return new Promise((resolve) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2238,6 +2238,12 @@ export default function Home() {
             // スターバイヤーズ形式チェック（UTF-8）
             if (headers.includes('管理番号') && headers.includes('落札金額')) {
               resolve({ type: 'starbuyers', data: results.data })
+              return
+            }
+
+            // ヤフオク形式チェック（BOM付きUTF-8）
+            if (headers.includes('商品名') && headers.includes('オークション画像URL')) {
+              resolve({ type: 'yahoo', data: results.data })
               return
             }
 
@@ -2323,6 +2329,31 @@ export default function Home() {
             purchase_total: purchaseTotalVal,
             purchase_date: parseStarBuyersDate(row['開催日']),
             purchase_source: 'スターバイヤーズ',
+            status: '在庫あり',
+          }
+        })
+
+      await processCSVItems(items, source)
+      return
+    }
+
+    if (utf8Check.type === 'yahoo') {
+      // ヤフオク形式（BOM付きUTF-8）の処理
+      const source = 'ヤフオク'
+      const items = (utf8Check.data as YahooAuctionCSV[])
+        .filter(row => row['商品名'] && row['商品名'].trim() !== '')
+        .map(row => {
+          const totalPrice = row['落札価格'] ? parseInt(row['落札価格'], 10) : null
+          const netPrice = totalPrice ? Math.round(totalPrice / 1.1) : null
+          return {
+            product_name: row['商品名'],
+            brand_name: detectBrand(row['商品名']),
+            category: detectCategory(row['商品名']),
+            image_url: row['オークション画像URL'] || null,
+            purchase_price: netPrice,
+            purchase_total: totalPrice,
+            purchase_date: (row['仕入日'] || row['終了日時']) ? parseYahooDate(row['仕入日'] || row['終了日時']) : null,
+            purchase_source: 'ヤフオク',
             status: '在庫あり',
           }
         })
