@@ -995,26 +995,24 @@ export default function Home() {
       }
     }
 
-    // 修理費・原価が変更された場合、仕入総額を差分で更新
-    if (field === 'other_cost' || field === 'purchase_price') {
+    // 原価が変更された場合、仕入総額を更新（修理費は含めない）
+    if (field === 'purchase_price') {
       const oldPurchasePrice = currentItem.purchase_price || 0
-      const oldOtherCost = currentItem.other_cost || 0
-      const newPurchasePrice = field === 'purchase_price' ? (value as number || 0) : oldPurchasePrice
-      const newOtherCost = field === 'other_cost' ? (value as number || 0) : oldOtherCost
+      const newPurchasePrice = value as number || 0
 
-      // 差分を計算して仕入総額に反映
+      // 差分を計算して仕入総額に反映（原価のみ）
       const priceDiff = newPurchasePrice - oldPurchasePrice
-      const otherCostDiff = newOtherCost - oldOtherCost
-      const currentPurchaseTotal = currentItem.purchase_total || (oldPurchasePrice + oldOtherCost)
-      const newPurchaseTotal = currentPurchaseTotal + priceDiff + otherCostDiff
+      const currentPurchaseTotal = currentItem.purchase_total || oldPurchasePrice
+      const newPurchaseTotal = currentPurchaseTotal + priceDiff
       updateData.purchase_total = newPurchaseTotal
 
-      // 利益も再計算（入金額 - 仕入総額）
+      // 利益も再計算（入金額 - 仕入総額 - 修理費）
       const depositAmount = updateData.deposit_amount !== undefined
         ? updateData.deposit_amount as number | null
         : currentItem.deposit_amount
+      const otherCost = currentItem.other_cost || 0
       if (depositAmount !== null) {
-        const newProfit = depositAmount - newPurchaseTotal
+        const newProfit = depositAmount - newPurchaseTotal - otherCost
         updateData.profit = newProfit
         // 利益率も更新
         if (currentItem.sale_price && currentItem.sale_price > 0) {
@@ -1028,12 +1026,30 @@ export default function Home() {
       }
     }
 
+    // 修理費が変更された場合、利益を再計算（仕入総額は変更しない）
+    if (field === 'other_cost') {
+      const newOtherCost = value as number || 0
+      const depositAmount = updateData.deposit_amount !== undefined
+        ? updateData.deposit_amount as number | null
+        : currentItem.deposit_amount
+      const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
+      if (depositAmount !== null) {
+        const newProfit = depositAmount - purchaseTotal - newOtherCost
+        updateData.profit = newProfit
+        // 利益率も更新
+        if (currentItem.sale_price && currentItem.sale_price > 0) {
+          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
+        }
+      }
+    }
+
     // 撮影手数料が変更された場合、利益を再計算（入金額から引く）
     if (field === 'photography_fee') {
       const depositAmount = updateData.deposit_amount as number | null
-      const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0) + (currentItem.other_cost || 0)
+      const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
+      const otherCost = currentItem.other_cost || 0
       if (depositAmount !== null) {
-        const newProfit = depositAmount - purchaseTotal
+        const newProfit = depositAmount - purchaseTotal - otherCost
         updateData.profit = newProfit
         if (currentItem.sale_price && currentItem.sale_price > 0) {
           updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
@@ -3703,10 +3719,11 @@ export default function Home() {
     // 売上日がある場合のみ計算（売却確定時）、返品は除外
     if (!item.sale_date || item.sale_date === '返品') return null
     // 入金額がある場合のみ計算
-    // 仕入総額がある場合はそれを使用、なければ原価+修理費（撮影手数料は入金額から引かれる）
-    const purchaseTotal = item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))
+    // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
+    const purchaseTotal = item.purchase_total ?? (item.purchase_price || 0)
+    const otherCost = item.other_cost || 0
     return item.deposit_amount !== null
-      ? Number(item.deposit_amount) - purchaseTotal
+      ? Number(item.deposit_amount) - purchaseTotal - otherCost
       : null
   }
 
@@ -3999,10 +4016,11 @@ export default function Home() {
     // 利益計算ヘルパー（ローカル）
     const getProfit = (item: InventoryItem): number | null => {
       if (!item.sale_date || item.sale_date === '返品') return null
-      // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
-      const purchaseTotal = item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))
+      // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
+      const purchaseTotal = item.purchase_total ?? (item.purchase_price || 0)
+      const otherCost = item.other_cost || 0
       return item.deposit_amount !== null
-        ? Number(item.deposit_amount) - purchaseTotal
+        ? Number(item.deposit_amount) - purchaseTotal - otherCost
         : null
     }
 

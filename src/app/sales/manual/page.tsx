@@ -525,12 +525,12 @@ export default function ManualSalesPage() {
     const salePrice = sale.sale_price || 0
     const purchasePrice = sale.purchase_price || 0
     const otherCost = sale.other_cost || 0
-    // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
-    const purchaseTotal = sale.purchase_total ?? (purchasePrice + otherCost)
+    // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
+    const purchaseTotal = sale.purchase_total ?? purchasePrice
     const commission = sale.commission || 0
     const shippingCost = sale.shipping_cost || 0
-    // 仕入総額を使うので、other_costは別途引かない
-    return salePrice - purchaseTotal - commission - shippingCost
+    // 修理費は別途引く
+    return salePrice - purchaseTotal - commission - shippingCost - otherCost
   }
 
   // 利益率計算
@@ -731,11 +731,10 @@ export default function ManualSalesPage() {
     // ローカル状態を更新
     const updatedSale = { ...sale, [field]: newValue }
 
-    // その他費用または原価が変更された場合、仕入総額を更新
-    if (field === 'other_cost' || field === 'purchase_price') {
-      const newPurchasePrice = field === 'purchase_price' ? (newValue as number || 0) : (updatedSale.purchase_price || 0)
-      const newOtherCost = field === 'other_cost' ? (newValue as number || 0) : (updatedSale.other_cost || 0)
-      updatedSale.purchase_total = newPurchasePrice + newOtherCost
+    // 原価が変更された場合、仕入総額を更新（修理費は含めない）
+    if (field === 'purchase_price') {
+      const newPurchasePrice = newValue as number || 0
+      updatedSale.purchase_total = newPurchasePrice
     }
 
     // 販売先または売価が変更された場合、手数料を自動計算
@@ -770,8 +769,8 @@ export default function ManualSalesPage() {
     if (field === 'sale_destination' || field === 'sale_price') {
       updateData.commission = autoCommission
     }
-    // その他費用または原価が変更された場合は仕入総額も更新
-    if (field === 'other_cost' || field === 'purchase_price') {
+    // 原価が変更された場合は仕入総額も更新
+    if (field === 'purchase_price') {
       updateData.purchase_total = updatedSale.purchase_total
     }
 
@@ -1273,14 +1272,14 @@ export default function ManualSalesPage() {
         return
       }
 
-      // 元の仕入総額と利益を再計算
+      // 元の仕入総額と利益を再計算（仕入総額は原価のみ、修理費は別途引く）
       const purchasePrice = sale.purchase_price || 0
       const otherCost = sale.other_cost || 0
-      const originalPurchaseTotal = purchasePrice + otherCost
+      const originalPurchaseTotal = purchasePrice
       const salePrice = sale.sale_price || 0
       const commission = sale.commission || 0
       const shippingCost = sale.shipping_cost || 0
-      const profit = salePrice - originalPurchaseTotal - commission - shippingCost
+      const profit = salePrice - originalPurchaseTotal - commission - shippingCost - otherCost
       let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
       // NaN/Infinityチェックとクランプ（NUMERIC(5,1)制限: -9999.9〜9999.9）
       if (!Number.isFinite(profitRate)) profitRate = 0
@@ -2041,14 +2040,14 @@ export default function ManualSalesPage() {
         const purchasePrice = (record.purchase_price as number) || 0
         const otherCost = (record.other_cost as number) || 0
         const shippingCost = (record.shipping_cost as number) || 0
-        // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
-        const purchaseTotal = (record.purchase_total as number) ?? (purchasePrice + otherCost)
+        // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
+        const purchaseTotal = (record.purchase_total as number) ?? purchasePrice
         // 仕入総額がない場合はpurchase_totalを設定
         if (record.purchase_total == null) {
           record.purchase_total = purchaseTotal
         }
-        // 仕入総額を使うので、other_costは別途引かない
-        const profit = salePrice - purchaseTotal - commission - shippingCost
+        // 修理費は別途引く
+        const profit = salePrice - purchaseTotal - commission - shippingCost - otherCost
         let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
         // NaN, Infinity, -Infinity をチェックして0にする
         if (!Number.isFinite(profitRate)) {

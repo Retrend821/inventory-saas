@@ -284,12 +284,24 @@ export default function DashboardPage() {
     const purchaseCount = purchases.length
     const purchaseTotal = purchases.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
-    // sales_summaryから今月の販売データを取得（売上レポートと同じ利益値を使用）
-    const salesSummaryThisMonth = salesSummary.filter(item => isThisMonth(item.sale_date))
-    const salesCount = salesSummaryThisMonth.reduce((sum, item) => sum + item.quantity, 0)
-    const salesTotal = salesSummaryThisMonth.reduce((sum, item) => sum + item.sale_price, 0)
-    const salesCost = salesSummaryThisMonth.reduce((sum, item) => sum + item.purchase_cost, 0)
-    const profit = salesSummaryThisMonth.reduce((sum, item) => sum + item.profit, 0)
+    // inventoryから今月売却の商品を取得（DBの値を直接使用）
+    const invThisMonth = inventory.filter(item => isThisMonth(item.sale_date) && item.status === '売却済み')
+    const invSalesCount = invThisMonth.length
+    const invSalesTotal = invThisMonth.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const invSalesCost = invThisMonth.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+    const invProfit = invThisMonth.reduce((sum, item) => sum + (item.profit || 0), 0)
+
+    // manual_salesから今月売却の商品を取得（DBの値を直接使用）
+    const manualThisMonth = manualSales.filter(item => isThisMonth(item.sale_date))
+    const manualSalesCount = manualThisMonth.length
+    const manualSalesTotal = manualThisMonth.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const manualSalesCost = manualThisMonth.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
+    const manualProfit = manualThisMonth.reduce((sum, item) => sum + (item.profit || 0), 0)
+
+    const salesCount = invSalesCount + manualSalesCount
+    const salesTotal = invSalesTotal + manualSalesTotal
+    const salesCost = invSalesCost + manualSalesCost
+    const profit = invProfit + manualProfit
     const profitRate = salesTotal > 0 ? (profit / salesTotal) * 100 : 0
     const roi = salesCost > 0 ? (profit / salesCost) * 100 : 0
 
@@ -297,18 +309,16 @@ export default function DashboardPage() {
     const retailPlatformNames = platforms.filter(p => p.sales_type === 'toC').map(p => p.name)
     const wholesalePlatformNames = platforms.filter(p => p.sales_type === 'toB').map(p => p.name)
 
-    // 小売・業販の内訳（sales_summaryベース）
-    const retailSales = salesSummaryThisMonth.filter(item =>
-      item.sale_destination && retailPlatformNames.includes(item.sale_destination)
-    )
-    const wholesaleSales = salesSummaryThisMonth.filter(item =>
-      item.sale_destination && wholesalePlatformNames.includes(item.sale_destination)
-    )
+    // 小売・業販の内訳（inventoryとmanual_salesから直接）
+    const invRetail = invThisMonth.filter(item => item.sale_destination && retailPlatformNames.includes(item.sale_destination))
+    const invWholesale = invThisMonth.filter(item => item.sale_destination && wholesalePlatformNames.includes(item.sale_destination))
+    const manualRetail = manualThisMonth.filter(item => item.sale_destination && retailPlatformNames.includes(item.sale_destination))
+    const manualWholesale = manualThisMonth.filter(item => item.sale_destination && wholesalePlatformNames.includes(item.sale_destination))
 
-    const retailTotal = retailSales.reduce((sum, item) => sum + item.sale_price, 0)
-    const wholesaleTotal = wholesaleSales.reduce((sum, item) => sum + item.sale_price, 0)
-    const retailProfit = retailSales.reduce((sum, item) => sum + item.profit, 0)
-    const wholesaleProfit = wholesaleSales.reduce((sum, item) => sum + item.profit, 0)
+    const retailTotal = invRetail.reduce((sum, item) => sum + (item.sale_price || 0), 0) + manualRetail.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const wholesaleTotal = invWholesale.reduce((sum, item) => sum + (item.sale_price || 0), 0) + manualWholesale.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const retailProfit = invRetail.reduce((sum, item) => sum + (item.profit || 0), 0) + manualRetail.reduce((sum, item) => sum + (item.profit || 0), 0)
+    const wholesaleProfit = invWholesale.reduce((sum, item) => sum + (item.profit || 0), 0) + manualWholesale.reduce((sum, item) => sum + (item.profit || 0), 0)
 
     return {
       purchaseCount,
@@ -318,32 +328,38 @@ export default function DashboardPage() {
       profit,
       profitRate,
       roi,
-      retailCount: retailSales.reduce((sum, item) => sum + item.quantity, 0),
+      retailCount: invRetail.length + manualRetail.length,
       retailTotal,
       retailProfit,
-      wholesaleCount: wholesaleSales.reduce((sum, item) => sum + item.quantity, 0),
+      wholesaleCount: invWholesale.length + manualWholesale.length,
       wholesaleTotal,
       wholesaleProfit
     }
-  }, [inventory, salesSummary, platforms, currentMonth])
+  }, [inventory, manualSales, platforms, currentMonth])
 
-  // 本日の売上
+  // 本日の売上（inventoryとmanual_salesから直接取得）
   const todayStats = useMemo(() => {
     const today = new Date()
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
-    // sales_summaryから本日の販売データを取得（売上レポートと同じ利益値を使用）
-    const salesSummaryToday = salesSummary.filter(item => item.sale_date === todayStr)
-    const salesCount = salesSummaryToday.reduce((sum, item) => sum + item.quantity, 0)
-    const salesTotal = salesSummaryToday.reduce((sum, item) => sum + item.sale_price, 0)
-    const profit = salesSummaryToday.reduce((sum, item) => sum + item.profit, 0)
+    // inventoryから本日売却の商品を取得
+    const invToday = inventory.filter(item => item.sale_date === todayStr && item.status === '売却済み')
+    const invCount = invToday.length
+    const invSales = invToday.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const invProfit = invToday.reduce((sum, item) => sum + (item.profit || 0), 0)
+
+    // manual_salesから本日売却の商品を取得
+    const manualToday = manualSales.filter(item => item.sale_date === todayStr)
+    const manualCount = manualToday.length
+    const manualSalesTotal = manualToday.reduce((sum, item) => sum + (item.sale_price || 0), 0)
+    const manualProfit = manualToday.reduce((sum, item) => sum + (item.profit || 0), 0)
 
     return {
-      salesCount,
-      salesTotal,
-      profit
+      salesCount: invCount + manualCount,
+      salesTotal: invSales + manualSalesTotal,
+      profit: invProfit + manualProfit
     }
-  }, [salesSummary])
+  }, [inventory, manualSales])
 
   // 在庫状況
   const stockStats = useMemo(() => {
@@ -499,8 +515,8 @@ export default function DashboardPage() {
         sale_date: item.sale_date,
         sale_type: item.sale_type,
         sale_amount: item.sale_price || 0,
-        // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
-        profit: (item.deposit_amount || 0) - (item.purchase_total ?? ((item.purchase_price || 0) + (item.other_cost || 0))),
+        // DBに保存されている利益を直接使用
+        profit: item.profit || 0,
         source: 'inventory' as const
       }))
 

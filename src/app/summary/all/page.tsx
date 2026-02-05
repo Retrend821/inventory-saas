@@ -435,9 +435,9 @@ export default function AllSalesPage() {
             const photographyFee = item.photography_fee || 0
             // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料
             const depositAmount = item.deposit_amount || (salePrice - commission - shippingCost - photographyFee)
-            // 仕入総額がある場合はそれを使用、なければ原価+修理費（撮影手数料は入金額から引く）
-            const purchaseCost = item.purchase_total ?? (purchasePrice + otherCost)
-            const profit = depositAmount - purchaseCost
+            // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
+            const purchaseCost = item.purchase_total ?? purchasePrice
+            const profit = depositAmount - purchaseCost - otherCost
             const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
 
             newRecords.push({
@@ -507,8 +507,8 @@ export default function AllSalesPage() {
               other_cost: otherCost,
               photography_fee: photographyFee,
               purchase_price: purchasePrice,
-              // 仕入総額 = 原価 + 修理費（撮影手数料は入金額から引くので含めない）
-              purchase_cost: purchasePrice + otherCost,
+              // 仕入総額 = 原価のみ（修理費は含めない）
+              purchase_cost: purchasePrice,
               deposit_amount: sale.deposit_amount,
               profit,
               profit_rate: profitRate,
@@ -539,12 +539,12 @@ export default function AllSalesPage() {
             const shippingCost = item.shipping_cost || 0
             const otherCost = item.other_cost || 0
             const photographyFee = item.photography_fee || 0
-            // manual_salesでは仕入総額（purchase_total）を使用
+            // manual_salesでは仕入総額（purchase_total）を使用（修理費は含まない）
             const purchaseCost = item.purchase_total || 0
-            // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料（修理費は仕入側コストなので含めない）
+            // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料
             const depositAmount = salePrice - commission - shippingCost - photographyFee
-            // 利益 = 入金額 - 仕入総額
-            const profit = item.profit ?? (depositAmount - purchaseCost)
+            // 利益 = 入金額 - 仕入総額 - 修理費
+            const profit = item.profit ?? (depositAmount - purchaseCost - otherCost)
             const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
 
             newRecords.push({

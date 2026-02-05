@@ -310,10 +310,10 @@ export default function SalesAnalysisPage() {
         const shippingCost = item.shipping_cost || 0
         const otherCost = item.other_cost || 0
         const depositAmount = item.deposit_amount || 0
-        // 仕入総額がある場合はそれを使用（すでにother_costを含む）、なければ原価+その他費用
-        const purchaseCost = item.purchase_total ?? (purchasePrice + otherCost)
-        // 仕入総額を使うので、other_costは別途引かない
-        const profit = depositAmount - purchaseCost
+        // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
+        const purchaseCost = item.purchase_total ?? purchasePrice
+        // 修理費は別途引く
+        const profit = depositAmount - purchaseCost - otherCost
         const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
 
         sales.push({
@@ -378,7 +378,7 @@ export default function SalesAnalysisPage() {
           shipping_cost: sale.shipping_cost,
           other_cost: otherCost,
           purchase_price: purchasePrice,
-          purchase_cost: purchasePrice + otherCost,
+          purchase_cost: purchasePrice,
           deposit_amount: sale.deposit_amount,
           profit,
           profit_rate: profitRate,
@@ -399,10 +399,10 @@ export default function SalesAnalysisPage() {
         const commission = item.commission || 0
         const shippingCost = item.shipping_cost || 0
         const otherCost = item.other_cost || 0
-        // manual_salesでは仕入総額（purchase_total）を使用（すでにother_costを含む）
+        // manual_salesでは仕入総額（purchase_total）を使用（修理費は含まない）
         const purchaseCost = item.purchase_total || 0
-        // 仕入総額を使うので、other_costは別途引かない
-        const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost)
+        // 修理費は別途引く
+        const profit = item.profit ?? (salePrice - purchaseCost - commission - shippingCost - otherCost)
         const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
 
         sales.push({

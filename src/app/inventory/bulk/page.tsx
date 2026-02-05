@@ -234,7 +234,7 @@ export default function BulkInventoryPage() {
 
       const isSold = !!sale.sale_destination
       const depositAmount = sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)
-      const itemPurchase = (sale.purchase_price || 0) + (sale.other_cost || 0)
+      const itemPurchase = sale.purchase_price || 0
 
       stats.set(sale.bulk_purchase_id, {
         soldQuantity: current.soldQuantity + (isSold ? sale.quantity : 0),
@@ -383,7 +383,8 @@ export default function BulkInventoryPage() {
       const purchase = getPurchaseForSale(sale.bulk_purchase_id)
       const isSold = !!sale.sale_destination
       const depositAmount = sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)
-      const purchaseCost = (sale.purchase_price || 0) + (sale.other_cost || 0)
+      const purchasePrice = sale.purchase_price || 0
+      const otherCost = sale.other_cost || 0
       rows.push({
         id: `sale-${sale.id}`,
         type: 'sale',
@@ -392,11 +393,11 @@ export default function BulkInventoryPage() {
         brandName: sale.brand_name,
         productName: sale.product_name,
         saleDestination: sale.sale_destination,
-        purchaseAmount: isSold ? 0 : purchaseCost,
+        purchaseAmount: isSold ? 0 : purchasePrice,
         saleAmount: isSold ? sale.sale_amount : 0,
         commission: isSold ? sale.commission : 0,
         shippingCost: isSold ? sale.shipping_cost : 0,
-        profit: isSold ? (depositAmount - purchaseCost) : -purchaseCost,
+        profit: isSold ? (depositAmount - purchasePrice - otherCost) : -purchasePrice,
         saleData: sale,
         purchaseData: purchase
       })
@@ -1906,11 +1907,11 @@ export default function BulkInventoryPage() {
                             : row.type === 'purchase' && purchase
                               ? renderCell('purchase_price', purchase.purchase_price ? `¥${purchase.purchase_price.toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-red-600', 13)
                               : <td className="px-2 py-1 border-r border-gray-100 text-right text-gray-400">-</td>}
-                          {/* 仕入総額 */}
+                          {/* 仕入総額（原価のみ、修理費は含まない） */}
                           {row.type === 'purchase' && purchase
                             ? renderCell('total_amount', `¥${row.purchaseAmount.toLocaleString()}`, 'purchase', 'number', 'text-right text-red-600 font-medium', 14)
                             : isPurchase && sale
-                              ? <td className="px-2 py-1 border-r border-gray-100 text-right text-red-600 font-medium">¥{((sale.purchase_price || 0) + (sale.other_cost || 0)).toLocaleString()}</td>
+                              ? <td className="px-2 py-1 border-r border-gray-100 text-right text-red-600 font-medium">¥{(sale.purchase_price || 0).toLocaleString()}</td>
                               : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 入金額 */}
                           {sale && !isPurchase
