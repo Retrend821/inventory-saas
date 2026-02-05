@@ -544,15 +544,8 @@ export default function SummaryPage() {
       + manualSoldItems.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
       + bulkSoldPurchase
 
-    // 販売利益（ダッシュボードと同じ計算式）
-    const invProfit = soldItems.reduce((sum, item) => {
-      const depositAmount = item.deposit_amount || 0
-      const purchasePrice = item.purchase_price || 0
-      const otherCost = item.other_cost || 0
-      // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
-      const purchaseTotal = item.purchase_total ?? purchasePrice
-      return sum + (depositAmount - purchaseTotal - otherCost)
-    }, 0)
+    // 販売利益（DBのprofit値を使用）
+    const invProfit = soldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     // まとめ売上の利益（ダッシュボードと同じ計算式）
     const bulkProfit = bulkSoldItems.reduce((sum, item) => {
@@ -732,15 +725,8 @@ export default function SummaryPage() {
       + manualSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
       + bulkSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
 
-    // 販売利益（ダッシュボードと同じ計算式）
-    const invProfit = soldItems.reduce((sum, item) => {
-      const depositAmount = item.deposit_amount || 0
-      const purchasePrice = item.purchase_price || 0
-      const otherCost = item.other_cost || 0
-      // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
-      const purchaseTotal = item.purchase_total ?? purchasePrice
-      return sum + (depositAmount - purchaseTotal - otherCost)
-    }, 0)
+    // 販売利益（DBのprofit値を使用）
+    const invProfit = soldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
     // まとめ売上の利益（ダッシュボードと同じ計算式）
     const bulkProfit = bulkSoldItems.reduce((sum, item) => {
@@ -1042,15 +1028,8 @@ export default function SummaryPage() {
         + manualSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
         + bulkSoldItems.reduce((sum, item) => sum + (item.shipping_cost || 0), 0)
 
-      // 販売利益（ダッシュボードと同じ計算式）
-      const invProfit = soldItems.reduce((sum, item) => {
-        const depositAmount = item.deposit_amount || 0
-        const purchasePrice = item.purchase_price || 0
-        const otherCost = item.other_cost || 0
-        // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
-        const purchaseTotal = item.purchase_total ?? purchasePrice
-        return sum + (depositAmount - purchaseTotal - otherCost)
-      }, 0)
+      // 販売利益（DBのprofit値を使用）
+      const invProfit = soldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
       const manualProfit = manualSoldItems.reduce((sum, item) => sum + (item.profit || 0), 0)
       // まとめ売上の利益（ダッシュボードと同じ計算式）
       const bulkProfit = bulkSoldItems.reduce((sum, item) => {
