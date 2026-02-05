@@ -17,6 +17,7 @@ type InventoryItem = {
   sale_price: number | null
   deposit_amount: number | null
   other_cost: number | null
+  profit: number | null
   status: string
   sale_type: string | null
   sale_destination: string | null
