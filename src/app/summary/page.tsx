@@ -584,10 +584,10 @@ export default function SummaryPage() {
     // 販売利益（sales_summaryから取得 - 売上明細と同じデータソース）
     const summaryFiltered = salesSummary.filter(item => {
       if (!item.sale_date) return false
-      const normalized = item.sale_date.replace(/\//g, '-')
-      return month === 'all'
-        ? normalized.startsWith(year)
-        : normalized.startsWith(yearMonth)
+      const normalized = normalizeYearMonth(item.sale_date)
+      return isYearly
+        ? normalized.startsWith(selectedYear)
+        : normalized === yearMonth
     })
     const totalProfit = summaryFiltered.reduce((sum, item) => sum + item.profit, 0)
 
@@ -761,10 +761,10 @@ export default function SummaryPage() {
     // 販売利益（sales_summaryから取得 - 売上明細と同じデータソース）
     const summaryFiltered = salesSummary.filter(item => {
       if (!item.sale_date) return false
-      const normalized = item.sale_date.replace(/\//g, '-')
-      return month === 'all'
-        ? normalized.startsWith(year)
-        : normalized.startsWith(yearMonth)
+      const normalized = normalizeYearMonth(item.sale_date)
+      return isYearly
+        ? normalized.startsWith(selectedYear)
+        : normalized === yearMonth
     })
     const totalProfit = summaryFiltered.reduce((sum, item) => sum + item.profit, 0)
 
