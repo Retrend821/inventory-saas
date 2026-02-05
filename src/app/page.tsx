@@ -105,6 +105,30 @@ type MonobankCSV = {
   '金額': string
 }
 
+type DaikichAuctionCSV = {
+  'No': string
+  '箱番号': string
+  '行番号': string
+  '商品番号': string
+  '出品番号': string
+  'ジャンル': string
+  '商品名': string
+  'ブランド': string
+  'ランク': string
+  '数量': string
+  '商品単価（税別）': string
+  '買い手数料（税別）': string
+}
+
+type DaikichImageCSV = {
+  'インデックス': string
+  '箱番号': string
+  '行番号': string
+  'タイトル': string
+  'サムネイルURL': string
+  '元画像URL': string
+}
+
 // ブランド変換辞書
 const brandDictionary: Record<string, string[]> = {
   "エルメス": ["hermes", "hermès", "えるめす", "エルメス"],
@@ -394,6 +418,7 @@ export default function Home() {
   const [csvPurchaseDate, setCsvPurchaseDate] = useState<string>('')
   const [starBuyersImageCSV, setStarBuyersImageCSV] = useState<File | null>(null)
   const [aucnetImageFile, setAucnetImageFile] = useState<File | null>(null)
+  const [daikichImageFile, setDaikichImageFile] = useState<File | null>(null)
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'inventory_number', direction: 'asc' })
   // URLパラメータから検索キーワードの初期値を取得
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '')
@@ -1265,7 +1290,7 @@ export default function Home() {
   }
 
   // CSVの種類を判定
-  const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'aucnet' | 'unknown'> => {
+  const detectCSVType = (file: File): Promise<'ecoauc' | 'starbuyers' | 'yahoo' | 'secondstreet' | 'monobank' | 'aucnet' | 'daikichi' | 'unknown'> => {
     return new Promise((resolve) => {
       // まずUTF-8でパースを試みる（ものバンク、スターバイヤーズ等）
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1325,6 +1350,8 @@ export default function Home() {
                 resolve('secondstreet')
               } else if (cleanHeaders.includes('受付番号') && cleanHeaders.includes('請求商品代')) {
                 resolve('aucnet')
+              } else if (cleanHeaders.includes('箱番号') && cleanHeaders.includes('行番号') && cleanHeaders.includes('商品単価（税別）')) {
+                resolve('daikichi')
               } else {
                 resolve('unknown')
               }
@@ -1511,6 +1538,210 @@ export default function Home() {
     })
   }
 
+  // 大吉オークション2ファイルインポート処理
+  const handleDaikichImport = async (mainFile: File, imageFile: File | null, inputDate: string | null) => {
+    // Shift-JISで読む（本体CSV）
+    const readShiftJIS = (file: File): Promise<string> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target?.result as string)
+        reader.readAsText(file, 'Shift_JIS')
+      })
+    }
+
+    // UTF-8で読む（画像CSV）
+    const readUTF8 = (file: File): Promise<string> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          let text = e.target?.result as string
+          // BOMを除去
+          if (text.charCodeAt(0) === 0xFEFF) {
+            text = text.slice(1)
+          }
+          resolve(text)
+        }
+        reader.readAsText(file, 'UTF-8')
+      })
+    }
+
+    // 画像CSV: 箱番号-行番号 → URL マップ
+    const imageMap = new Map<string, string>()
+    if (imageFile) {
+      const imageText = await readUTF8(imageFile)
+      await new Promise<void>((resolve) => {
+        Papa.parse(imageText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            for (const row of results.data as any[]) {
+              // BOM付きヘッダー対応: キー名からBOMを除去してアクセス
+              const keys = Object.keys(row)
+              const boxNoKey = keys.find(k => k.includes('箱番号'))
+              const rowNoKey = keys.find(k => k.includes('行番号'))
+              const imageUrlKey = keys.find(k => k.includes('元画像URL'))
+
+              const boxNo = boxNoKey ? String(row[boxNoKey] || '').trim() : ''
+              const rowNo = rowNoKey ? String(row[rowNoKey] || '').trim() : ''
+              const imageUrl = imageUrlKey ? String(row[imageUrlKey] || '').trim() : ''
+
+              if (boxNo && rowNo && imageUrl) {
+                const key = `${boxNo}-${rowNo}`
+                imageMap.set(key, imageUrl)
+                console.log(`画像マップ: ${key} → ${imageUrl.substring(0, 50)}...`)
+              }
+            }
+            console.log(`画像マップ作成完了: ${imageMap.size}件`)
+            resolve()
+          }
+        })
+      })
+    }
+
+    // 日付は引数から使用（なければ今日の日付）
+    let purchaseDate: string | null = inputDate
+    if (!purchaseDate) {
+      purchaseDate = new Date().toISOString().split('T')[0]
+    }
+
+    // 本体CSV
+    const mainText = await readShiftJIS(mainFile)
+    Papa.parse(mainText, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const data = results.data as DaikichAuctionCSV[]
+
+        // 有効データのみ（商品名あり、商品単価 > 0）
+        const valid = data.filter(row => {
+          const productName = row['商品名']?.trim()
+          const price = parseInt((row['商品単価（税別）'] || '0').replace(/,/g, ''), 10)
+          return productName && price > 0
+        })
+
+        if (valid.length === 0) {
+          alert('インポート対象のデータがありません')
+          return
+        }
+
+        // 既存の最大管理番号を取得
+        let maxNum = 0
+        let offset = 0
+        const batchSize = 1000
+        while (true) {
+          const { data: batchData } = await supabase
+            .from('inventory')
+            .select('inventory_number')
+            .not('inventory_number', 'is', null)
+            .range(offset, offset + batchSize - 1)
+          if (!batchData || batchData.length === 0) break
+          for (const row of batchData) {
+            const invNum = String(row.inventory_number || '')
+            const match = invNum.match(/^(\d+)/)
+            if (match) {
+              const num = parseInt(match[1], 10)
+              if (!isNaN(num) && num > maxNum) {
+                maxNum = num
+              }
+            }
+          }
+          if (batchData.length < batchSize) break
+          offset += batchSize
+        }
+        let nextNumber = maxNum + 1
+
+        // マッピング
+        const records = valid.map(row => {
+          const boxNo = row['箱番号']?.trim()
+          const rowNo = row['行番号']?.trim()
+          const imageKey = `${boxNo}-${rowNo}`
+          const imageUrl = imageMap.get(imageKey) || null
+
+          // ブランド名をCSVから取得し、辞書で正規化
+          const rawBrand = row['ブランド']?.trim() || ''
+          const normalizedBrand = detectBrand(rawBrand) || rawBrand || null
+
+          // 商品単価（税別）
+          const purchasePrice = parseInt((row['商品単価（税別）'] || '0').replace(/,/g, ''), 10)
+          // 買い手数料（税別）
+          const commission = parseInt((row['買い手数料（税別）'] || '0').replace(/,/g, ''), 10)
+          // 仕入総額（税込）= (商品単価 + 手数料) × 1.1
+          const purchaseTotal = Math.round((purchasePrice + commission) * 1.1)
+
+          const inventoryNumber = nextNumber++
+
+          return {
+            user_id: user?.id,
+            inventory_number: inventoryNumber,
+            category: row['ジャンル']?.trim() || null,
+            brand_name: normalizedBrand,
+            product_name: row['商品名']?.trim() || null,
+            purchase_price: purchasePrice,
+            purchase_total: purchaseTotal,
+            purchase_source: '大吉オークション',
+            purchase_date: purchaseDate,
+            image_url: imageUrl,
+            status: '在庫あり',
+            memo: `${inventoryNumber}）${purchaseTotal}`,
+          }
+        }).filter(r => r.product_name || r.brand_name)
+
+        // 重複チェック: 既存データを取得
+        let existingItems: { product_name: string; purchase_date: string | null; purchase_total: number | null; image_url: string | null }[] = []
+        let existingOffset = 0
+        while (true) {
+          const { data } = await supabase
+            .from('inventory')
+            .select('product_name, purchase_date, purchase_total, image_url')
+            .range(existingOffset, existingOffset + batchSize - 1)
+          if (!data || data.length === 0) break
+          existingItems = existingItems.concat(data)
+          if (data.length < batchSize) break
+          existingOffset += batchSize
+        }
+
+        // 重複チェック用のキーを生成
+        const existingImageUrls = new Set(
+          existingItems.filter(item => item.image_url).map(item => item.image_url)
+        )
+        const existingKeys = new Set(
+          existingItems.map(item => `${item.product_name}|${item.purchase_date}|${item.purchase_total}`)
+        )
+
+        // 重複を除外
+        const newRecords = records.filter(record => {
+          const key = `${record.product_name}|${record.purchase_date}|${record.purchase_total}`
+          const isDuplicate = (record.image_url && existingImageUrls.has(record.image_url)) || existingKeys.has(key)
+          return !isDuplicate
+        })
+
+        const skippedCount = records.length - newRecords.length
+
+        if (newRecords.length === 0) {
+          alert(`全${records.length}件が既存データと重複しているためスキップされました。`)
+          setDaikichImageFile(null)
+          setPendingCSV(null)
+          return
+        }
+
+        const { error } = await supabase.from('inventory').insert(newRecords)
+        if (error) {
+          console.error('インポートエラー:', error)
+          alert(`エラー: ${error.message}`)
+        } else {
+          if (skippedCount > 0) {
+            alert(`大吉オークションCSVインポート完了: ${newRecords.length}件成功、${skippedCount}件スキップ（重複）`)
+          } else {
+            alert(`大吉オークションCSVインポート完了: ${newRecords.length}件`)
+          }
+          setDaikichImageFile(null)
+          fetchInventory()
+        }
+      }
+    })
+  }
+
   const handleCSVSelect = async (file: File) => {
     const csvType = await detectCSVType(file)
 
@@ -1543,6 +1774,11 @@ export default function Home() {
       }
       setPendingCSV({ file, needsDate: true, type: 'aucnet' })
       setAucnetImageFile(null)
+    } else if (csvType === 'daikichi') {
+      // 大吉オークション形式：日付確認ダイアログを表示
+      setCsvPurchaseDate(new Date().toISOString().split('T')[0])
+      setPendingCSV({ file, needsDate: true, type: 'daikichi' })
+      setDaikichImageFile(null)
     } else {
       // 不明な形式は汎用インポートモーダルを表示
       handleGenericCSVImport(file)
@@ -7499,6 +7735,72 @@ export default function Home() {
                 onClick={() => {
                   if (pendingCSV) {
                     handleAucnetImport(pendingCSV.file, aucnetImageFile, csvPurchaseDate || null)
+                    setPendingCSV(null)
+                    setCsvPurchaseDate('')
+                  }
+                }}
+                className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium"
+              >
+                取り込み
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 大吉オークション: 仕入日確認ダイアログ */}
+      {pendingCSV && pendingCSV.type === 'daikichi' && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">大吉オークションCSVを取り込み</h3>
+            <p className="text-sm text-gray-600 mb-4">仕入日を確認し、画像CSVを選択してください。</p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                仕入日
+              </label>
+              <input
+                type="date"
+                value={csvPurchaseDate}
+                onChange={(e) => setCsvPurchaseDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                autoFocus
+              />
+            </div>
+            {!daikichImageFile && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  画像CSV（任意）
+                </label>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) setDaikichImageFile(file)
+                  }}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                <p className="mt-1 text-xs text-gray-500">箱番号・行番号で画像を自動マッチングします</p>
+              </div>
+            )}
+            {daikichImageFile && (
+              <p className="mb-4 text-sm text-green-600">画像CSV: {daikichImageFile.name}</p>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setPendingCSV(null)
+                  setCsvPurchaseDate('')
+                  setDaikichImageFile(null)
+                }}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingCSV) {
+                    handleDaikichImport(pendingCSV.file, daikichImageFile, csvPurchaseDate || null)
                     setPendingCSV(null)
                     setCsvPurchaseDate('')
                   }
