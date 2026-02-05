@@ -1572,19 +1572,11 @@ export default function Home() {
     const imageMap = new Map<string, string>()
     if (imageFile) {
       const imageText = await readUTF8(imageFile)
-      console.log(`画像CSV読み込み: ${imageText.length}文字, 先頭: ${imageText.substring(0, 100)}`)
       await new Promise<void>((resolve) => {
         Papa.parse(imageText, {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
-            console.log(`画像CSVパース結果: ${results.data.length}行`)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const firstRow = results.data[0] as any
-            if (firstRow) {
-              console.log(`画像CSV列名: ${Object.keys(firstRow).join(', ')}`)
-              console.log(`画像CSV1行目: ${JSON.stringify(firstRow).substring(0, 200)}`)
-            }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             for (const row of results.data as any[]) {
               // BOM付きヘッダー対応: キー名からBOMを除去してアクセス
@@ -1602,7 +1594,6 @@ export default function Home() {
                 imageMap.set(key, imageUrl)
               }
             }
-            console.log(`画像マップ作成完了: ${imageMap.size}件`)
             resolve()
           }
         })
@@ -1617,19 +1608,11 @@ export default function Home() {
 
     // 本体CSV
     const mainText = await readShiftJIS(mainFile)
-    console.log('大吉メインCSV読み込み:', mainText.length, '文字, 先頭:', mainText.substring(0, 150))
     Papa.parse(mainText, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         const data = results.data as DaikichAuctionCSV[]
-        console.log('大吉メインCSVパース結果:', data.length, '行')
-
-        // デバッグ: 列名と1行目を表示
-        if (data.length > 0) {
-          console.log('大吉メインCSV列名:', Object.keys(data[0]).join(', '))
-          console.log('大吉メインCSV1行目:', JSON.stringify(data[0]).substring(0, 300))
-        }
 
         // 有効データのみ（商品名あり、商品単価 > 0）
         const valid = data.filter(row => {
@@ -1669,6 +1652,22 @@ export default function Home() {
         }
         let nextNumber = maxNum + 1
 
+        // 商品名からカテゴリを判定
+        const detectCategory = (productName: string): string | null => {
+          const name = productName.toLowerCase()
+          if (/バッグ|ポシェット|トート|ショルダー|ハンドバッグ|リュック|ボストン|クラッチ|ボディバッグ|ウエストバッグ|サコッシュ/.test(name)) return 'バッグ'
+          if (/財布|ウォレット|長財布|二つ折り|コインケース|カードケース|キーケース/.test(name)) return '財布'
+          if (/ネクタイ|タイピン/.test(name)) return 'ネクタイ'
+          if (/ベルト/.test(name)) return 'ベルト'
+          if (/時計|ウォッチ/.test(name)) return '時計'
+          if (/ブレスレット|ネックレス|リング|ピアス|イヤリング|ペンダント|ブローチ|バングル/.test(name)) return 'アクセサリー'
+          if (/スカーフ|マフラー|ストール/.test(name)) return 'スカーフ'
+          if (/サングラス|眼鏡|メガネ/.test(name)) return 'サングラス'
+          if (/靴|シューズ|ブーツ|スニーカー|パンプス|ローファー|サンダル/.test(name)) return '靴'
+          if (/ジャケット|コート|ブルゾン|ダウン/.test(name)) return 'アウター'
+          return null
+        }
+
         // マッピング
         const records = valid.map(row => {
           const boxNo = row['箱番号']?.trim()
@@ -1679,6 +1678,13 @@ export default function Home() {
           // ブランド名をCSVから取得し、辞書で正規化
           const rawBrand = row['ブランド']?.trim() || ''
           const normalizedBrand = detectBrand(rawBrand) || rawBrand || null
+
+          // 商品名からカテゴリを判定（ジャンルが「ブランド」の場合は商品名から判定）
+          const productName = row['商品名']?.trim() || ''
+          const csvCategory = row['ジャンル']?.trim()
+          const category = (csvCategory === 'ブランド' || !csvCategory)
+            ? detectCategory(productName)
+            : csvCategory
 
           // 商品単価（税別）
           const purchasePrice = parseInt((row['商品単価（税別）'] || '0').replace(/,/g, ''), 10)
@@ -1692,9 +1698,9 @@ export default function Home() {
           return {
             user_id: user?.id,
             inventory_number: inventoryNumber,
-            category: row['ジャンル']?.trim() || null,
+            category: category,
             brand_name: normalizedBrand,
-            product_name: row['商品名']?.trim() || null,
+            product_name: productName || null,
             purchase_price: purchasePrice,
             purchase_total: purchaseTotal,
             purchase_source: '大吉オークション',
@@ -3643,10 +3649,6 @@ export default function Home() {
 
     for (const file of files) {
       const text = await readFileAsText(file)
-      const firstLine = text.trim().split('\n')[0] || ''
-      console.log(`ファイル検出: ${file.name}`)
-      console.log(`  ヘッダー: ${firstLine.substring(0, 100)}...`)
-      console.log(`  大吉画像CSV?: ${checkDaikichImageCSV(text)}, 大吉メインCSV?: ${checkDaikichMainCSV(text)}`)
 
       if (checkAucnetImageCSV(text)) {
         imageFile = file
@@ -3655,12 +3657,9 @@ export default function Home() {
         imageFile = file
         isMonobank = true
       } else if (checkStarBuyersImageCSV(text) && !checkStarBuyersMainCSV(text)) {
-        // 画像CSVのみ（Image URLヘッダーだけでメインCSVの特徴がない場合）
         imageFile = file
         isStarBuyers = true
       } else if (checkDaikichImageCSV(text) && !checkDaikichMainCSV(text)) {
-        // 大吉オークション画像CSV
-        console.log(`  → 大吉画像CSVとして検出`)
         imageFile = file
         isDaikichi = true
       } else if (checkMonobankMainCSV(text)) {
@@ -3670,16 +3669,12 @@ export default function Home() {
         mainFile = file
         isStarBuyers = true
       } else if (checkDaikichMainCSV(text)) {
-        console.log(`  → 大吉メインCSVとして検出`)
         mainFile = file
         isDaikichi = true
       } else {
-        console.log(`  → 不明なファイル、メインとして扱う`)
         mainFile = file
       }
     }
-
-    console.log(`検出結果: mainFile=${mainFile?.name}, imageFile=${imageFile?.name}, isDaikichi=${isDaikichi}`)
 
     if (mainFile && imageFile && isStarBuyers) {
       // スターバイヤーズ2ファイルインポート
