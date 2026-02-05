@@ -3622,6 +3622,11 @@ export default function Home() {
 
     for (const file of files) {
       const text = await readFileAsText(file)
+      const firstLine = text.trim().split('\n')[0] || ''
+      console.log(`ファイル検出: ${file.name}`)
+      console.log(`  ヘッダー: ${firstLine.substring(0, 100)}...`)
+      console.log(`  大吉画像CSV?: ${checkDaikichImageCSV(text)}, 大吉メインCSV?: ${checkDaikichMainCSV(text)}`)
+
       if (checkAucnetImageCSV(text)) {
         imageFile = file
         isAucnet = true
@@ -3634,6 +3639,7 @@ export default function Home() {
         isStarBuyers = true
       } else if (checkDaikichImageCSV(text) && !checkDaikichMainCSV(text)) {
         // 大吉オークション画像CSV
+        console.log(`  → 大吉画像CSVとして検出`)
         imageFile = file
         isDaikichi = true
       } else if (checkMonobankMainCSV(text)) {
@@ -3643,12 +3649,16 @@ export default function Home() {
         mainFile = file
         isStarBuyers = true
       } else if (checkDaikichMainCSV(text)) {
+        console.log(`  → 大吉メインCSVとして検出`)
         mainFile = file
         isDaikichi = true
       } else {
+        console.log(`  → 不明なファイル、メインとして扱う`)
         mainFile = file
       }
     }
+
+    console.log(`検出結果: mainFile=${mainFile?.name}, imageFile=${imageFile?.name}, isDaikichi=${isDaikichi}`)
 
     if (mainFile && imageFile && isStarBuyers) {
       // スターバイヤーズ2ファイルインポート
