@@ -3557,6 +3557,18 @@ export default function Home() {
       return firstLine.includes('管理番号') && firstLine.includes('落札金額')
     }
 
+    // 大吉オークションメインCSVかチェック（箱番号、行番号、商品単価を含む）
+    const checkDaikichMainCSV = (text: string): boolean => {
+      const firstLine = text.trim().split('\n')[0] || ''
+      return firstLine.includes('箱番号') && firstLine.includes('行番号') && firstLine.includes('商品単価')
+    }
+
+    // 大吉オークション画像CSVかチェック（サムネイルURL、元画像URLを含む）
+    const checkDaikichImageCSV = (text: string): boolean => {
+      const firstLine = text.trim().split('\n')[0] || ''
+      return firstLine.includes('サムネイルURL') || firstLine.includes('元画像URL')
+    }
+
     // ファイルを読み込んでテキストとして返す（エンコード自動判定）
     const readFileAsText = (file: File): Promise<string> => {
       return new Promise((resolve) => {
@@ -3592,6 +3604,10 @@ export default function Home() {
         alert('スターバイヤーズ画像CSVだけでは取り込めません。メインCSVも一緒に選択してください。')
         return
       }
+      if (checkDaikichImageCSV(text) && !checkDaikichMainCSV(text)) {
+        alert('大吉オークション画像CSVだけでは取り込めません。メインCSVも一緒に選択してください。')
+        return
+      }
       handleCSVSelect(files[0])
       return
     }
@@ -3602,6 +3618,7 @@ export default function Home() {
     let isMonobank = false
     let isAucnet = false
     let isStarBuyers = false
+    let isDaikichi = false
 
     for (const file of files) {
       const text = await readFileAsText(file)
@@ -3615,12 +3632,19 @@ export default function Home() {
         // 画像CSVのみ（Image URLヘッダーだけでメインCSVの特徴がない場合）
         imageFile = file
         isStarBuyers = true
+      } else if (checkDaikichImageCSV(text) && !checkDaikichMainCSV(text)) {
+        // 大吉オークション画像CSV
+        imageFile = file
+        isDaikichi = true
       } else if (checkMonobankMainCSV(text)) {
         mainFile = file
         isMonobank = true
       } else if (checkStarBuyersMainCSV(text)) {
         mainFile = file
         isStarBuyers = true
+      } else if (checkDaikichMainCSV(text)) {
+        mainFile = file
+        isDaikichi = true
       } else {
         mainFile = file
       }
@@ -3644,6 +3668,11 @@ export default function Home() {
       }
       setPendingCSV({ file: mainFile, needsDate: true, type: 'aucnet' })
       setAucnetImageFile(imageFile)
+    } else if (mainFile && imageFile && isDaikichi) {
+      // 大吉オークション2ファイルインポート：日付確認ダイアログを表示
+      setCsvPurchaseDate(new Date().toISOString().split('T')[0])
+      setPendingCSV({ file: mainFile, needsDate: true, type: 'daikichi' })
+      setDaikichImageFile(imageFile)
     } else if (mainFile) {
       handleCSVSelect(mainFile)
     } else {
