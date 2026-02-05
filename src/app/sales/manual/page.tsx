@@ -1315,7 +1315,16 @@ export default function ManualSalesPage() {
       return
     }
 
-    setTransferModal({ sale, bulkPurchases: bulkPurchases || [] })
+    // ジャンルごとに1つだけ表示（最新のものを使用）
+    const genreMap = new Map<string, { id: string; genre: string; purchase_date: string }>()
+    for (const bp of bulkPurchases || []) {
+      if (!genreMap.has(bp.genre)) {
+        genreMap.set(bp.genre, bp)
+      }
+    }
+    const uniqueBulkPurchases = Array.from(genreMap.values())
+
+    setTransferModal({ sale, bulkPurchases: uniqueBulkPurchases })
   }
 
   // 転記実行
