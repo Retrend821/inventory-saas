@@ -1569,11 +1569,19 @@ export default function Home() {
     const imageMap = new Map<string, string>()
     if (imageFile) {
       const imageText = await readUTF8(imageFile)
+      console.log(`画像CSV読み込み: ${imageText.length}文字, 先頭: ${imageText.substring(0, 100)}`)
       await new Promise<void>((resolve) => {
         Papa.parse(imageText, {
           header: true,
           skipEmptyLines: true,
           complete: (results) => {
+            console.log(`画像CSVパース結果: ${results.data.length}行`)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const firstRow = results.data[0] as any
+            if (firstRow) {
+              console.log(`画像CSV列名: ${Object.keys(firstRow).join(', ')}`)
+              console.log(`画像CSV1行目: ${JSON.stringify(firstRow).substring(0, 200)}`)
+            }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             for (const row of results.data as any[]) {
               // BOM付きヘッダー対応: キー名からBOMを除去してアクセス
@@ -1589,7 +1597,6 @@ export default function Home() {
               if (boxNo && rowNo && imageUrl) {
                 const key = `${boxNo}-${rowNo}`
                 imageMap.set(key, imageUrl)
-                console.log(`画像マップ: ${key} → ${imageUrl.substring(0, 50)}...`)
               }
             }
             console.log(`画像マップ作成完了: ${imageMap.size}件`)
@@ -3576,8 +3583,11 @@ export default function Home() {
         reader.onload = (event) => {
           const text = event.target?.result as string
           const hasJapanese = /[あ-んア-ン一-龯]/.test(text)
-          const hasGarbage = /[\ufffd\u0000-\u001f]/.test(text) && !hasJapanese
-          if (hasGarbage || (!hasJapanese && text.includes('�'))) {
+          // 文字化けパターンを検出（Shift-JISをUTF-8で読んだ場合の典型的なパターン）
+          const hasGarbledChars = /[\x80-\x9f]|[\ufffd]|�/.test(text)
+          const looksLikeShiftJIS = !hasJapanese && (hasGarbledChars || text.includes('�'))
+
+          if (looksLikeShiftJIS) {
             const sjisReader = new FileReader()
             sjisReader.onload = (e) => resolve(e.target?.result as string)
             sjisReader.readAsText(file, 'Shift_JIS')
