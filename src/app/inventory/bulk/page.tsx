@@ -1309,8 +1309,8 @@ export default function BulkInventoryPage() {
               </div>
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                 <div className="text-gray-500 text-[10px] sm:text-xs">未回収額</div>
-                <div className={`font-bold text-sm sm:text-base ${(genreSummary.totalPurchaseAmount - genreSummary.totalDeposit) <= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ¥{(genreSummary.totalPurchaseAmount - genreSummary.totalDeposit).toLocaleString()}
+                <div className={`font-bold text-sm sm:text-base ${(mixedRows.length > 0 ? -mixedRows[mixedRows.length - 1].cumulativeProfit : 0) <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ¥{(mixedRows.length > 0 ? -mixedRows[mixedRows.length - 1].cumulativeProfit : 0).toLocaleString()}
                 </div>
               </div>
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
