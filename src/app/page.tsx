@@ -1617,11 +1617,13 @@ export default function Home() {
 
     // 本体CSV
     const mainText = await readShiftJIS(mainFile)
+    console.log('大吉メインCSV読み込み:', mainText.length, '文字, 先頭:', mainText.substring(0, 150))
     Papa.parse(mainText, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         const data = results.data as DaikichAuctionCSV[]
+        console.log('大吉メインCSVパース結果:', data.length, '行')
 
         // デバッグ: 列名と1行目を表示
         if (data.length > 0) {
