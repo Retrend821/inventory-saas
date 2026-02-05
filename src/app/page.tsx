@@ -1623,6 +1623,12 @@ export default function Home() {
       complete: async (results) => {
         const data = results.data as DaikichAuctionCSV[]
 
+        // デバッグ: 列名と1行目を表示
+        if (data.length > 0) {
+          console.log('大吉メインCSV列名:', Object.keys(data[0]).join(', '))
+          console.log('大吉メインCSV1行目:', JSON.stringify(data[0]).substring(0, 300))
+        }
+
         // 有効データのみ（商品名あり、商品単価 > 0）
         const valid = data.filter(row => {
           const productName = row['商品名']?.trim()
