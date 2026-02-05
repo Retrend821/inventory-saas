@@ -1555,10 +1555,13 @@ export default function Home() {
         const reader = new FileReader()
         reader.onload = (e) => {
           let text = e.target?.result as string
-          // BOMを除去
+          // BOMを除去（複数パターン対応）
           if (text.charCodeAt(0) === 0xFEFF) {
             text = text.slice(1)
           }
+          // BOMが数字として解釈された場合のパターンを除去
+          // "239,187,191インデックス" → "インデックス" にする
+          text = text.replace(/^239,187,191/, '')
           resolve(text)
         }
         reader.readAsText(file, 'UTF-8')
