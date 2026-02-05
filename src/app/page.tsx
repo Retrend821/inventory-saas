@@ -988,10 +988,22 @@ export default function Home() {
         : currentItem.photography_fee
 
       if (salePrice !== null && salePrice !== 0) {
-        updateData.deposit_amount = salePrice - (commission || 0) - (shippingCost || 0) - (photographyFee || 0)
+        const newDepositAmount = salePrice - (commission || 0) - (shippingCost || 0) - (photographyFee || 0)
+        updateData.deposit_amount = newDepositAmount
+
+        // 利益も再計算（入金額 - 仕入総額 - 修理費）
+        const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
+        const otherCost = currentItem.other_cost || 0
+        const newProfit = newDepositAmount - purchaseTotal - otherCost
+        updateData.profit = newProfit
+        if (salePrice > 0) {
+          updateData.profit_rate = Math.round((newProfit / salePrice) * 100)
+        }
       } else {
-        // 売値が0またはnullの場合、入金額もリセット
+        // 売値が0またはnullの場合、入金額・利益もリセット
         updateData.deposit_amount = null
+        updateData.profit = null
+        updateData.profit_rate = null
       }
     }
 
@@ -1057,10 +1069,22 @@ export default function Home() {
       }
     }
 
-    // 仕入総額が更新された場合、メモを自動更新（管理番号）仕入総額）
-    if (field === 'purchase_total' && currentItem.inventory_number) {
-      const newPurchaseTotal = value as number | null
-      updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal || 0}`
+    // 仕入総額が更新された場合、利益とメモを更新
+    if (field === 'purchase_total') {
+      const newPurchaseTotal = value as number || 0
+      const depositAmount = currentItem.deposit_amount
+      const otherCost = currentItem.other_cost || 0
+      if (depositAmount !== null) {
+        const newProfit = depositAmount - newPurchaseTotal - otherCost
+        updateData.profit = newProfit
+        if (currentItem.sale_price && currentItem.sale_price > 0) {
+          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
+        }
+      }
+      // メモも更新
+      if (currentItem.inventory_number) {
+        updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal || 0}`
+      }
     }
 
     // 履歴に記録（変更されたフィールドのみ）
