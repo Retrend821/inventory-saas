@@ -397,7 +397,7 @@ export default function BulkInventoryPage() {
         saleAmount: isSold ? sale.sale_amount : 0,
         commission: isSold ? sale.commission : 0,
         shippingCost: isSold ? sale.shipping_cost : 0,
-        profit: isSold ? (depositAmount - purchasePrice - otherCost) : -purchasePrice,
+        profit: isSold ? depositAmount : -purchasePrice,
         saleData: sale,
         purchaseData: purchase
       })
@@ -1405,7 +1405,7 @@ export default function BulkInventoryPage() {
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">正味<br/>仕入額</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">仕入<br/>総額</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">入金額</th>
-                      <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">利益</th>
+                      <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[80px]">収支</th>
                       <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[60px]">利益率</th>
                       <th className="px-2 py-2 text-center text-xs font-semibold text-white whitespace-nowrap w-[50px]">削除</th>
                     </tr>
@@ -2074,7 +2074,7 @@ export default function BulkInventoryPage() {
                       <div className="text-lg font-semibold text-gray-900">{remainingQuantity}個</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">現時点利益</div>
+                      <div className="text-xs text-gray-500">現時点収支</div>
                       <div className={`text-lg font-semibold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatCurrency(netProfit)}
                       </div>
@@ -2160,7 +2160,7 @@ export default function BulkInventoryPage() {
                                 <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[50px]">その他</th>
                                 <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[70px]">仕入値</th>
                                 <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[70px]">入金額</th>
-                                <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[70px]">利益</th>
+                                <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[70px]">収支</th>
                                 <th className="px-2 py-2 text-right text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[60px]">利益率</th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[90px]">出品日</th>
                                 <th className="px-2 py-2 text-left text-xs font-semibold text-white border-r border-slate-600 whitespace-nowrap w-[90px]">売却日</th>
