@@ -198,6 +198,18 @@ export default function DashboardPage() {
         }
       }
 
+      // sales_summary 同期処理（売上明細を開かなくても利益が最新になるように）
+      const { updatedSalesSummary } = await syncSalesSummary({
+        inventory: allInventory as any,
+        bulkPurchases: bulkPurchasesData || [],
+        bulkSales: bulkSalesData || [],
+        manualSales: allManualSales as any,
+        existingSalesSummary: allSalesSummary,
+      })
+      if (updatedSalesSummary) {
+        allSalesSummary = updatedSalesSummary
+      }
+
       setInventory(allInventory)
       setManualSales(allManualSales)
       setBulkPurchases(bulkPurchasesData || [])
