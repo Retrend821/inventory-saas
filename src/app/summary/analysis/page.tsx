@@ -1611,7 +1611,7 @@ export default function SalesAnalysisPage() {
                           })
                         })
                         return [...brandStats.entries()]
-                          .filter(([, stats]) => stats.count >= 10) // 10個以上のみ
+                          .filter(([, stats]) => selectedMonth ? true : stats.count >= 10) // 月指定なしの場合のみ10個以上フィルター
                           .sort((a, b) => {
                             if (brandSortBy === 'sales') return b[1].sales - a[1].sales
                             if (brandSortBy === 'profit') return b[1].profit - a[1].profit
