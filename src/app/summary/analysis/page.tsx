@@ -1516,7 +1516,7 @@ export default function SalesAnalysisPage() {
                       })
                       .slice(0, 10)
                       .map((sale, idx) => (
-                        <tr key={sale.id} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-yellow-50' : ''}`}>
+                        <tr key={sale.id} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'border-l-4 border-l-yellow-400' : 'border-l-4 border-l-transparent'}`}>
                           <td className="px-1.5 sm:px-3 py-1 sm:py-2 text-center font-bold text-xs sm:text-sm">
                             {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                           </td>
@@ -1627,7 +1627,7 @@ export default function SalesAnalysisPage() {
                           })
                           .slice(0, 10)
                           .map(([brand, stats], idx) => (
-                            <tr key={brand} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-purple-50' : ''}`}>
+                            <tr key={brand} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'border-l-4 border-l-purple-400' : 'border-l-4 border-l-transparent'}`}>
                               <td className="px-3 py-2 text-center font-bold">
                                 {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                               </td>
@@ -1742,7 +1742,7 @@ export default function SalesAnalysisPage() {
                           })
                           .slice(0, 10)
                           .map(([dest, stats], idx) => (
-                            <tr key={dest} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-teal-50' : ''}`}>
+                            <tr key={dest} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'border-l-4 border-l-teal-400' : 'border-l-4 border-l-transparent'}`}>
                               <td className="px-3 py-2 text-center font-bold">
                                 {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                               </td>
@@ -1861,7 +1861,7 @@ export default function SalesAnalysisPage() {
                         })
                         .slice(0, 10)
                         .map(([cat, stats], idx) => (
-                          <tr key={cat} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-orange-50' : ''}`}>
+                          <tr key={cat} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'border-l-4 border-l-orange-400' : 'border-l-4 border-l-transparent'}`}>
                             <td className="px-3 py-2 text-center font-bold">
                               {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                             </td>
@@ -1970,7 +1970,7 @@ export default function SalesAnalysisPage() {
                         })
                         .slice(0, 10)
                         .map(([source, stats], idx) => (
-                          <tr key={source} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'bg-emerald-50' : ''}`}>
+                          <tr key={source} className={`border-b hover:bg-gray-50 ${idx < 3 ? 'border-l-4 border-l-emerald-400' : 'border-l-4 border-l-transparent'}`}>
                             <td className="px-3 py-2 text-center font-bold">
                               {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                             </td>
