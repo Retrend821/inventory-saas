@@ -819,7 +819,7 @@ export default function DashboardPage() {
                 滞留在庫はありません
               </div>
             ) : (
-              <div className="space-y-0 max-h-64 overflow-y-auto">
+              <div className="space-y-0">
                 {staleStock.map(item => (
                   <div key={item.id} className="flex items-center justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors">
                     <div className="flex-1 min-w-0">
