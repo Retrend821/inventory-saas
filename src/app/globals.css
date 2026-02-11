@@ -142,6 +142,85 @@ html.dark tr:hover {
   background-color: rgba(30, 41, 59, 0.5) !important;
 }
 
+/* --- 追加アクセント背景 --- */
+html.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+html.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+/* --- グラデーション（本日の売上カード等） --- */
+html.dark .from-amber-50 {
+  --tw-gradient-from: rgba(245, 158, 11, 0.15) !important;
+}
+html.dark .to-orange-50 {
+  --tw-gradient-to: rgba(249, 115, 22, 0.15) !important;
+}
+
+/* --- 色付きテキスト（ダークモードで明るく） --- */
+html.dark .text-amber-900 {
+  color: #fbbf24 !important;
+}
+html.dark .text-amber-700 {
+  color: #fbbf24 !important;
+}
+html.dark .text-amber-600 {
+  color: #f59e0b !important;
+}
+html.dark .text-green-900 {
+  color: #86efac !important;
+}
+html.dark .text-green-600 {
+  color: #4ade80 !important;
+}
+html.dark .text-emerald-900 {
+  color: #6ee7b7 !important;
+}
+html.dark .text-emerald-600 {
+  color: #34d399 !important;
+}
+html.dark .text-blue-900 {
+  color: #93c5fd !important;
+}
+html.dark .text-blue-600 {
+  color: #60a5fa !important;
+}
+html.dark .text-blue-700 {
+  color: #93c5fd !important;
+}
+html.dark .text-purple-900 {
+  color: #c4b5fd !important;
+}
+html.dark .text-purple-600 {
+  color: #a78bfa !important;
+}
+html.dark .text-orange-900 {
+  color: #fdba74 !important;
+}
+html.dark .text-orange-700 {
+  color: #fb923c !important;
+}
+html.dark .text-orange-600 {
+  color: #fb923c !important;
+}
+html.dark .text-red-900 {
+  color: #fca5a5 !important;
+}
+html.dark .text-yellow-900 {
+  color: #fde047 !important;
+}
+
+/* --- 色付きボーダー --- */
+html.dark .border-amber-200 {
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* --- 色付きホバー --- */
+html.dark .hover\:bg-orange-100:hover {
+  background-color: rgba(249, 115, 22, 0.2) !important;
+}
+
 /* --- モーダルバックドロップ（そのまま維持） --- */
 
 /* --- ログインページ等のフルスクリーン背景 --- */
