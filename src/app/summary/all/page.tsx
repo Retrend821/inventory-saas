@@ -405,6 +405,7 @@ export default function AllSalesPage() {
       })
 
       // 不足分を追加するためのデータを収集
+      const existingKeys = new Set(allSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
       const newRecords: Omit<SalesSummaryRecord, 'id' | 'created_at' | 'updated_at'>[] = []
 
       // 回転日数計算関数
@@ -466,6 +467,8 @@ export default function AllSalesPage() {
       })
 
       // 2. bulk_sales（まとめ売り）の不足分を追加（販売先があるもののみ＝販売確定分）
+      const bpMap = new Map<string, any>()
+      bulkPurchaseData?.forEach(bp => bpMap.set(bp.id, bp))
       bulkSaleData?.filter(sale => sale.sale_destination).forEach(sale => {
         const key = `bulk:${sale.id}`
         if (!existingKeys.has(key)) {
@@ -518,6 +521,12 @@ export default function AllSalesPage() {
       })
 
       // 3. manual_sales（手入力）の不足分を追加
+      const bulkSalesKeys = new Set<string>()
+      bulkSaleData?.forEach(sale => {
+        if (sale.product_name && sale.sale_date) {
+          bulkSalesKeys.add(`${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`)
+        }
+      })
       allManualSales.forEach(item => {
         if (item.sale_date && !item.cost_recovered) {
           // bulk_sales との重複チェック
