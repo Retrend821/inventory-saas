@@ -551,29 +551,29 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 md:mb-6">ダッシュボード</h1>
 
         {/* 今月のサマリー */}
-        <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-4 md:mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-4 md:p-6 mb-4 md:mb-6">
           <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-4">{currentMonth.label}のサマリー</h2>
 
           {/* 本日の売上 */}
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4 mb-4 md:mb-6 border border-amber-200">
-            <div className="text-sm font-medium text-amber-700 mb-2">本日の売上</div>
+          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-4 mb-4 md:mb-6">
+            <div className="text-sm font-medium text-white/90 mb-2">本日の売上</div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <div className="text-xs text-amber-600">販売件数</div>
-                <div className="text-xl font-bold text-amber-900">{todayStats.salesCount}件</div>
+                <div className="text-xs text-white/70">販売件数</div>
+                <div className="text-xl md:text-2xl font-bold text-white tabular-nums">{todayStats.salesCount}件</div>
               </div>
               <div>
-                <div className="text-xs text-amber-600">売上</div>
-                <div className="text-xl font-bold text-amber-900">¥{todayStats.salesTotal.toLocaleString()}</div>
+                <div className="text-xs text-white/70">売上</div>
+                <div className="text-xl md:text-2xl font-bold text-white tabular-nums">¥{todayStats.salesTotal.toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-xs text-amber-600">利益</div>
-                <div className={`text-xl font-bold ${todayStats.profit >= 0 ? 'text-amber-900' : 'text-red-600'}`}>
+                <div className="text-xs text-white/70">利益</div>
+                <div className={`text-xl md:text-2xl font-bold tabular-nums ${todayStats.profit >= 0 ? 'text-white' : 'text-red-200'}`}>
                   ¥{todayStats.profit.toLocaleString()}
                 </div>
               </div>
@@ -582,56 +582,62 @@ export default function DashboardPage() {
 
           {/* 今月の指標 */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 md:gap-4 mb-4 md:mb-6">
-            <div className="bg-green-50 rounded-lg p-3 md:p-4">
-              <div className="text-xs md:text-sm text-green-600">販売件数</div>
-              <div className="text-lg md:text-2xl font-bold text-green-900">{monthlyStats.salesCount}件</div>
+            <div className="bg-white rounded-xl p-3 md:p-4 border-l-4 border-green-400 shadow-sm">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">販売件数</div>
+              <div className="text-lg md:text-2xl font-bold text-gray-900 tabular-nums mt-1">{monthlyStats.salesCount}件</div>
             </div>
-            <div className="bg-green-50 rounded-lg p-3 md:p-4">
-              <div className="text-xs md:text-sm text-green-600">売上総額</div>
-              <div className="text-lg md:text-2xl font-bold text-green-900">¥{monthlyStats.salesTotal.toLocaleString()}</div>
+            <div className="bg-white rounded-xl p-3 md:p-4 border-l-4 border-green-400 shadow-sm">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">売上総額</div>
+              <div className="text-lg md:text-2xl font-bold text-gray-900 tabular-nums mt-1">¥{monthlyStats.salesTotal.toLocaleString()}</div>
             </div>
-            <div className={`rounded-lg p-3 md:p-4 ${monthlyStats.profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-              <div className={`text-xs md:text-sm ${monthlyStats.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>利益</div>
-              <div className={`text-lg md:text-2xl font-bold ${monthlyStats.profit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}>
+            <div className={`bg-white rounded-xl p-3 md:p-4 border-l-4 shadow-sm ${monthlyStats.profit >= 0 ? 'border-emerald-400' : 'border-red-400'}`}>
+              <div className={`text-xs font-medium uppercase tracking-wide ${monthlyStats.profit >= 0 ? 'text-gray-500' : 'text-red-500'}`}>利益</div>
+              <div className={`text-lg md:text-2xl font-bold tabular-nums mt-1 ${monthlyStats.profit >= 0 ? 'text-gray-900' : 'text-red-700'}`}>
                 ¥{monthlyStats.profit.toLocaleString()}
               </div>
             </div>
-            <div className="bg-purple-50 rounded-lg p-3 md:p-4">
-              <div className="text-xs md:text-sm text-purple-600">ROI</div>
-              <div className="text-lg md:text-2xl font-bold text-purple-900">{monthlyStats.roi.toFixed(1)}%</div>
+            <div className="bg-white rounded-xl p-3 md:p-4 border-l-4 border-purple-400 shadow-sm">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">ROI</div>
+              <div className="text-lg md:text-2xl font-bold text-gray-900 tabular-nums mt-1">{monthlyStats.roi.toFixed(1)}%</div>
             </div>
-            <div className="bg-blue-50 rounded-lg p-3 md:p-4">
-              <div className="text-xs md:text-sm text-blue-600">仕入件数</div>
-              <div className="text-lg md:text-2xl font-bold text-blue-900">{monthlyStats.purchaseCount}件</div>
+            <div className="bg-white rounded-xl p-3 md:p-4 border-l-4 border-blue-400 shadow-sm">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">仕入件数</div>
+              <div className="text-lg md:text-2xl font-bold text-gray-900 tabular-nums mt-1">{monthlyStats.purchaseCount}件</div>
             </div>
-            <div className="bg-blue-50 rounded-lg p-3 md:p-4">
-              <div className="text-xs md:text-sm text-blue-600">仕入総額</div>
-              <div className="text-lg md:text-2xl font-bold text-blue-900">¥{monthlyStats.purchaseTotal.toLocaleString()}</div>
+            <div className="bg-white rounded-xl p-3 md:p-4 border-l-4 border-blue-400 shadow-sm">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">仕入総額</div>
+              <div className="text-lg md:text-2xl font-bold text-gray-900 tabular-nums mt-1">¥{monthlyStats.purchaseTotal.toLocaleString()}</div>
             </div>
           </div>
 
           {/* 小売・業販内訳 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="border rounded-lg p-4">
+            <div className="rounded-xl p-4 border border-gray-200/60 shadow-sm">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-gray-900">小売</span>
-                <span className="text-sm text-gray-500">{monthlyStats.retailCount}件</span>
+                <span className="font-medium text-gray-900 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                  小売
+                </span>
+                <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{monthlyStats.retailCount}件</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">売上: ¥{monthlyStats.retailTotal.toLocaleString()}</span>
-                <span className={monthlyStats.retailProfit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                <span className={monthlyStats.retailProfit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                   利益: ¥{monthlyStats.retailProfit.toLocaleString()}
                 </span>
               </div>
             </div>
-            <div className="border rounded-lg p-4">
+            <div className="rounded-xl p-4 border border-gray-200/60 shadow-sm">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-gray-900">業販</span>
-                <span className="text-sm text-gray-500">{monthlyStats.wholesaleCount}件</span>
+                <span className="font-medium text-gray-900 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+                  業販
+                </span>
+                <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{monthlyStats.wholesaleCount}件</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">売上: ¥{monthlyStats.wholesaleTotal.toLocaleString()}</span>
-                <span className={monthlyStats.wholesaleProfit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                <span className={monthlyStats.wholesaleProfit >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                   利益: ¥{monthlyStats.wholesaleProfit.toLocaleString()}
                 </span>
               </div>
@@ -642,21 +648,24 @@ export default function DashboardPage() {
         {/* クイックアクション & ToDo */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* クイックアクション */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">クイックアクション</h2>
             <div className="space-y-3">
               {quickActions.map((action, index) => (
                 <Link
                   key={index}
                   href={action.href}
-                  className={`block p-4 rounded-lg text-white transition-colors ${action.color}`}
+                  className={`block p-4 rounded-xl text-white transition-all duration-200 hover:scale-[1.02] hover:shadow-md ${action.color}`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">{action.label}</div>
                       <div className="text-sm opacity-90">{action.description}</div>
                     </div>
-                    <div className="text-2xl font-bold">{action.count}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-2xl font-bold tabular-nums">{action.count}</div>
+                      <svg className="w-5 h-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </div>
                   </div>
                 </Link>
               ))}
@@ -664,7 +673,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ユーザーToDo */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">やることリスト</h2>
 
             {/* 新規追加 */}
@@ -680,12 +689,12 @@ export default function DashboardPage() {
                   }
                 }}
                 placeholder="新しいタスクを追加..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 onClick={addTodo}
                 disabled={!newTodoText.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 追加
               </button>
@@ -694,31 +703,31 @@ export default function DashboardPage() {
             {/* ToDoリスト */}
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {todos.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-400">
                   タスクがありません
                 </div>
               ) : (
                 todos.map(todo => (
                   <div
                     key={todo.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border ${
-                      todo.completed ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-300'
+                    className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                      todo.completed ? 'bg-gray-50/80 border-gray-100' : 'bg-white border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={todo.completed}
                       onChange={() => toggleTodo(todo.id)}
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded-md border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <span className={`flex-1 text-sm ${
-                      todo.completed ? 'text-gray-400 line-through' : 'text-gray-900'
+                    <span className={`flex-1 text-sm transition-colors ${
+                      todo.completed ? 'text-gray-400 line-through decoration-gray-300' : 'text-gray-900'
                     }`}>
                       {todo.text}
                     </span>
                     <button
                       onClick={() => deleteTodo(todo.id)}
-                      className="text-gray-400 hover:text-red-500 text-sm"
+                      className="text-gray-300 hover:text-red-500 text-sm transition-colors"
                     >
                       削除
                     </button>
@@ -731,7 +740,7 @@ export default function DashboardPage() {
             {todos.some(t => t.completed) && (
               <button
                 onClick={() => setTodos(todos.filter(t => !t.completed))}
-                className="mt-3 text-sm text-gray-500 hover:text-red-500"
+                className="mt-3 text-sm text-gray-400 hover:text-red-500 transition-colors"
               >
                 完了済みを削除
               </button>
@@ -741,73 +750,73 @@ export default function DashboardPage() {
 
         {/* 在庫状況 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">在庫状況</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-gray-600">在庫数</span>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                <span className="text-gray-600 text-sm">在庫数</span>
                 <div className="text-right">
-                  <span className="font-semibold text-gray-900">{stockStats.unsoldCount}件</span>
-                  <span className="text-sm text-gray-500 ml-2">¥{stockStats.unsoldValue.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">{stockStats.unsoldCount}件</span>
+                  <span className="text-sm text-gray-400 ml-2 tabular-nums">¥{stockStats.unsoldValue.toLocaleString()}</span>
                 </div>
               </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-gray-600">出品中</span>
+              <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                <span className="text-gray-600 text-sm">出品中</span>
                 <div className="text-right">
-                  <span className="font-semibold text-gray-900">{stockStats.listedCount}件</span>
-                  <span className="text-sm text-gray-500 ml-2">¥{stockStats.listedValue.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">{stockStats.listedCount}件</span>
+                  <span className="text-sm text-gray-400 ml-2 tabular-nums">¥{stockStats.listedValue.toLocaleString()}</span>
                 </div>
               </div>
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-gray-600">売却済（累計）</span>
+              <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                <span className="text-gray-600 text-sm">売却済（累計）</span>
                 <div className="text-right">
-                  <span className="font-semibold text-gray-900">{stockStats.soldCount}件</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">{stockStats.soldCount}件</span>
                 </div>
               </div>
               <Link
                 href="/?status=未出品"
-                className="flex justify-between items-center py-2 bg-orange-50 -mx-2 px-2 rounded hover:bg-orange-100 transition-colors"
+                className="flex justify-between items-center py-2.5 -mx-2 px-2 rounded-lg hover:bg-orange-50 transition-colors"
               >
-                <span className="text-orange-600 font-medium">未出品</span>
+                <span className="text-orange-600 font-medium text-sm">未出品</span>
                 <div className="text-right">
-                  <span className="font-semibold text-orange-900">{stockStats.unlistedCount}件</span>
-                  <span className="text-sm text-orange-700 ml-2">¥{stockStats.unlistedValue.toLocaleString()}</span>
+                  <span className="font-semibold text-orange-700 tabular-nums">{stockStats.unlistedCount}件</span>
+                  <span className="text-sm text-orange-500 ml-2 tabular-nums">¥{stockStats.unlistedValue.toLocaleString()}</span>
                 </div>
               </Link>
-              <div className="flex justify-between items-center pt-2 border-t-2">
+              <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200">
                 <span className="font-medium text-gray-900">在庫総額（原価）</span>
-                <span className="font-bold text-lg text-gray-900">¥{stockStats.totalStockValueCost.toLocaleString()}</span>
+                <span className="font-bold text-lg text-gray-900 tabular-nums">¥{stockStats.totalStockValueCost.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center pt-2">
                 <span className="font-medium text-gray-900">在庫総額（仕入総額）</span>
-                <span className="font-bold text-lg text-blue-700">¥{stockStats.totalStockValue.toLocaleString()}</span>
+                <span className="font-bold text-lg text-blue-700 tabular-nums">¥{stockStats.totalStockValue.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
           {/* 滞留在庫アラート */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               滞留在庫（90日以上）
               {staleStockCount > 0 && (
-                <span className="ml-2 text-sm font-normal text-red-600">{staleStockCount}件</span>
+                <span className="ml-2 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{staleStockCount}件</span>
               )}
             </h2>
             {staleStock.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-400">
                 滞留在庫はありません
               </div>
             ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="space-y-1 max-h-64 overflow-y-auto">
                 {staleStock.map(item => (
-                  <div key={item.id} className="flex items-center justify-between py-2 border-b text-sm">
+                  <div key={item.id} className="flex items-center justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-900 truncate">{item.product_name || '名称未設定'}</div>
-                      <div className="text-gray-500 text-xs">{item.brand_name || '-'}</div>
+                      <div className="text-gray-400 text-xs">{item.brand_name || '-'}</div>
                     </div>
                     <div className="text-right ml-4">
-                      <div className="text-red-600 font-medium">{item.staleDays}日</div>
-                      <div className="text-gray-500 text-xs">¥{(item.purchase_total || 0).toLocaleString()}</div>
+                      <div className="text-red-600 font-semibold tabular-nums">{item.staleDays}日</div>
+                      <div className="text-gray-400 text-xs tabular-nums">¥{(item.purchase_total || 0).toLocaleString()}</div>
                     </div>
                   </div>
                 ))}
@@ -819,33 +828,33 @@ export default function DashboardPage() {
         {/* 最近のアクティビティ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 最近売れた商品 */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">最近売れた商品</h2>
-              <Link href="/summary/all" className="text-sm text-blue-600 hover:text-blue-800">
+              <Link href="/summary/all" className="text-sm text-blue-600 hover:text-blue-800 transition-colors">
                 すべて見る →
               </Link>
             </div>
             {recentSales.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-400">
                 販売履歴がありません
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {recentSales.map(item => (
-                  <div key={`${item.source}-${item.id}`} className="flex items-center justify-between py-2 border-b text-sm">
+                  <div key={`${item.source}-${item.id}`} className="flex items-center justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-900 truncate">
                         {item.product_name || '名称未設定'}
                         {item.source === 'manual' && <span className="ml-1 text-xs text-purple-500">(手入力)</span>}
                       </div>
-                      <div className="text-gray-500 text-xs">
+                      <div className="text-gray-400 text-xs mt-0.5">
                         {item.sale_date} / {item.sale_type || '-'}
                       </div>
                     </div>
                     <div className="text-right ml-4">
-                      <div className="text-gray-900">¥{item.sale_amount.toLocaleString()}</div>
-                      <div className={`text-xs ${item.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className="text-gray-900 font-medium tabular-nums">¥{item.sale_amount.toLocaleString()}</div>
+                      <div className={`text-xs tabular-nums ${item.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         利益: ¥{item.profit.toLocaleString()}
                       </div>
                     </div>
@@ -856,32 +865,32 @@ export default function DashboardPage() {
           </div>
 
           {/* 最近仕入れた商品 */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/60 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">最近仕入れた商品</h2>
-              <Link href="/" className="text-sm text-blue-600 hover:text-blue-800">
+              <Link href="/" className="text-sm text-blue-600 hover:text-blue-800 transition-colors">
                 在庫一覧へ →
               </Link>
             </div>
             {recentPurchases.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-400">
                 仕入れ履歴がありません
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {recentPurchases.map(item => (
-                  <div key={item.id} className="flex items-center justify-between py-2 border-b text-sm">
+                  <div key={item.id} className="flex items-center justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-900 truncate">{item.product_name || '名称未設定'}</div>
-                      <div className="text-gray-500 text-xs">
+                      <div className="text-gray-400 text-xs mt-0.5">
                         {item.purchase_date} / {item.brand_name || '-'}
                       </div>
                     </div>
                     <div className="text-right ml-4">
-                      <div className="text-gray-900">¥{(item.purchase_total || 0).toLocaleString()}</div>
+                      <div className="text-gray-900 font-medium tabular-nums">¥{(item.purchase_total || 0).toLocaleString()}</div>
                       <div className={`text-xs ${
                         item.status === '売却済み' ? 'text-green-600' :
-                        item.status === '出品中' ? 'text-blue-600' : 'text-gray-500'
+                        item.status === '出品中' ? 'text-blue-600' : 'text-gray-400'
                       }`}>
                         {item.status}
                       </div>
