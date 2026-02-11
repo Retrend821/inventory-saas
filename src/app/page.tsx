@@ -8597,46 +8597,9 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {/* 詳細設定 */}
-                  <div className="pt-3 border-t border-emerald-200">
-                    <h4 className="text-sm font-medium text-emerald-800 mb-2">メモ欄に使用するフィールド</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setAuctionManagementField('inventory_number')}
-                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
-                          auctionManagementField === 'inventory_number'
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-emerald-300 bg-white hover:border-emerald-400'
-                        }`}
-                      >
-                        <div className={`text-sm font-medium ${auctionManagementField === 'inventory_number' ? 'text-white' : 'text-emerald-700'}`}>
-                          管理番号
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => setAuctionManagementField('memo')}
-                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
-                          auctionManagementField === 'memo'
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-emerald-300 bg-white hover:border-emerald-400'
-                        }`}
-                      >
-                        <div className={`text-sm font-medium ${auctionManagementField === 'memo' ? 'text-white' : 'text-emerald-700'}`}>
-                          メモ
-                        </div>
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* アプレオークション */}
-              {selectedAuctionCompany === 'appre' && (
-                <div className="mb-4 p-4 bg-orange-50 border-2 border-orange-600 rounded-lg">
-                  <h4 className="font-medium text-orange-800 mb-3">アプレオークション ブランド出品リスト</h4>
-
-                </div>
-              )}
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm">
                 <p className="text-yellow-800">
