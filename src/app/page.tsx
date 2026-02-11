@@ -8563,36 +8563,6 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {/* 詳細設定 */}
-                  <div className="pt-3 border-t border-blue-200">
-                    <h4 className="text-sm font-medium text-blue-800 mb-2">管理番号に使用するフィールド</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setAuctionManagementField('inventory_number')}
-                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
-                          auctionManagementField === 'inventory_number'
-                            ? 'border-blue-600 bg-blue-600'
-                            : 'border-blue-300 bg-white hover:border-blue-400'
-                        }`}
-                      >
-                        <div className={`text-sm font-medium ${auctionManagementField === 'inventory_number' ? 'text-white' : 'text-blue-700'}`}>
-                          管理番号
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => setAuctionManagementField('memo')}
-                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
-                          auctionManagementField === 'memo'
-                            ? 'border-blue-600 bg-blue-600'
-                            : 'border-blue-300 bg-white hover:border-blue-400'
-                        }`}
-                      >
-                        <div className={`text-sm font-medium ${auctionManagementField === 'memo' ? 'text-white' : 'text-blue-700'}`}>
-                          メモ
-                        </div>
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -8665,36 +8635,6 @@ export default function Home() {
                 <div className="mb-4 p-4 bg-orange-50 border-2 border-orange-600 rounded-lg">
                   <h4 className="font-medium text-orange-800 mb-3">アプレオークション ブランド出品リスト</h4>
 
-                  {/* 詳細設定 */}
-                  <div className="pt-3 border-t border-orange-200">
-                    <h4 className="text-sm font-medium text-orange-800 mb-2">管理番号に使用するフィールド</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setAuctionManagementField('inventory_number')}
-                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
-                          auctionManagementField === 'inventory_number'
-                            ? 'border-orange-600 bg-orange-600 text-white'
-                            : 'border-orange-300 bg-white hover:border-orange-400'
-                        }`}
-                      >
-                        <div className={`text-sm font-medium ${auctionManagementField === 'inventory_number' ? 'text-white' : 'text-orange-700'}`}>
-                          管理番号
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => setAuctionManagementField('memo')}
-                        className={`p-2 border-2 rounded-lg transition-colors text-center ${
-                          auctionManagementField === 'memo'
-                            ? 'border-orange-600 bg-orange-600 text-white'
-                            : 'border-orange-300 bg-white hover:border-orange-400'
-                        }`}
-                      >
-                        <div className={`text-sm font-medium ${auctionManagementField === 'memo' ? 'text-white' : 'text-orange-700'}`}>
-                          メモ
-                        </div>
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
 
