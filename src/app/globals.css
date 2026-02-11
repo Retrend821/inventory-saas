@@ -246,6 +246,35 @@ html.dark .hover\:bg-orange-100:hover {
 
 /* --- モーダルバックドロップ（そのまま維持） --- */
 
+/* --- プラットフォームバッジ（淡色背景をダーク対応） --- */
+html.dark .bg-yellow-200 {
+  background-color: rgba(250, 204, 21, 0.25) !important;
+}
+html.dark .bg-yellow-400 {
+  background-color: rgba(250, 204, 21, 0.35) !important;
+}
+html.dark .text-yellow-900 {
+  color: #fade2a !important;
+}
+html.dark .bg-green-100 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+html.dark .bg-lime-100 {
+  background-color: rgba(132, 204, 22, 0.15) !important;
+}
+html.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+html.dark .bg-sky-100 {
+  background-color: rgba(14, 165, 233, 0.15) !important;
+}
+html.dark .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+html.dark .text-yellow-800 {
+  color: #fade2a !important;
+}
+
 /* --- ログインページ等のフルスクリーン背景 --- */
 html.dark .min-h-screen.bg-gray-100 {
   background-color: #111217 !important;
