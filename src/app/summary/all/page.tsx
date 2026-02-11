@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Papa from 'papaparse'
 import { supabase } from '@/lib/supabase'
+import { syncSalesSummary } from '@/lib/syncSalesSummary'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -394,20 +395,13 @@ export default function AllSalesPage() {
         }
       }
 
-      // 既存の sales_summary のキーをセットに格納（重複チェック用）
-      const existingKeys = new Set(allSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
-
-      // bulkPurchase のマップを作成
-      const bpMap = new Map<string, BulkPurchase>()
-      bulkPurchaseData?.forEach(bp => bpMap.set(bp.id, bp))
-
-      // bulk_sales のキーを記録（manual_sales との重複排除用）
-      const bulkSalesKeys = new Set<string>()
-      bulkSaleData?.forEach(sale => {
-        if (sale.product_name && sale.sale_date) {
-          const key = `${sale.product_name.trim().toLowerCase()}|${sale.sale_date}`
-          bulkSalesKeys.add(key)
-        }
+      // sales_summary 同期処理
+      const { updatedSalesSummary } = await syncSalesSummary({
+        inventory: allInventory as any,
+        bulkPurchases: bulkPurchaseData || [],
+        bulkSales: bulkSaleData || [],
+        manualSales: allManualSales as any,
+        existingSalesSummary: allSalesSummary,
       })
 
       // 不足分を追加するためのデータを収集

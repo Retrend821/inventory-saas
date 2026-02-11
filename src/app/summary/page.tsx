@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { syncSalesSummary } from '@/lib/syncSalesSummary'
 
 type MonthlyGoal = {
   id?: string
@@ -280,7 +281,7 @@ export default function SummaryPage() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('manual_sales')
-          .select('id, product_name, purchase_total, sale_price, commission, shipping_cost, profit, purchase_date, listing_date, sale_date, cost_recovered')
+          .select('*')
           .range(from, from + pageSize - 1)
 
         if (error) {
@@ -300,7 +301,7 @@ export default function SummaryPage() {
       // bulk_purchasesを取得
       const { data: bulkPurchaseData, error: bulkPurchaseError } = await supabase
         .from('bulk_purchases')
-        .select('id, genre, purchase_date, total_amount, total_quantity')
+        .select('*')
 
       if (bulkPurchaseError) {
         console.error('Error fetching bulk_purchases:', bulkPurchaseError)

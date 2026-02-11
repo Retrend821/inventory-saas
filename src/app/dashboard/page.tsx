@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { syncSalesSummary } from '@/lib/syncSalesSummary'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
@@ -15,6 +16,9 @@ type InventoryItem = {
   purchase_price: number | null
   purchase_total: number | null
   sale_price: number | null
+  commission: number | null
+  shipping_cost: number | null
+  photography_fee: number | null
   deposit_amount: number | null
   other_cost: number | null
   profit: number | null

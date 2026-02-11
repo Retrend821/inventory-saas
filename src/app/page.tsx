@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo, memo, startTransition, useDeferredValue } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import Papa from 'papaparse'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -378,6 +378,7 @@ export default function Home() {
   // 編集可能かどうか（認証読み込み中は編集不可）
   const canEdit = !authLoading && !isViewerUser
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -1250,6 +1251,38 @@ export default function Home() {
   useEffect(() => {
     const handleClickOutside = async (e: MouseEvent) => {
       if (editingCell && editCellRef.current && !editCellRef.current.contains(e.target as Node)) {
+        // ナビゲーションリンクかチェック
+        const linkElement = (e.target as HTMLElement).closest('a[href]') as HTMLAnchorElement | null
+
+        if (linkElement && linkElement.href) {
+          // リンククリック時は保存完了後にナビゲーション
+          e.preventDefault()
+          e.stopImmediatePropagation()
+
+          // 後続のclickイベントをブロック（Next.js Linkの内部router.pushを防止）
+          const blockClick = (ev: Event) => {
+            ev.preventDefault()
+            ev.stopImmediatePropagation()
+          }
+          document.addEventListener('click', blockClick, { capture: true, once: true })
+          // 安全策: 500ms後にリスナーを自動除去
+          const cleanup = setTimeout(() => {
+            document.removeEventListener('click', blockClick, { capture: true })
+          }, 500)
+
+          await saveEditingCell()
+          clearTimeout(cleanup)
+
+          // 保存完了後にナビゲーション
+          try {
+            const url = new URL(linkElement.href)
+            router.push(url.pathname + url.search + url.hash)
+          } catch {
+            router.push(linkElement.getAttribute('href') || '/')
+          }
+          return
+        }
+
         saveEditingCell()
       }
       // 日付フィルタードロップダウンを閉じる
@@ -1270,7 +1303,7 @@ export default function Home() {
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [editingCell, saveEditingCell, openDateFilter, selectedCell])
+  }, [editingCell, saveEditingCell, openDateFilter, selectedCell, router])
 
   const parseYahooDate = (dateStr: string): string | null => {
     // "2026-02-03" or "2026/02/03" -> "2026-02-03"

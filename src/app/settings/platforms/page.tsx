@@ -60,8 +60,9 @@ const defaultPlatformSettings: Record<string, { color: string; commission: numbe
   'トレファク': { color: 'bg-yellow-400 text-white', commission: 0, salesType: 'toB' },
   'JBA': { color: 'bg-white text-black border border-gray-300', commission: 3, salesType: 'toB' },
   'JPA': { color: 'bg-blue-900 text-white', commission: 0, salesType: 'toB' },
-  '仲卸': { color: 'bg-gray-500 text-white', commission: 0, salesType: 'toB' },
   '返品': { color: 'bg-gray-500 text-white', commission: 0, salesType: 'toC' },
+  'shopify': { color: 'bg-green-600 text-white', commission: 0, salesType: 'toC' },
+  'エレノス': { color: 'bg-purple-500 text-white', commission: 0, salesType: 'toB' },
 }
 
 // デフォルト仕入先の設定（色）
@@ -348,8 +349,8 @@ export default function PlatformsPage() {
     setPlatformDragOverIndex(index)
   }
 
-  const handlePlatformDrop = async (index: number) => {
-    if (platformDragIndex === null || platformDragIndex === index) {
+  const handlePlatformDragEnd = async () => {
+    if (platformDragIndex === null || platformDragOverIndex === null || platformDragIndex === platformDragOverIndex) {
       setPlatformDragIndex(null)
       setPlatformDragOverIndex(null)
       return
@@ -357,7 +358,7 @@ export default function PlatformsPage() {
 
     const newPlatforms = [...platforms]
     const [draggedItem] = newPlatforms.splice(platformDragIndex, 1)
-    newPlatforms.splice(index, 0, draggedItem)
+    newPlatforms.splice(platformDragOverIndex, 0, draggedItem)
 
     // Update sort_order for all items
     const updates = newPlatforms.map((p, i) => ({
@@ -376,11 +377,6 @@ export default function PlatformsPage() {
         .update({ sort_order: update.sort_order })
         .eq('id', update.id)
     }
-  }
-
-  const handlePlatformDragEnd = () => {
-    setPlatformDragIndex(null)
-    setPlatformDragOverIndex(null)
   }
 
   const openPlatformDetailEdit = (platform: Platform) => {
@@ -585,8 +581,8 @@ export default function PlatformsPage() {
     setSupplierDragOverIndex(index)
   }
 
-  const handleSupplierDrop = async (index: number) => {
-    if (supplierDragIndex === null || supplierDragIndex === index) {
+  const handleSupplierDragEnd = async () => {
+    if (supplierDragIndex === null || supplierDragOverIndex === null || supplierDragIndex === supplierDragOverIndex) {
       setSupplierDragIndex(null)
       setSupplierDragOverIndex(null)
       return
@@ -594,7 +590,7 @@ export default function PlatformsPage() {
 
     const newSuppliers = [...suppliers]
     const [draggedItem] = newSuppliers.splice(supplierDragIndex, 1)
-    newSuppliers.splice(index, 0, draggedItem)
+    newSuppliers.splice(supplierDragOverIndex, 0, draggedItem)
 
     // Update sort_order for all items
     const updates = newSuppliers.map((s, i) => ({
@@ -613,11 +609,6 @@ export default function PlatformsPage() {
         .update({ sort_order: update.sort_order })
         .eq('id', update.id)
     }
-  }
-
-  const handleSupplierDragEnd = () => {
-    setSupplierDragIndex(null)
-    setSupplierDragOverIndex(null)
   }
 
   const openSupplierDetailEdit = (supplier: Supplier) => {
@@ -867,17 +858,18 @@ export default function PlatformsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {platforms.filter(p => showHiddenPlatforms || !p.is_hidden).map((platform, index) => (
+                    {platforms.filter(p => showHiddenPlatforms || !p.is_hidden).map((platform) => {
+                      const origIndex = platforms.findIndex(p => p.id === platform.id)
+                      return (
                       <tr
                         key={platform.id}
                         draggable
-                        onDragStart={() => handlePlatformDragStart(index)}
-                        onDragOver={(e) => handlePlatformDragOver(e, index)}
-                        onDrop={() => handlePlatformDrop(index)}
+                        onDragStart={() => handlePlatformDragStart(origIndex)}
+                        onDragOver={(e) => handlePlatformDragOver(e, origIndex)}
                         onDragEnd={handlePlatformDragEnd}
                         className={`border-b border-gray-100 hover:bg-gray-50 ${
-                          platformDragIndex === index ? 'opacity-50 bg-blue-100' : ''
-                        } ${platformDragOverIndex === index && platformDragIndex !== index ? 'border-t-2 border-t-blue-500' : ''} ${platform.is_hidden ? 'opacity-50' : ''}`}
+                          platformDragIndex === origIndex ? 'opacity-50 bg-blue-100' : ''
+                        } ${platformDragOverIndex === origIndex && platformDragIndex !== origIndex ? 'border-t-2 border-t-blue-500' : ''} ${platform.is_hidden ? 'opacity-50' : ''}`}
                       >
                         <td className="px-2 py-3 text-center cursor-grab active:cursor-grabbing">
                           <svg className="w-5 h-5 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1032,7 +1024,7 @@ export default function PlatformsPage() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                     {platforms.filter(p => showHiddenPlatforms || !p.is_hidden).length === 0 && (
                       <tr>
                         <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
@@ -1183,17 +1175,18 @@ export default function PlatformsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {suppliers.filter(s => showHiddenSuppliers || !s.is_hidden).map((supplier, index) => (
+                    {suppliers.filter(s => showHiddenSuppliers || !s.is_hidden).map((supplier) => {
+                      const origIndex = suppliers.findIndex(s => s.id === supplier.id)
+                      return (
                       <tr
                         key={supplier.id}
                         draggable
-                        onDragStart={() => handleSupplierDragStart(index)}
-                        onDragOver={(e) => handleSupplierDragOver(e, index)}
-                        onDrop={() => handleSupplierDrop(index)}
+                        onDragStart={() => handleSupplierDragStart(origIndex)}
+                        onDragOver={(e) => handleSupplierDragOver(e, origIndex)}
                         onDragEnd={handleSupplierDragEnd}
                         className={`border-b border-gray-100 hover:bg-gray-50 ${
-                          supplierDragIndex === index ? 'opacity-50 bg-blue-100' : ''
-                        } ${supplierDragOverIndex === index && supplierDragIndex !== index ? 'border-t-2 border-t-blue-500' : ''} ${supplier.is_hidden ? 'opacity-50' : ''}`}
+                          supplierDragIndex === origIndex ? 'opacity-50 bg-blue-100' : ''
+                        } ${supplierDragOverIndex === origIndex && supplierDragIndex !== origIndex ? 'border-t-2 border-t-blue-500' : ''} ${supplier.is_hidden ? 'opacity-50' : ''}`}
                       >
                         <td className="px-2 py-3 text-center cursor-grab active:cursor-grabbing">
                           <svg className="w-5 h-5 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1295,7 +1288,7 @@ export default function PlatformsPage() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                     {suppliers.filter(s => showHiddenSuppliers || !s.is_hidden).length === 0 && (
                       <tr>
                         <td colSpan={8} className="px-4 py-8 text-center text-gray-500">

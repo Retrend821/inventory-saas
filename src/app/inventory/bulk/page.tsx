@@ -1304,6 +1304,10 @@ export default function BulkInventoryPage() {
                 <div className="font-bold text-gray-900 text-sm sm:text-base">¥{genreSummary.totalSales.toLocaleString()}</div>
               </div>
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                <div className="text-gray-500 text-[10px] sm:text-xs">出金総額</div>
+                <div className="font-bold text-red-600 text-sm sm:text-base">¥{genreSummary.totalPurchaseAmount.toLocaleString()}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                 <div className="text-gray-500 text-[10px] sm:text-xs">入金総額</div>
                 <div className="font-bold text-blue-600 text-sm sm:text-base">¥{genreSummary.totalDeposit.toLocaleString()}</div>
               </div>
@@ -2355,18 +2359,11 @@ export default function BulkInventoryPage() {
                                     {/* 仕入値 */}
                                     {renderEditableCell('purchase_price', formatCurrency(purchasePriceVal), 'right')}
 
-                                    {/* 入金額 - 計算値を表示（編集可能） */}
-                                    {renderEditableCell('deposit_amount', formatCurrency(depositAmountVal), 'right')}
-
-                                    {/* 利益 - 計算値なので編集不可 */}
+                                    {/* 入出金 - 計算値なので編集不可 */}
                                     <td className={`px-2 py-1 text-right font-medium border-r border-gray-100 ${saleProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                       {formatCurrency(saleProfit)}
                                     </td>
 
-                                    {/* 利益率 - 計算値なので編集不可 */}
-                                    <td className={`px-2 py-1 text-right border-r border-gray-100 ${profitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      {profitRate}%
-                                    </td>
 
                                     {/* 出品日 */}
                                     {renderEditableCell('listing_date', sale.listing_date ? formatDate(sale.listing_date) : '-')}

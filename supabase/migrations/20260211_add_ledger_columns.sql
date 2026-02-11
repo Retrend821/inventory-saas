@@ -1,0 +1,19 @@
+-- 古物台帳用カラムを platforms テーブルに追加
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS representative_name TEXT;
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS occupation TEXT;
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS website TEXT;
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS verification_method TEXT;
+ALTER TABLE platforms ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE;
+
+-- 古物台帳用カラムを suppliers テーブルに追加
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS representative_name TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS occupation TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS website TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS verification_method TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE;
