@@ -46,6 +46,7 @@ interface Supplier {
 // デフォルト販路の設定（色と手数料率と販売区分）
 const defaultPlatformSettings: Record<string, { color: string; commission: number; salesType: 'toB' | 'toC' }> = {
   'メルカリ': { color: 'bg-red-500 text-white', commission: 10, salesType: 'toC' },
+  'メルカリショップス': { color: 'bg-red-400 text-white', commission: 10, salesType: 'toC' },
   'ヤフオク': { color: 'bg-yellow-200 text-yellow-900', commission: 10, salesType: 'toC' },
   'ヤフーフリマ': { color: 'bg-yellow-100 text-yellow-800', commission: 5, salesType: 'toC' },
   'ラクマ': { color: 'bg-pink-500 text-white', commission: 0, salesType: 'toC' },

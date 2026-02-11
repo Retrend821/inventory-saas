@@ -6,9 +6,150 @@
   --foreground: #1e293b; /* ダークスレート */
 }
 
+html.dark {
+  --background: #0f172a; /* slate-950 */
+  --foreground: #e2e8f0; /* slate-200 */
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* ==========================================
+   ダークモード: Tailwindクラス一括上書き
+   ========================================== */
+
+/* --- 背景色 --- */
+html.dark .bg-white {
+  background-color: #1e293b !important;
+}
+html.dark .bg-gray-50 {
+  background-color: #0f172a !important;
+}
+html.dark .bg-gray-100 {
+  background-color: #1e293b !important;
+}
+html.dark .bg-gray-200 {
+  background-color: #334155 !important;
+}
+
+/* --- 薄いアクセント背景 --- */
+html.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+html.dark .bg-green-50 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+html.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+html.dark .bg-yellow-50 {
+  background-color: rgba(234, 179, 8, 0.15) !important;
+}
+html.dark .bg-purple-50 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+html.dark .bg-orange-50 {
+  background-color: rgba(249, 115, 22, 0.15) !important;
+}
+
+/* --- テキスト色 --- */
+html.dark .text-gray-900 {
+  color: #e2e8f0 !important;
+}
+html.dark .text-gray-800 {
+  color: #e2e8f0 !important;
+}
+html.dark .text-gray-700 {
+  color: #cbd5e1 !important;
+}
+html.dark .text-gray-600 {
+  color: #94a3b8 !important;
+}
+html.dark .text-gray-500 {
+  color: #94a3b8 !important;
+}
+html.dark .text-gray-400 {
+  color: #64748b !important;
+}
+
+/* --- ボーダー色 --- */
+html.dark .border-gray-200 {
+  border-color: #334155 !important;
+}
+html.dark .border-gray-300 {
+  border-color: #475569 !important;
+}
+html.dark .border-gray-100 {
+  border-color: #334155 !important;
+}
+
+/* --- 区切り線 --- */
+html.dark .divide-gray-100 > :not(:first-child) {
+  border-color: #334155 !important;
+}
+html.dark .divide-gray-200 > :not(:first-child) {
+  border-color: #334155 !important;
+}
+
+/* --- ホバー状態 --- */
+html.dark .hover\:bg-gray-50:hover {
+  background-color: #1e293b !important;
+}
+html.dark .hover\:bg-gray-100:hover {
+  background-color: #334155 !important;
+}
+html.dark .hover\:bg-gray-50\/50:hover {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+html.dark .hover\:bg-blue-50:hover {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* --- インプット・セレクト・テキストエリア --- */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.dark select,
+html.dark textarea {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* --- シャドウ --- */
+html.dark .shadow,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* --- リング・フォーカス --- */
+html.dark .ring-1 {
+  --tw-ring-color: #475569 !important;
+}
+
+/* --- テーブル固有 --- */
+html.dark th {
+  background-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+html.dark tr:hover {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+/* --- モーダルバックドロップ（そのまま維持） --- */
+
+/* --- ログインページ等のフルスクリーン背景 --- */
+html.dark .min-h-screen.bg-gray-100 {
+  background-color: #0f172a !important;
+}
+html.dark .min-h-screen.bg-gray-50 {
+  background-color: #0f172a !important;
 }
 
 /* テーブルスクロールコンテナ */
@@ -43,6 +184,21 @@ body {
   scrollbar-color: #94a3b8 #f1f5f9;
 }
 
+/* ダークモード: スクロールバー */
+html.dark .table-scroll-container::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+html.dark .table-scroll-container::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-color: #1e293b;
+}
+html.dark .table-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+html.dark .table-scroll-container {
+  scrollbar-color: #475569 #1e293b;
+}
+
 /* 固定横スクロールバー */
 .fixed-horizontal-scrollbar {
   position: fixed;
@@ -72,6 +228,21 @@ body {
 
 .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
+}
+
+/* ダークモード: 固定横スクロールバー */
+html.dark .fixed-horizontal-scrollbar {
+  background: #1e293b;
+}
+html.dark .fixed-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+html.dark .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-color: #1e293b;
+}
+html.dark .fixed-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 /* number inputの矢印（スピナー）を非表示 */
