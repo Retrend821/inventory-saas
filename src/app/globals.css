@@ -7,8 +7,8 @@
 }
 
 html.dark {
-  --background: #0f172a; /* slate-950 */
-  --foreground: #e2e8f0; /* slate-200 */
+  --background: #111217; /* Grafana風 ほぼ黒 */
+  --foreground: #e8eaed;
 }
 
 body {
@@ -17,218 +17,241 @@ body {
 }
 
 /* ==========================================
-   ダークモード: Tailwindクラス一括上書き
+   ダークモード: Grafana風ダークテーマ
    ========================================== */
 
 /* --- 背景色 --- */
 html.dark .bg-white {
-  background-color: #1e293b !important;
+  background-color: #181b1f !important; /* カード背景: ほぼ黒に近いダーク */
 }
 html.dark .bg-gray-50 {
-  background-color: #0f172a !important;
+  background-color: #111217 !important; /* ページ背景: 一番暗い */
 }
 html.dark .bg-gray-100 {
-  background-color: #1e293b !important;
+  background-color: #111217 !important;
 }
 html.dark .bg-gray-200 {
-  background-color: #334155 !important;
+  background-color: #2a2d35 !important;
 }
 
 /* --- 薄いアクセント背景 --- */
 html.dark .bg-blue-50 {
-  background-color: rgba(59, 130, 246, 0.15) !important;
+  background-color: rgba(59, 130, 246, 0.12) !important;
 }
 html.dark .bg-green-50 {
-  background-color: rgba(34, 197, 94, 0.15) !important;
+  background-color: rgba(115, 191, 105, 0.12) !important;
 }
 html.dark .bg-red-50 {
-  background-color: rgba(239, 68, 68, 0.15) !important;
+  background-color: rgba(242, 73, 92, 0.12) !important;
 }
 html.dark .bg-yellow-50 {
-  background-color: rgba(234, 179, 8, 0.15) !important;
+  background-color: rgba(255, 152, 48, 0.12) !important;
 }
 html.dark .bg-purple-50 {
-  background-color: rgba(168, 85, 247, 0.15) !important;
+  background-color: rgba(183, 119, 246, 0.12) !important;
 }
 html.dark .bg-orange-50 {
-  background-color: rgba(249, 115, 22, 0.15) !important;
+  background-color: rgba(255, 152, 48, 0.12) !important;
 }
 
 /* --- テキスト色 --- */
 html.dark .text-gray-900 {
-  color: #e2e8f0 !important;
+  color: #e8eaed !important; /* メインテキスト: 明るい白 */
 }
 html.dark .text-gray-800 {
-  color: #e2e8f0 !important;
+  color: #e8eaed !important;
 }
 html.dark .text-gray-700 {
-  color: #cbd5e1 !important;
+  color: #d0d4da !important;
 }
 html.dark .text-gray-600 {
-  color: #94a3b8 !important;
+  color: #8e939e !important;
 }
 html.dark .text-gray-500 {
-  color: #94a3b8 !important;
+  color: #8e939e !important; /* ラベルテキスト */
 }
 html.dark .text-gray-400 {
-  color: #64748b !important;
+  color: #6b7280 !important;
 }
 
 /* --- ボーダー色 --- */
 html.dark .border-gray-200 {
-  border-color: #334155 !important;
+  border-color: #2a2d35 !important; /* 非常に控えめなボーダー */
 }
 html.dark .border-gray-300 {
-  border-color: #475569 !important;
+  border-color: #363940 !important;
 }
 html.dark .border-gray-100 {
-  border-color: #334155 !important;
+  border-color: #22252b !important;
 }
 
 /* --- 区切り線 --- */
 html.dark .divide-gray-100 > :not(:first-child) {
-  border-color: #334155 !important;
+  border-color: #22252b !important;
 }
 html.dark .divide-gray-200 > :not(:first-child) {
-  border-color: #334155 !important;
+  border-color: #2a2d35 !important;
 }
 
 /* --- ホバー状態 --- */
 html.dark .hover\:bg-gray-50:hover {
-  background-color: #1e293b !important;
+  background-color: #1e2128 !important;
 }
 html.dark .hover\:bg-gray-100:hover {
-  background-color: #334155 !important;
+  background-color: #22252b !important;
 }
 html.dark .hover\:bg-gray-50\/50:hover {
-  background-color: rgba(30, 41, 59, 0.5) !important;
+  background-color: rgba(30, 33, 40, 0.5) !important;
 }
 html.dark .hover\:bg-blue-50:hover {
   background-color: rgba(59, 130, 246, 0.15) !important;
+}
+html.dark .hover\:bg-orange-50:hover {
+  background-color: rgba(255, 152, 48, 0.15) !important;
 }
 
 /* --- インプット・セレクト・テキストエリア --- */
 html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 html.dark select,
 html.dark textarea {
-  background-color: #0f172a !important;
-  color: #e2e8f0 !important;
-  border-color: #475569 !important;
+  background-color: #111217 !important;
+  color: #e8eaed !important;
+  border-color: #363940 !important;
 }
 html.dark input::placeholder,
 html.dark textarea::placeholder {
-  color: #64748b !important;
+  color: #5f636b !important;
 }
 
-/* --- シャドウ --- */
+/* --- シャドウ（Grafana風: 控えめ） --- */
 html.dark .shadow,
 html.dark .shadow-md,
 html.dark .shadow-lg,
 html.dark .shadow-xl {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* --- リング・フォーカス --- */
 html.dark .ring-1 {
-  --tw-ring-color: #475569 !important;
+  --tw-ring-color: #363940 !important;
 }
 
 /* --- テーブル固有 --- */
 html.dark th {
-  background-color: #1e293b !important;
-  color: #94a3b8 !important;
+  background-color: #181b1f !important;
+  color: #8e939e !important;
 }
 html.dark tr:hover {
-  background-color: rgba(30, 41, 59, 0.5) !important;
+  background-color: rgba(42, 45, 53, 0.5) !important;
 }
 
 /* --- 追加アクセント背景 --- */
 html.dark .bg-emerald-50 {
-  background-color: rgba(16, 185, 129, 0.15) !important;
+  background-color: rgba(115, 191, 105, 0.12) !important;
 }
 html.dark .bg-amber-50 {
-  background-color: rgba(245, 158, 11, 0.15) !important;
+  background-color: rgba(255, 152, 48, 0.12) !important;
 }
 
 /* --- グラデーション（本日の売上カード等） --- */
 html.dark .from-amber-50 {
-  --tw-gradient-from: rgba(245, 158, 11, 0.15) !important;
+  --tw-gradient-from: rgba(255, 152, 48, 0.15) !important;
 }
 html.dark .to-orange-50 {
   --tw-gradient-to: rgba(249, 115, 22, 0.15) !important;
 }
 
-/* --- 色付きテキスト（ダークモードで明るく） --- */
+/* --- 色付きテキスト（Grafana風: 鮮やかな発色） --- */
 html.dark .text-amber-900 {
-  color: #fbbf24 !important;
+  color: #ff9830 !important; /* Grafanaオレンジ */
 }
 html.dark .text-amber-700 {
-  color: #fbbf24 !important;
+  color: #ff9830 !important;
 }
 html.dark .text-amber-600 {
-  color: #f59e0b !important;
+  color: #ff9830 !important;
 }
 html.dark .text-green-900 {
-  color: #86efac !important;
+  color: #73bf69 !important; /* Grafanaグリーン */
 }
 html.dark .text-green-600 {
-  color: #4ade80 !important;
+  color: #73bf69 !important;
 }
 html.dark .text-emerald-900 {
-  color: #6ee7b7 !important;
+  color: #73bf69 !important;
 }
 html.dark .text-emerald-600 {
-  color: #34d399 !important;
+  color: #73bf69 !important;
 }
 html.dark .text-blue-900 {
-  color: #93c5fd !important;
+  color: #5794f2 !important; /* Grafanaブルー */
 }
 html.dark .text-blue-600 {
-  color: #60a5fa !important;
+  color: #5794f2 !important;
 }
 html.dark .text-blue-700 {
-  color: #93c5fd !important;
+  color: #5794f2 !important;
 }
 html.dark .text-purple-900 {
-  color: #c4b5fd !important;
+  color: #b877f6 !important; /* Grafanaパープル */
 }
 html.dark .text-purple-600 {
-  color: #a78bfa !important;
+  color: #b877f6 !important;
 }
 html.dark .text-orange-900 {
-  color: #fdba74 !important;
+  color: #ff9830 !important;
 }
 html.dark .text-orange-700 {
-  color: #fb923c !important;
+  color: #ff9830 !important;
 }
 html.dark .text-orange-600 {
-  color: #fb923c !important;
+  color: #ff9830 !important;
 }
 html.dark .text-red-900 {
-  color: #fca5a5 !important;
+  color: #f2495c !important; /* Grafanaレッド */
+}
+html.dark .text-red-600 {
+  color: #f2495c !important;
 }
 html.dark .text-yellow-900 {
-  color: #fde047 !important;
+  color: #fade2a !important; /* Grafanaイエロー */
 }
 
 /* --- 色付きボーダー --- */
 html.dark .border-amber-200 {
-  border-color: rgba(245, 158, 11, 0.3) !important;
+  border-color: rgba(255, 152, 48, 0.3) !important;
+}
+
+/* --- アクセントボーダー（KPIカード下部）をGrafana色に --- */
+html.dark .border-b-emerald-500 {
+  border-bottom-color: #73bf69 !important;
+}
+html.dark .border-b-amber-500 {
+  border-bottom-color: #ff9830 !important;
+}
+html.dark .border-b-purple-500 {
+  border-bottom-color: #b877f6 !important;
+}
+html.dark .border-b-blue-500 {
+  border-bottom-color: #5794f2 !important;
+}
+html.dark .border-b-red-500 {
+  border-bottom-color: #f2495c !important;
 }
 
 /* --- 色付きホバー --- */
 html.dark .hover\:bg-orange-100:hover {
-  background-color: rgba(249, 115, 22, 0.2) !important;
+  background-color: rgba(255, 152, 48, 0.15) !important;
 }
 
 /* --- モーダルバックドロップ（そのまま維持） --- */
 
 /* --- ログインページ等のフルスクリーン背景 --- */
 html.dark .min-h-screen.bg-gray-100 {
-  background-color: #0f172a !important;
+  background-color: #111217 !important;
 }
 html.dark .min-h-screen.bg-gray-50 {
-  background-color: #0f172a !important;
+  background-color: #111217 !important;
 }
 
 /* テーブルスクロールコンテナ */
