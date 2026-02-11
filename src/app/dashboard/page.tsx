@@ -83,6 +83,7 @@ type BulkSale = {
 type SalesSummaryRecord = {
   id: string
   source_type: 'single' | 'bulk' | 'manual'
+  source_id: string
   sale_destination: string | null
   sale_price: number
   purchase_cost: number
@@ -181,7 +182,7 @@ export default function DashboardPage() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('sales_summary')
-          .select('id, source_type, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity')
+          .select('id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity')
           .range(from, from + pageSize - 1)
 
         if (error) {
@@ -204,10 +205,10 @@ export default function DashboardPage() {
         bulkPurchases: bulkPurchasesData || [],
         bulkSales: bulkSalesData || [],
         manualSales: allManualSales as any,
-        existingSalesSummary: allSalesSummary,
+        existingSalesSummary: allSalesSummary as any,
       })
       if (updatedSalesSummary) {
-        allSalesSummary = updatedSalesSummary
+        allSalesSummary = updatedSalesSummary as any
       }
 
       setInventory(allInventory)
