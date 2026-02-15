@@ -629,10 +629,8 @@ export default function BulkInventoryPage() {
     }
 
     const value = sale[field]
-    // 数値フィールドで0の場合は空として扱う（表示が-になるため）
-    const numericFields = ['sale_amount', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'deposit_amount', 'quantity']
-    const isNumericField = numericFields.includes(field)
-    const shouldBeEmpty = value === null || value === undefined || (isNumericField && value === 0)
+    // 数値フィールドでnull/undefinedの場合は空として扱う
+    const shouldBeEmpty = value === null || value === undefined
     setEditValue(shouldBeEmpty ? '' : String(value))
     setEditingCell({ id: sale.id, field, type: 'sale' })
   }
@@ -1895,7 +1893,7 @@ export default function BulkInventoryPage() {
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 手数料 */}
                           {sale && !isPurchase
-                            ? renderCell('commission', sale.commission ? `¥${sale.commission.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 10)
+                            ? renderCell('commission', sale.commission != null ? `¥${sale.commission.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 10)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 送料 */}
                           {sale && !isPurchase
