@@ -604,7 +604,7 @@ export default function BulkInventoryPage() {
   }
 
   const formatCurrency = (amount: number) => {
-    return `¥${amount.toLocaleString()}`
+    return `¥${Math.max(0, amount).toLocaleString()}`
   }
 
   const formatDate = (dateStr: string) => {
@@ -2114,35 +2114,35 @@ export default function BulkInventoryPage() {
                           )}
                           {/* 売値 */}
                           {sale && !isPurchase
-                            ? renderCell('sale_amount', sale.sale_amount ? `¥${sale.sale_amount.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-900', 9)
+                            ? renderCell('sale_amount', sale.sale_amount ? `¥${Math.max(0, sale.sale_amount).toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-900', 9)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 手数料 */}
                           {sale && !isPurchase
-                            ? renderCell('commission', sale.commission != null ? `¥${sale.commission.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 10)
+                            ? renderCell('commission', sale.commission != null ? `¥${Math.max(0, sale.commission).toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 10)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 送料 */}
                           {sale && !isPurchase
-                            ? renderCell('shipping_cost', sale.shipping_cost ? `¥${sale.shipping_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 11)
+                            ? renderCell('shipping_cost', sale.shipping_cost ? `¥${Math.max(0, sale.shipping_cost).toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 11)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* その他 */}
                           {sale && !isPurchase
-                            ? renderCell('other_cost', sale.other_cost ? `¥${sale.other_cost.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 12)
+                            ? renderCell('other_cost', sale.other_cost ? `¥${Math.max(0, sale.other_cost).toLocaleString()}` : '-', 'sale', 'number', 'text-right text-gray-600', 12)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 正味仕入額 */}
                           {sale
-                            ? renderCell('purchase_price', sale.purchase_price ? `¥${sale.purchase_price.toLocaleString()}` : '-', 'sale', 'number', 'text-right text-red-600', 13)
+                            ? renderCell('purchase_price', sale.purchase_price ? `¥${Math.max(0, sale.purchase_price).toLocaleString()}` : '-', 'sale', 'number', 'text-right text-red-600', 13)
                             : row.type === 'purchase' && purchase
-                              ? renderCell('purchase_price', purchase.purchase_price ? `¥${purchase.purchase_price.toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-red-600', 13)
+                              ? renderCell('purchase_price', purchase.purchase_price ? `¥${Math.max(0, purchase.purchase_price).toLocaleString()}` : '-', 'purchase', 'number', 'text-right text-red-600', 13)
                               : <td className="px-2 py-1 border-r border-gray-100 text-right text-gray-400">-</td>}
                           {/* 仕入総額（原価のみ、修理費は含まない） */}
                           {row.type === 'purchase' && purchase
-                            ? renderCell('total_amount', `¥${row.purchaseAmount.toLocaleString()}`, 'purchase', 'number', 'text-right text-red-600 font-medium', 14)
+                            ? renderCell('total_amount', `¥${Math.max(0, row.purchaseAmount).toLocaleString()}`, 'purchase', 'number', 'text-right text-red-600 font-medium', 14)
                             : isPurchase && sale
-                              ? <td className="px-2 py-1 border-r border-gray-100 text-right text-red-600 font-medium">¥{(sale.purchase_price || 0).toLocaleString()}</td>
+                              ? <td className="px-2 py-1 border-r border-gray-100 text-right text-red-600 font-medium">¥{Math.max(0, sale.purchase_price || 0).toLocaleString()}</td>
                               : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 入金額 */}
                           {sale && !isPurchase
-                            ? renderCell('deposit_amount', `¥${depositAmount.toLocaleString()}`, 'sale', 'number', 'text-right text-blue-600', 15)
+                            ? renderCell('deposit_amount', `¥${Math.max(0, depositAmount).toLocaleString()}`, 'sale', 'number', 'text-right text-blue-600', 15)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 利益 */}
                           <td className="px-2 py-1 border-r border-gray-100 text-right font-bold text-green-600">
@@ -2583,7 +2583,7 @@ export default function BulkInventoryPage() {
                                     {renderEditableCell('purchase_price', formatCurrency(purchasePriceVal), 'right')}
 
                                     {/* 入出金 - 計算値なので編集不可 */}
-                                    <td className={`px-2 py-1 text-right font-medium border-r border-gray-100 ${saleProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    <td className="px-2 py-1 text-right font-medium border-r border-gray-100 text-green-600">
                                       {formatCurrency(saleProfit)}
                                     </td>
 
