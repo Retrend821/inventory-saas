@@ -3267,23 +3267,30 @@ export default function ManualSalesPage() {
           </div>
         )}
 
-        {/* 選択範囲の集計ステータスバー */}
-        {selectionStats && selectionStats.count > 1 && (
-          <div className="px-4 py-2 bg-blue-50 border-t border-blue-200 flex items-center gap-6 text-sm">
-            <span className="text-blue-700 font-medium">選択: {selectionStats.count}セル</span>
-            {selectionStats.sum !== null && (
-              <>
-                <span className="text-blue-700">
-                  合計: <span className="font-semibold">¥{selectionStats.sum.toLocaleString()}</span>
-                </span>
-                <span className="text-blue-700">
-                  平均: <span className="font-semibold">¥{selectionStats.average?.toLocaleString()}</span>
-                </span>
-              </>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* 選択範囲の集計ステータスバー（画面下部固定） */}
+      {selectionStats && selectionStats.count > 1 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 py-2 bg-blue-50 border-t border-blue-200 flex items-center gap-6 text-sm shadow-lg">
+          <span className="text-blue-700 font-medium">選択: {selectionStats.count}セル</span>
+          {selectionStats.sum !== null && (
+            <>
+              <span className="text-blue-700">
+                合計: <span className="font-semibold">¥{selectionStats.sum.toLocaleString()}</span>
+              </span>
+              <span className="text-blue-700">
+                平均: <span className="font-semibold">¥{selectionStats.average?.toLocaleString()}</span>
+              </span>
+            </>
+          )}
+          <button
+            onClick={() => setSelectionRange(null)}
+            className="ml-auto text-blue-600 hover:text-blue-800 text-xs"
+          >
+            選択解除
+          </button>
+        </div>
+      )}
 
       {/* 画像編集モーダル */}
       {imageEditModal && (
