@@ -2178,6 +2178,44 @@ export default function ManualSalesPage() {
     return rowIndex >= minRow && rowIndex <= maxRow && colIndex >= minCol && colIndex <= maxCol
   }
 
+  // 選択されたセルの集計
+  const selectionStats = useMemo(() => {
+    if (!selectionRange) return null
+
+    const minRow = Math.min(selectionRange.startRow, selectionRange.endRow)
+    const maxRow = Math.max(selectionRange.startRow, selectionRange.endRow)
+    const minCol = Math.min(selectionRange.startCol, selectionRange.endCol)
+    const maxCol = Math.max(selectionRange.startCol, selectionRange.endCol)
+
+    const numericKeys = ['sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price', 'purchase_total', 'deposit_amount', 'profit', 'profit_rate', 'turnover_days']
+
+    let sum = 0
+    let count = 0
+    let numericCount = 0
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const sale = filteredSales[r]
+        const col = visibleColumns[c]
+        if (!sale || !col) continue
+        count++
+        if (numericKeys.includes(col.key)) {
+          const value = sale[col.key as keyof typeof sale]
+          if (typeof value === 'number') {
+            sum += value
+            numericCount++
+          }
+        }
+      }
+    }
+
+    return {
+      count,
+      sum: numericCount > 0 ? sum : null,
+      average: numericCount > 0 ? Math.round(sum / numericCount) : null,
+    }
+  }, [selectionRange, filteredSales, visibleColumns])
+
   // ペースト処理
   const pasteToSelectedCells = useCallback(async (clipboardText: string) => {
     if (!selectionRange) return
@@ -3226,6 +3264,23 @@ export default function ManualSalesPage() {
         {filteredSales.length === 0 && (
           <div className={`text-center ${t.textMuted} py-8`}>
             データがありません
+          </div>
+        )}
+
+        {/* 選択範囲の集計ステータスバー */}
+        {selectionStats && selectionStats.count > 1 && (
+          <div className="px-4 py-2 bg-blue-50 border-t border-blue-200 flex items-center gap-6 text-sm">
+            <span className="text-blue-700 font-medium">選択: {selectionStats.count}セル</span>
+            {selectionStats.sum !== null && (
+              <>
+                <span className="text-blue-700">
+                  合計: <span className="font-semibold">¥{selectionStats.sum.toLocaleString()}</span>
+                </span>
+                <span className="text-blue-700">
+                  平均: <span className="font-semibold">¥{selectionStats.average?.toLocaleString()}</span>
+                </span>
+              </>
+            )}
           </div>
         )}
       </div>
