@@ -2607,14 +2607,14 @@ export default function ManualSalesPage() {
           </div>
           <div className={`${t.cardBg} p-3 sm:p-4 rounded-lg shadow-sm border ${t.border}`}>
             <div className={`${t.textMuted} text-xs sm:text-sm`}>利益合計</div>
-            <div className={`text-lg sm:text-xl font-bold ${summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ¥{summary.totalProfit.toLocaleString()}
+            <div className="text-lg sm:text-xl font-bold text-green-600">
+              ¥{Math.max(0, summary.totalProfit).toLocaleString()}
             </div>
           </div>
           <div className={`${t.cardBg} p-3 sm:p-4 rounded-lg shadow-sm border ${t.border} col-span-2 sm:col-span-1`}>
             <div className={`${t.textMuted} text-xs sm:text-sm`}>平均利益率</div>
-            <div className={`text-lg sm:text-xl font-bold ${summary.avgProfitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {summary.avgProfitRate}%
+            <div className="text-lg sm:text-xl font-bold text-green-600">
+              {Math.max(0, summary.avgProfitRate)}%
             </div>
           </div>
         </div>
@@ -3155,22 +3155,22 @@ export default function ManualSalesPage() {
                       return (
                         <td
                           key={colKey}
-                          className={`px-1 py-1 text-center text-xs border ${t.border} ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
+                          className={`px-1 py-1 text-center text-xs border ${t.border} text-green-600 ${rangeClass} select-none`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          {sale.profit?.toLocaleString() || '-'}
+                          {sale.profit != null ? Math.max(0, sale.profit).toLocaleString() : '-'}
                         </td>
                       )
                     case 'profit_rate':
                       return (
                         <td
                           key={colKey}
-                          className={`px-1 py-1 text-center text-xs border ${t.border} ${(sale.profit_rate || 0) >= 0 ? 'text-green-600' : 'text-red-600'} ${rangeClass} select-none`}
+                          className={`px-1 py-1 text-center text-xs border ${t.border} text-green-600 ${rangeClass} select-none`}
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          {sale.profit_rate != null ? `${sale.profit_rate}%` : '-'}
+                          {sale.profit_rate != null ? `${Math.max(0, sale.profit_rate)}%` : '-'}
                         </td>
                       )
                     case 'purchase_date':

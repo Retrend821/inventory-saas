@@ -1542,8 +1542,8 @@ export default function BulkInventoryPage() {
               </div>
               <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                 <div className="text-gray-500 text-[10px] sm:text-xs">利益率</div>
-                <div className={`font-bold text-sm sm:text-base ${genreSummary.profitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {genreSummary.profitRate}%
+                <div className="font-bold text-sm sm:text-base text-green-600">
+                  {Math.max(0, genreSummary.profitRate)}%
                 </div>
               </div>
             </div>
@@ -2145,13 +2145,13 @@ export default function BulkInventoryPage() {
                             ? renderCell('deposit_amount', `¥${depositAmount.toLocaleString()}`, 'sale', 'number', 'text-right text-blue-600', 15)
                             : <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>}
                           {/* 利益 */}
-                          <td className={`px-2 py-1 border-r border-gray-100 text-right font-bold ${row.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {row.profit >= 0 ? '+' : ''}¥{row.profit.toLocaleString()}
+                          <td className="px-2 py-1 border-r border-gray-100 text-right font-bold text-green-600">
+                            +¥{Math.max(0, row.profit).toLocaleString()}
                           </td>
                           {/* 利益率 */}
                           {sale && !isPurchase && sale.purchase_price ? (
-                            <td className={`px-2 py-1 border-r border-gray-100 text-right font-bold ${profitRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {profitRate >= 0 ? '+' : ''}{profitRate}%
+                            <td className="px-2 py-1 border-r border-gray-100 text-right font-bold text-green-600">
+                              +{Math.max(0, profitRate)}%
                             </td>
                           ) : (
                             <td className="px-2 py-1 border-r border-gray-100" style={stripeStyle}></td>
@@ -2302,8 +2302,8 @@ export default function BulkInventoryPage() {
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">現時点収支</div>
-                      <div className={`text-lg font-semibold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(netProfit)}
+                      <div className="text-lg font-semibold text-green-600">
+                        {formatCurrency(Math.max(0, netProfit))}
                       </div>
                     </div>
                   </div>

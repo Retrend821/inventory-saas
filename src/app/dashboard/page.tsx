@@ -586,8 +586,8 @@ export default function DashboardPage() {
               </div>
               <div>
                 <div className="text-xs text-white/70 mb-0.5">利益</div>
-                <div className={`text-xl md:text-3xl font-bold tabular-nums ${todayStats.profit >= 0 ? 'text-white' : 'text-red-200'}`}>
-                  ¥{todayStats.profit.toLocaleString()}
+                <div className="text-xl md:text-3xl font-bold tabular-nums text-white">
+                  ¥{Math.max(0, todayStats.profit).toLocaleString()}
                 </div>
               </div>
             </div>
@@ -603,10 +603,10 @@ export default function DashboardPage() {
               <div className="text-xs text-gray-500 mb-1">売上総額</div>
               <div className="text-lg md:text-2xl font-bold text-gray-900 tabular-nums">¥{monthlyStats.salesTotal.toLocaleString()}</div>
             </div>
-            <div className={`bg-white rounded-xl p-3 md:p-4 border border-gray-200 border-b-[3px] ${monthlyStats.profit >= 0 ? 'border-b-amber-500' : 'border-b-red-500'}`}>
-              <div className={`text-xs mb-1 ${monthlyStats.profit >= 0 ? 'text-gray-500' : 'text-red-500'}`}>利益</div>
-              <div className={`text-lg md:text-2xl font-bold tabular-nums ${monthlyStats.profit >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                ¥{monthlyStats.profit.toLocaleString()}
+            <div className="bg-white rounded-xl p-3 md:p-4 border border-gray-200 border-b-[3px] border-b-amber-500">
+              <div className="text-xs mb-1 text-gray-500">利益</div>
+              <div className="text-lg md:text-2xl font-bold tabular-nums text-gray-900">
+                ¥{Math.max(0, monthlyStats.profit).toLocaleString()}
               </div>
             </div>
             <div className="bg-white rounded-xl p-3 md:p-4 border border-gray-200 border-b-[3px] border-b-purple-500">
@@ -635,8 +635,8 @@ export default function DashboardPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">売上: ¥{monthlyStats.retailTotal.toLocaleString()}</span>
-                <span className={`font-semibold ${monthlyStats.retailProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  利益: ¥{monthlyStats.retailProfit.toLocaleString()}
+                <span className="font-semibold text-green-600">
+                  利益: ¥{Math.max(0, monthlyStats.retailProfit).toLocaleString()}
                 </span>
               </div>
             </div>
@@ -650,8 +650,8 @@ export default function DashboardPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">売上: ¥{monthlyStats.wholesaleTotal.toLocaleString()}</span>
-                <span className={`font-semibold ${monthlyStats.wholesaleProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  利益: ¥{monthlyStats.wholesaleProfit.toLocaleString()}
+                <span className="font-semibold text-green-600">
+                  利益: ¥{Math.max(0, monthlyStats.wholesaleProfit).toLocaleString()}
                 </span>
               </div>
             </div>
@@ -867,8 +867,8 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right ml-4">
                       <div className="font-semibold text-gray-900 tabular-nums">¥{item.sale_amount.toLocaleString()}</div>
-                      <div className={`text-xs font-medium tabular-nums ${item.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        利益: ¥{item.profit.toLocaleString()}
+                      <div className="text-xs font-medium tabular-nums text-green-600">
+                        利益: ¥{Math.max(0, item.profit).toLocaleString()}
                       </div>
                     </div>
                   </div>

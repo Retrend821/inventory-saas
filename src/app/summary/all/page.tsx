@@ -2224,14 +2224,14 @@ export default function AllSalesPage() {
                             return renderEditableCell(sale, 'deposit_amount', sale.deposit_amount, formatCurrency(sale.deposit_amount), 'px-2 py-2 text-right text-gray-700 tabular-nums text-xs', rowIdx, cellClass)
                           case 'profit':
                             return (
-                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs font-medium cursor-cell ${sale.profit >= 0 ? 'text-green-600' : 'text-red-600'} ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
-                                {formatCurrency(sale.profit)}
+                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs font-medium cursor-cell text-green-600 ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
+                                {formatCurrency(Math.max(0, sale.profit))}
                               </td>
                             )
                           case 'profit_rate':
                             return (
-                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs cursor-cell ${sale.profit_rate >= 0 ? 'text-green-600' : 'text-red-600'} ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
-                                {sale.profit_rate}%
+                              <td key={col.key} className={`px-2 py-2 text-right tabular-nums text-xs cursor-cell text-green-600 ${cellClass}`} onMouseDown={(e) => handleCellMouseDown(rowIdx, col.key, e)} onMouseEnter={() => handleCellMouseEnter(rowIdx, col.key)}>
+                                {Math.max(0, sale.profit_rate)}%
                               </td>
                             )
                           case 'purchase_date':

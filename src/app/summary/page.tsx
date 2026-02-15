@@ -1325,10 +1325,10 @@ export default function SummaryPage() {
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">販売利益（税込）</td>
-                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.totalProfit.toLocaleString()}</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{Math.max(0, summary.totalProfit).toLocaleString()}</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
-                      {formatDiff(summary.totalProfit, previousMonthSummary?.totalProfit)}
+                      {formatDiff(Math.max(0, summary.totalProfit), previousMonthSummary ? Math.max(0, previousMonthSummary.totalProfit) : undefined)}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
@@ -1461,10 +1461,10 @@ export default function SummaryPage() {
                 </tr>
                 <tr className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-3.5 text-gray-600 font-medium">利益単価</td>
-                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{summary.avgProfit.toLocaleString()}</td>
+                  <td className="px-6 py-3.5 text-right text-gray-700 tabular-nums">¥{Math.max(0, summary.avgProfit).toLocaleString()}</td>
                   {selectedMonth !== 'all' && (
                     <td className="px-6 py-3.5 text-right tabular-nums">
-                      {formatDiff(summary.avgProfit, previousMonthSummary?.avgProfit)}
+                      {formatDiff(Math.max(0, summary.avgProfit), previousMonthSummary ? Math.max(0, previousMonthSummary.avgProfit) : undefined)}
                     </td>
                   )}
                   {selectedMonth !== 'all' && summary.isCurrentMonth && (
