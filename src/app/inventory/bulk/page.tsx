@@ -1416,7 +1416,7 @@ export default function BulkInventoryPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {mixedRows.map((row, index) => {
-                      const isPurchase = row.type === 'purchase' || !row.saleDestination
+                      const isPurchase = row.type === 'purchase'
                       const destColor = row.saleDestination ? platformColors[row.saleDestination] : null
                       const sale = row.saleData
                       const purchase = row.purchaseData
