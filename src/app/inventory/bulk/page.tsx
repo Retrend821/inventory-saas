@@ -726,6 +726,19 @@ export default function BulkInventoryPage() {
     }
   }
 
+  // sales_summary の対応レコードを削除（次回sync時に正しい値で再作成される）
+  const deleteSalesSummary = useCallback(async (type: 'sale' | 'purchase', id: string) => {
+    if (type === 'sale') {
+      await supabase.from('sales_summary').delete().eq('source_type', 'bulk').eq('source_id', id)
+    } else {
+      // 仕入れの場合、関連する全販売のsales_summaryも削除
+      const relatedSales = bulkSales.filter(s => s.bulk_purchase_id === id)
+      for (const sale of relatedSales) {
+        await supabase.from('sales_summary').delete().eq('source_type', 'bulk').eq('source_id', sale.id)
+      }
+    }
+  }, [bulkSales])
+
   // 編集内容を保存
   const saveEditingCell = useCallback(async () => {
     if (!editingCell) return
@@ -795,6 +808,7 @@ export default function BulkInventoryPage() {
         setBulkSales(prev => prev.map(s =>
           s.id === id ? { ...s, ...updateData } : s
         ))
+        await deleteSalesSummary('sale', id)
       }
     } else {
       // 仕入れの保存
@@ -830,11 +844,12 @@ export default function BulkInventoryPage() {
         setBulkPurchases(prev => prev.map(p =>
           p.id === id ? { ...p, [field]: newValue } : p
         ))
+        await deleteSalesSummary('purchase', id)
       }
     }
 
     setEditingCell(null)
-  }, [editingCell, editValue, bulkSales, bulkPurchases])
+  }, [editingCell, editValue, bulkSales, bulkPurchases, deleteSalesSummary])
 
   // セレクトボックス専用の即時保存（販売先など）+ 手数料自動計算
   const handleSelectChange = async (saleId: string, field: keyof BulkSale, value: string) => {
@@ -863,6 +878,7 @@ export default function BulkInventoryPage() {
       setBulkSales(prev => prev.map(s =>
         s.id === saleId ? { ...s, ...updateData } : s
       ))
+      await deleteSalesSummary('sale', saleId)
     }
     setEditingCell(null)
   }
@@ -882,6 +898,7 @@ export default function BulkInventoryPage() {
       setBulkPurchases(prev => prev.map(p =>
         p.id === purchaseId ? { ...p, [field]: newValue } : p
       ))
+      await deleteSalesSummary('purchase', purchaseId)
     }
     setEditingCell(null)
   }
@@ -1100,6 +1117,214 @@ export default function BulkInventoryPage() {
     document.addEventListener('keydown', handleCopy)
     return () => document.removeEventListener('keydown', handleCopy)
   }, [selectedCells, editingCell, bulkSales, bulkPurchases, mixedRows])
+
+  // Ctrl+Vでペースト
+  useEffect(() => {
+    const handlePaste = async (e: KeyboardEvent) => {
+      // 編集中は無視
+      if (editingCell) return
+      // 入力フィールドにフォーカスがある場合は無視
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'SELECT') return
+      if (!((e.ctrlKey || e.metaKey) && e.key === 'v')) return
+      if (selectedCells.length === 0) return
+
+      e.preventDefault()
+
+      try {
+        const clipboardText = await navigator.clipboard.readText()
+        if (!clipboardText) return
+
+        const cell = selectedCells[0] as SelectedCell & { minRow?: number; maxRow?: number; minCol?: number; maxCol?: number }
+
+        // 編集不可の列インデックス
+        const nonEditableCols = [0, 2, 3, 16, 17, 18]
+        // 販売行で仕入総額(14)は編集不可
+        const saleNonEditableCols = [...nonEditableCols, 14]
+
+        const saleNumericFields = ['sale_amount', 'commission', 'shipping_cost', 'purchase_price', 'other_cost', 'deposit_amount']
+        const purchaseNumericFields = ['total_amount', 'total_quantity', 'purchase_price']
+        const saleNotNullFields = ['sale_amount', 'commission', 'shipping_cost']
+
+        // 値を変換する関数
+        const convertValue = (rawValue: string, field: string, type: 'sale' | 'purchase'): string | number | null => {
+          const trimmed = rawValue.trim()
+          const numericFields = type === 'sale' ? saleNumericFields : purchaseNumericFields
+          if (numericFields.includes(field)) {
+            if (trimmed) {
+              const parsed = parseInt(trimmed.replace(/,/g, ''))
+              return isNaN(parsed) ? null : parsed
+            }
+            if (type === 'sale' && saleNotNullFields.includes(field)) return 0
+            return null
+          }
+          return trimmed || null
+        }
+
+        // 範囲選択の場合
+        if (cell.minRow !== undefined && cell.maxRow !== undefined && cell.minCol !== undefined && cell.maxCol !== undefined) {
+          const pasteRows = clipboardText.split('\n').filter(row => row !== '')
+          const pasteData = pasteRows.map(row => row.split('\t'))
+          const pasteRowCount = pasteData.length
+          const pasteColCount = pasteData[0]?.length || 1
+
+          const saleUpdates: { id: string; updateData: Record<string, string | number | null> }[] = []
+          const purchaseUpdates: { id: string; updateData: Record<string, string | number | null> }[] = []
+
+          for (let rowIdx = cell.minRow; rowIdx <= cell.maxRow; rowIdx++) {
+            const row = mixedRows[rowIdx]
+            if (!row) continue
+            const isSale = row.type === 'sale'
+            const sale = row.saleData
+            const purchase = row.purchaseData
+
+            for (let colIdx = cell.minCol; colIdx <= cell.maxCol; colIdx++) {
+              // 編集不可チェック
+              if (isSale && saleNonEditableCols.includes(colIdx)) continue
+              if (!isSale && nonEditableCols.includes(colIdx)) continue
+
+              const field = getFieldByColIndex(colIdx, isSale ? 'sale' : 'purchase')
+              if (!field) continue
+
+              const pasteRowIndex = (rowIdx - cell.minRow) % pasteRowCount
+              const pasteColIndex = (colIdx - cell.minCol) % pasteColCount
+              const pasteValue = pasteData[pasteRowIndex]?.[pasteColIndex] || ''
+              const newValue = convertValue(pasteValue, field, isSale ? 'sale' : 'purchase')
+
+              if (isSale && sale) {
+                // 既存のupdateを探す or 新規作成
+                let existing = saleUpdates.find(u => u.id === sale.id)
+                if (!existing) {
+                  existing = { id: sale.id, updateData: {} }
+                  saleUpdates.push(existing)
+                }
+                existing.updateData[field] = newValue
+
+                // 販売先変更時は手数料・入金額を自動計算
+                if (field === 'sale_destination') {
+                  const saleAmount = (existing.updateData.sale_amount as number) ?? sale.sale_amount
+                  const newCommission = calculateCommission(newValue as string | null, saleAmount, sale.sale_date)
+                  if (newCommission !== null) {
+                    existing.updateData.commission = newCommission
+                    const shippingCost = (existing.updateData.shipping_cost as number) ?? sale.shipping_cost
+                    existing.updateData.deposit_amount = saleAmount - newCommission - shippingCost
+                  }
+                }
+                // 売上額変更時は手数料・入金額を再計算
+                if (field === 'sale_amount' && typeof newValue === 'number') {
+                  const destination = (existing.updateData.sale_destination as string) ?? sale.sale_destination
+                  if (destination) {
+                    const newCommission = calculateCommission(destination, newValue, sale.sale_date)
+                    if (newCommission !== null) {
+                      existing.updateData.commission = newCommission
+                      const shippingCost = (existing.updateData.shipping_cost as number) ?? sale.shipping_cost
+                      existing.updateData.deposit_amount = newValue - newCommission - shippingCost
+                    }
+                  }
+                }
+                // 手数料・送料変更時は入金額を再計算
+                if (['commission', 'shipping_cost'].includes(field)) {
+                  const saleAmount = (existing.updateData.sale_amount as number) ?? sale.sale_amount
+                  const commission = (existing.updateData.commission as number) ?? sale.commission
+                  const shippingCost = (existing.updateData.shipping_cost as number) ?? sale.shipping_cost
+                  existing.updateData.deposit_amount = saleAmount - commission - shippingCost
+                }
+              } else if (!isSale && purchase) {
+                let existing = purchaseUpdates.find(u => u.id === purchase.id)
+                if (!existing) {
+                  existing = { id: purchase.id, updateData: {} }
+                  purchaseUpdates.push(existing)
+                }
+                existing.updateData[field] = newValue
+              }
+            }
+          }
+
+          // DB保存 + ローカルステート更新 + sales_summary削除
+          for (const { id, updateData } of saleUpdates) {
+            const { error } = await supabase.from('bulk_sales').update(updateData).eq('id', id)
+            if (error) {
+              console.error('Paste: Error updating sale:', id, error)
+            } else {
+              setBulkSales(prev => prev.map(s => s.id === id ? { ...s, ...updateData } : s))
+              await deleteSalesSummary('sale', id)
+            }
+          }
+          for (const { id, updateData } of purchaseUpdates) {
+            const { error } = await supabase.from('bulk_purchases').update(updateData).eq('id', id)
+            if (error) {
+              console.error('Paste: Error updating purchase:', id, error)
+            } else {
+              setBulkPurchases(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p))
+              await deleteSalesSummary('purchase', id)
+            }
+          }
+        } else {
+          // 単一セル選択の場合
+          const { id, field, type } = selectedCells[0]
+          const colIndex = selectedCells[0].colIndex
+
+          // 編集不可チェック
+          if (type === 'sale' && saleNonEditableCols.includes(colIndex)) return
+          if (type === 'purchase' && nonEditableCols.includes(colIndex)) return
+          if (!field) return
+
+          const newValue = convertValue(clipboardText, field, type)
+
+          if (type === 'sale') {
+            const sale = bulkSales.find(s => s.id === id)
+            if (!sale) return
+
+            let updateData: Record<string, string | number | null> = { [field]: newValue }
+
+            // 販売先変更時は手数料・入金額を自動計算
+            if (field === 'sale_destination') {
+              const newCommission = calculateCommission(newValue as string | null, sale.sale_amount, sale.sale_date)
+              if (newCommission !== null) {
+                updateData.commission = newCommission
+                updateData.deposit_amount = sale.sale_amount - newCommission - sale.shipping_cost
+              }
+            }
+            // 売上額変更時
+            if (field === 'sale_amount' && typeof newValue === 'number' && sale.sale_destination) {
+              const newCommission = calculateCommission(sale.sale_destination, newValue, sale.sale_date)
+              if (newCommission !== null) {
+                updateData.commission = newCommission
+                updateData.deposit_amount = newValue - newCommission - sale.shipping_cost
+              }
+            }
+            // 手数料・送料変更時は入金額を再計算
+            if (['commission', 'shipping_cost'].includes(field)) {
+              const saleAmount = sale.sale_amount
+              const commission = field === 'commission' ? (newValue as number) : sale.commission
+              const shippingCost = field === 'shipping_cost' ? (newValue as number) : sale.shipping_cost
+              updateData.deposit_amount = saleAmount - commission - shippingCost
+            }
+
+            const { error } = await supabase.from('bulk_sales').update(updateData).eq('id', id)
+            if (error) {
+              console.error('Paste: Error updating sale:', id, error)
+            } else {
+              setBulkSales(prev => prev.map(s => s.id === id ? { ...s, ...updateData } : s))
+              await deleteSalesSummary('sale', id)
+            }
+          } else {
+            const { error } = await supabase.from('bulk_purchases').update({ [field]: newValue }).eq('id', id)
+            if (error) {
+              console.error('Paste: Error updating purchase:', id, error)
+            } else {
+              setBulkPurchases(prev => prev.map(p => p.id === id ? { ...p, [field]: newValue } : p))
+              await deleteSalesSummary('purchase', id)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Paste failed:', err)
+      }
+    }
+
+    document.addEventListener('keydown', handlePaste)
+    return () => document.removeEventListener('keydown', handlePaste)
+  }, [selectedCells, editingCell, bulkSales, bulkPurchases, mixedRows, platforms, calculateCommission, deleteSalesSummary])
 
   // 外側クリックで保存
   useEffect(() => {

@@ -142,6 +142,20 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
   // 既存の sales_summary のキーをセットに格納（重複チェック用）
   const existingKeys = new Set(existingSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
 
+  // bulkレコードは毎回再計算するため、既存のbulkレコードを削除
+  const existingBulkIds = existingSalesSummary.filter(s => s.source_type === 'bulk').map(s => s.id)
+  if (existingBulkIds.length > 0) {
+    const batchSize = 500
+    for (let i = 0; i < existingBulkIds.length; i += batchSize) {
+      const batch = existingBulkIds.slice(i, i + batchSize)
+      await supabase.from('sales_summary').delete().in('id', batch)
+    }
+    // 削除したキーをexistingKeysから除外
+    existingSalesSummary.filter(s => s.source_type === 'bulk').forEach(s => {
+      existingKeys.delete(`bulk:${s.source_id}`)
+    })
+  }
+
   // bulkPurchase のマップを作成
   const bpMap = new Map<string, SyncBulkPurchase>()
   bulkPurchases.forEach(bp => bpMap.set(bp.id, bp))
@@ -217,12 +231,14 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
         const unitCost = bulkPurchase.total_quantity > 0
           ? Math.round(bulkPurchase.total_amount / bulkPurchase.total_quantity)
           : 0
-        const purchasePrice = sale.purchase_price ?? unitCost * sale.quantity
         const otherCost = sale.other_cost ?? 0
         const photographyFee = sale.photography_fee ?? 0
         const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
-        // 撮影手数料は入金額から引かれるので、利益計算では入金額 - 仕入総額（原価+修理費）
-        const profit = depositAmount - purchasePrice - otherCost
+        // purchase_priceが明示的に設定されていればそれを使用、
+        // 未設定（原価回収モード）の場合はdepositAmountを使用して利益を0にする
+        const purchasePrice = sale.purchase_price ?? depositAmount
+        // 原価回収のためマイナス利益は0にクランプ
+        const profit = Math.max(0, depositAmount - purchasePrice - otherCost)
         const profitRate = sale.sale_amount > 0 ? Math.round((profit / sale.sale_amount) * 100) : 0
 
         newRecords.push({
@@ -315,7 +331,8 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
   })
 
   // 不足分があれば sales_summary に追加
-  let allSalesSummary = [...existingSalesSummary]
+  // 削除済みのbulkレコードを除外した状態で開始
+  let allSalesSummary = existingSalesSummary.filter(s => s.source_type !== 'bulk')
   if (newRecords.length > 0) {
     console.log(`Adding ${newRecords.length} new records to sales_summary`)
     const batchSize = 500
