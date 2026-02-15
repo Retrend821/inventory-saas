@@ -562,6 +562,7 @@ export default function ManualSalesPage() {
 
     switch (destination) {
       case 'エコオク':
+      case 'エレオク':
         // 〜10,000円→550円、〜50,000円→1,100円、50,000円超→2,200円
         if (price <= 10000) return 550
         if (price <= 50000) return 1100
@@ -3176,19 +3177,19 @@ export default function ManualSalesPage() {
                     case 'sale_destination':
                       return <React.Fragment key={colKey}>{renderSelectCell('sale_destination', colIndex, sale.sale_destination, salePlatforms, 'left')}</React.Fragment>
                     case 'sale_price':
-                      return <React.Fragment key={colKey}>{renderEditableCell('sale_price', colIndex, sale.sale_price?.toLocaleString() || '-', 'number')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderEditableCell('sale_price', colIndex, String(sale.sale_price ?? 0), 'number')}</React.Fragment>
                     case 'commission':
-                      return <React.Fragment key={colKey}>{renderEditableCell('commission', colIndex, sale.commission?.toLocaleString() || '-', 'number')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderEditableCell('commission', colIndex, String(sale.commission ?? 0), 'number')}</React.Fragment>
                     case 'shipping_cost':
-                      return <React.Fragment key={colKey}>{renderEditableCell('shipping_cost', colIndex, sale.shipping_cost?.toLocaleString() || '-', 'number')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderEditableCell('shipping_cost', colIndex, String(sale.shipping_cost ?? 0), 'number')}</React.Fragment>
                     case 'other_cost':
-                      return <React.Fragment key={colKey}>{renderEditableCell('other_cost', colIndex, sale.other_cost?.toLocaleString() || '-', 'number')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderEditableCell('other_cost', colIndex, String(sale.other_cost ?? 0), 'number')}</React.Fragment>
                     case 'purchase_price':
-                      return <React.Fragment key={colKey}>{renderEditableCell('purchase_price', colIndex, sale.purchase_price?.toLocaleString() || '-', 'number')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderEditableCell('purchase_price', colIndex, String(sale.purchase_price ?? 0), 'number')}</React.Fragment>
                     case 'purchase_total':
-                      return <React.Fragment key={colKey}>{renderEditableCell('purchase_total', colIndex, sale.purchase_total?.toLocaleString() || '-', 'number')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderEditableCell('purchase_total', colIndex, String(sale.purchase_total ?? 0), 'number')}</React.Fragment>
                     case 'deposit_amount':
-                      return <React.Fragment key={colKey}>{renderEditableCell('deposit_amount', colIndex, sale.deposit_amount?.toLocaleString() || '-', 'number')}</React.Fragment>
+                      return <React.Fragment key={colKey}>{renderEditableCell('deposit_amount', colIndex, String(sale.deposit_amount ?? 0), 'number')}</React.Fragment>
                     case 'profit':
                       return (
                         <td
@@ -3197,7 +3198,7 @@ export default function ManualSalesPage() {
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          {sale.profit != null ? Math.max(0, sale.profit).toLocaleString() : '-'}
+                          {Math.max(0, sale.profit ?? 0).toLocaleString()}
                         </td>
                       )
                     case 'profit_rate':
@@ -3208,7 +3209,7 @@ export default function ManualSalesPage() {
                           onMouseDown={(e) => handleCellMouseDown(rowIndex, colIndex, e)}
                           onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                         >
-                          {sale.profit_rate != null ? `${Math.max(0, sale.profit_rate)}%` : '-'}
+                          {`${Math.max(0, sale.profit_rate ?? 0)}%`}
                         </td>
                       )
                     case 'purchase_date':

@@ -169,6 +169,7 @@ export default function MobileSalesPage() {
 
     switch (destination) {
       case 'エコオク':
+      case 'エレオク':
         // 〜10,000円→550円、〜50,000円→1,100円、50,000円超→2,200円
         if (price <= 10000) return 550
         if (price <= 50000) return 1100
