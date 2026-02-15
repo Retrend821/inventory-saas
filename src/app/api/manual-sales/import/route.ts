@@ -100,8 +100,10 @@ export async function POST(request: NextRequest) {
 
       const salePrice = item.sale_price || 0
       const commission = item.commission || 0
-      const profit = salePrice - commission
+      const shippingCostNum = shippingCost || 0
+      const profit = salePrice - commission - shippingCostNum
       const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
+      const depositAmount = salePrice - commission - shippingCostNum
 
       const { data, error } = await supabase
         .from('manual_sales')
@@ -115,6 +117,7 @@ export async function POST(request: NextRequest) {
           category: item.category || null,
           inventory_number: item.inventory_number || null,
           shipping_cost: shippingCost,
+          deposit_amount: depositAmount,
           profit,
           profit_rate: profitRate,
           sale_type: 'main',

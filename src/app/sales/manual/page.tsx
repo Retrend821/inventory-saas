@@ -19,6 +19,7 @@ type ManualSale = {
   sale_price: number | null
   commission: number | null
   shipping_cost: number | null
+  photography_fee: number | null
   other_cost: number | null
   deposit_amount: number | null
   purchase_date: string | null
@@ -61,8 +62,9 @@ const columns: { key: keyof ManualSale | 'no' | 'checkbox'; label: string; edita
   { key: 'purchase_source', label: '仕入先', editable: true, type: 'select' },
   { key: 'sale_destination', label: '販売先', editable: true, type: 'select' },
   { key: 'sale_price', label: '売価', editable: true, type: 'number' },
-  { key: 'commission', label: '手数料', editable: true, type: 'number' },
+  { key: 'commission', label: '販売手数料', editable: true, type: 'number' },
   { key: 'shipping_cost', label: '送料', editable: true, type: 'number' },
+  { key: 'photography_fee', label: '撮影手数料', editable: true, type: 'number' },
   { key: 'other_cost', label: 'その他', editable: true, type: 'number' },
   { key: 'purchase_price', label: '原価', editable: true, type: 'number' },
   { key: 'purchase_total', label: '仕入総額', editable: true, type: 'number' },
@@ -520,17 +522,13 @@ export default function ManualSalesPage() {
     return Array.from(destinations).sort((a, b) => a.localeCompare(b, 'ja'))
   }, [sales])
 
-  // 利益計算
+  // 利益計算（入金額 - 仕入総額 - その他費用）
   const calculateProfit = (sale: Partial<ManualSale>): number => {
-    const salePrice = sale.sale_price || 0
+    const depositAmount = sale.deposit_amount || 0
     const purchasePrice = sale.purchase_price || 0
-    const otherCost = sale.other_cost || 0
-    // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
     const purchaseTotal = sale.purchase_total ?? purchasePrice
-    const commission = sale.commission || 0
-    const shippingCost = sale.shipping_cost || 0
-    // 修理費は別途引く
-    return salePrice - purchaseTotal - commission - shippingCost - otherCost
+    const otherCost = sale.other_cost || 0
+    return depositAmount - purchaseTotal - otherCost
   }
 
   // 利益率計算
@@ -704,7 +702,7 @@ export default function ManualSalesPage() {
 
     // 値の変換
     let newValue: string | number | null = editValue
-    const numericFields: (keyof ManualSale)[] = ['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount']
+    const numericFields: (keyof ManualSale)[] = ['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'photography_fee', 'other_cost', 'deposit_amount']
 
     if (numericFields.includes(field)) {
       newValue = editValue === '' ? null : parseInt(editValue) || 0
@@ -752,6 +750,20 @@ export default function ManualSalesPage() {
       }
     }
 
+    // 入金額の自動計算（売価 - 販売手数料 - 送料 - 撮影手数料）
+    const autoCalcFields: (keyof ManualSale)[] = ['sale_price', 'commission', 'shipping_cost', 'photography_fee']
+    if (autoCalcFields.includes(field) || field === 'sale_destination') {
+      const salePrice = updatedSale.sale_price || 0
+      if (salePrice > 0) {
+        const comm = updatedSale.commission || 0
+        const ship = updatedSale.shipping_cost || 0
+        const photo = updatedSale.photography_fee || 0
+        updatedSale.deposit_amount = salePrice - comm - ship - photo
+      } else {
+        updatedSale.deposit_amount = null
+      }
+    }
+
     // 利益・利益率・回転日数を再計算
     const profit = calculateProfit(updatedSale)
     const profitRate = calculateProfitRate(updatedSale)
@@ -773,6 +785,10 @@ export default function ManualSalesPage() {
     // 原価が変更された場合は仕入総額も更新
     if (field === 'purchase_price') {
       updateData.purchase_total = updatedSale.purchase_total
+    }
+    // 入金額が自動計算された場合はDBにも保存
+    if (autoCalcFields.includes(field) || field === 'sale_destination') {
+      updateData.deposit_amount = updatedSale.deposit_amount
     }
 
     setSales(sales.map(s => s.id === id ? { ...s, ...updateData } as ManualSale : s))
@@ -1049,6 +1065,11 @@ export default function ManualSalesPage() {
     // 仕入総額（原価のみ、その他費用は後で編集）
     const purchaseTotal = purchasePrice || 0
 
+    // 入金額の自動計算（売価 - 販売手数料 - 送料 - 撮影手数料）
+    const depositAmount = finalSalePrice && finalSalePrice > 0
+      ? finalSalePrice - (commission || 0)
+      : null
+
     // 利益計算用のデータ
     const saleData = {
       sale_price: finalSalePrice,
@@ -1056,7 +1077,9 @@ export default function ManualSalesPage() {
       purchase_total: purchaseTotal,
       commission: commission,
       shipping_cost: null,
+      photography_fee: null,
       other_cost: null,
+      deposit_amount: depositAmount,
       listing_date: addModal.listing_date || null,
       sale_date: addModal.sale_date || null,
     }
@@ -1076,6 +1099,8 @@ export default function ManualSalesPage() {
         purchase_price: purchasePrice,
         purchase_total: purchaseTotal,
         commission: commission,
+        photography_fee: null,
+        deposit_amount: depositAmount,
         purchase_date: addModal.purchase_date || null,
         listing_date: addModal.listing_date || null,
         sale_date: addModal.sale_date || null,
@@ -1335,7 +1360,7 @@ export default function ManualSalesPage() {
     const sale = transferModal.sale
 
     // 入金額を取得（仕入総額として設定し、利益を0にする）
-    const depositAmount = sale.deposit_amount || (sale.sale_price || 0) - (sale.commission || 0) - (sale.shipping_cost || 0) - (sale.other_cost || 0)
+    const depositAmount = sale.deposit_amount || (sale.sale_price || 0) - (sale.commission || 0) - (sale.shipping_cost || 0) - (sale.photography_fee || 0)
 
     // ローカル状態を更新（仕入総額=入金額、利益=0、利益率=0）
     setSales(sales.map(s => s.id === sale.id ? {
@@ -1989,7 +2014,7 @@ export default function ManualSalesPage() {
       // データベースに確実に存在するカラムのみ許可
       const allowedColumns = [
         'product_name', 'brand_name', 'category', 'purchase_source', 'sale_destination',
-        'sale_price', 'commission', 'shipping_cost', 'other_cost', 'purchase_price',
+        'sale_price', 'commission', 'shipping_cost', 'photography_fee', 'other_cost', 'purchase_price',
         'purchase_total', 'deposit_amount', 'purchase_date', 'listing_date', 'sale_date',
         'memo', 'inventory_number'
       ]
@@ -2022,7 +2047,7 @@ export default function ManualSalesPage() {
             )
           }
 
-          if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount'].includes(column)) {
+          if (['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'photography_fee', 'other_cost', 'deposit_amount'].includes(column)) {
             record[column] = parseCSVNumber(value)
           } else if (['purchase_date', 'listing_date', 'sale_date'].includes(column)) {
             record[column] = parseCSVDate(value)
@@ -2045,28 +2070,31 @@ export default function ManualSalesPage() {
           }
         }
 
-        // 利益と利益率を計算
+        // 仕入総額がある場合はそれを使用、なければ原価のみ
         const salePrice = (record.sale_price as number) || 0
         const purchasePrice = (record.purchase_price as number) || 0
         const otherCost = (record.other_cost as number) || 0
         const shippingCost = (record.shipping_cost as number) || 0
-        // 仕入総額がある場合はそれを使用、なければ原価のみ（修理費は別途引く）
+        const photographyFee = (record.photography_fee as number) || 0
         const purchaseTotal = (record.purchase_total as number) ?? purchasePrice
-        // 仕入総額がない場合はpurchase_totalを設定
         if (record.purchase_total == null) {
           record.purchase_total = purchaseTotal
         }
-        // 修理費は別途引く
-        const profit = salePrice - purchaseTotal - commission - shippingCost - otherCost
+
+        // 入金額が明示的に設定されていない場合は自動計算（売価 - 販売手数料 - 送料 - 撮影手数料）
+        if (record.deposit_amount == null) {
+          record.deposit_amount = salePrice > 0 ? salePrice - commission - shippingCost - photographyFee : null
+        }
+
+        // 利益計算（入金額 - 仕入総額 - その他費用）
+        const depositAmount = (record.deposit_amount as number) || 0
+        const profit = depositAmount - purchaseTotal - otherCost
         let profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100 * 10) / 10 : 0
-        // NaN, Infinity, -Infinity をチェックして0にする
         if (!Number.isFinite(profitRate)) {
           profitRate = 0
         }
-        // データベースのNUMERIC(5,1)制限に合わせてクランプ (-9999.9〜9999.9)
         profitRate = Math.max(-9999.9, Math.min(9999.9, profitRate))
 
-        // profitもNaN/Infinityチェック
         const safeProfit = Number.isFinite(profit) ? profit : 0
         record.profit = safeProfit
         record.profit_rate = profitRate
@@ -2248,7 +2276,7 @@ export default function ManualSalesPage() {
         const saleIndex = newSales.findIndex(s => s.id === sale.id)
         if (saleIndex === -1) continue
 
-        const numericFields = ['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'other_cost', 'deposit_amount']
+        const numericFields = ['purchase_price', 'purchase_total', 'sale_price', 'commission', 'shipping_cost', 'photography_fee', 'other_cost', 'deposit_amount']
         let parsedValue: string | number | null = pasteValue
         if (numericFields.includes(colKey)) {
           parsedValue = parseCSVNumber(pasteValue)
