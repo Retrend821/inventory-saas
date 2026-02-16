@@ -62,9 +62,9 @@ const columns: { key: keyof ManualSale | 'no' | 'checkbox'; label: string; edita
   { key: 'purchase_source', label: '仕入先', editable: true, type: 'select' },
   { key: 'sale_destination', label: '販売先', editable: true, type: 'select' },
   { key: 'sale_price', label: '売価', editable: true, type: 'number' },
-  { key: 'commission', label: '販売手数料', editable: true, type: 'number' },
+  { key: 'commission', label: '販売\n手数料', editable: true, type: 'number' },
   { key: 'shipping_cost', label: '送料', editable: true, type: 'number' },
-  { key: 'photography_fee', label: '撮影手数料', editable: true, type: 'number' },
+  { key: 'photography_fee', label: '撮影\n手数料', editable: true, type: 'number' },
   { key: 'other_cost', label: 'その他', editable: true, type: 'number' },
   { key: 'purchase_price', label: '原価', editable: true, type: 'number' },
   { key: 'purchase_total', label: '仕入総額', editable: true, type: 'number' },
@@ -1506,8 +1506,9 @@ export default function ManualSalesPage() {
     { key: 'purchase_source', label: '仕入先' },
     { key: 'sale_destination', label: '販路' },
     { key: 'sale_price', label: '売価' },
-    { key: 'commission', label: '手数料' },
+    { key: 'commission', label: '販売手数料' },
     { key: 'shipping_cost', label: '送料' },
+    { key: 'photography_fee', label: '撮影手数料' },
     { key: 'other_cost', label: 'その他経費' },
     { key: 'purchase_price', label: '原価' },
     { key: 'purchase_total', label: '仕入総額' },
@@ -1530,6 +1531,7 @@ export default function ManualSalesPage() {
     sale_price: ['販売価格', '売価', '売値', '出品価格', 'selling_price'],
     commission: ['手数料', 'commission', 'fee', '請求手数料'],
     shipping_cost: ['送料', 'shipping', '配送料'],
+    photography_fee: ['撮影手数料', '撮影料', '撮影費', 'photography'],
     other_cost: ['経費', 'その他', 'other', '諸経費'],
     deposit_amount: ['入金', '入金額', 'deposit'],
     purchase_date: ['仕入日', '購入日', 'purchase_date', '取引日'],
@@ -2733,7 +2735,7 @@ export default function ManualSalesPage() {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}
-                      className="px-1 py-2 text-center text-xs font-medium border border-slate-600 whitespace-nowrap"
+                      className="px-1 py-2 text-center text-xs font-medium border border-slate-600 whitespace-pre-line"
                     >
                       <span className="flex items-center justify-center gap-0.5">
                         {col.label}
