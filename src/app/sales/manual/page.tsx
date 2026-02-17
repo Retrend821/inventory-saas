@@ -1477,6 +1477,7 @@ export default function ManualSalesPage() {
     sale_price: 50,
     commission: 60,
     shipping_cost: 50,
+    photography_fee: 60,
     other_cost: 60,
     purchase_price: 50,
     purchase_total: 70,
@@ -3212,6 +3213,8 @@ export default function ManualSalesPage() {
                       return <React.Fragment key={colKey}>{renderEditableCell('commission', colIndex, String(sale.commission ?? 0), 'number')}</React.Fragment>
                     case 'shipping_cost':
                       return <React.Fragment key={colKey}>{renderEditableCell('shipping_cost', colIndex, String(sale.shipping_cost ?? 0), 'number')}</React.Fragment>
+                    case 'photography_fee':
+                      return <React.Fragment key={colKey}>{renderEditableCell('photography_fee', colIndex, String(sale.photography_fee ?? 0), 'number')}</React.Fragment>
                     case 'other_cost':
                       return <React.Fragment key={colKey}>{renderEditableCell('other_cost', colIndex, String(sale.other_cost ?? 0), 'number')}</React.Fragment>
                     case 'purchase_price':
