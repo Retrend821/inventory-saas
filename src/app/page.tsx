@@ -1064,17 +1064,20 @@ export default function Home() {
       }
     }
 
-    // 修理費が変更された場合、利益を再計算（仕入総額は変更しない）
+    // 修理費が変更された場合、仕入総額に修理費を加算し、利益を再計算
     if (field === 'other_cost') {
       const newOtherCost = value as number || 0
+      const purchasePrice = currentItem.purchase_price || 0
+      const newPurchaseTotal = purchasePrice + newOtherCost
+      updateData.purchase_total = newPurchaseTotal
+
+      // 入金額がある場合は利益も再計算
       const depositAmount = updateData.deposit_amount !== undefined
         ? updateData.deposit_amount as number | null
         : currentItem.deposit_amount
-      const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
       if (depositAmount !== null) {
-        const newProfit = depositAmount - purchaseTotal - newOtherCost
+        const newProfit = depositAmount - newPurchaseTotal
         updateData.profit = newProfit
-        // 利益率も更新
         if (currentItem.sale_price && currentItem.sale_price > 0) {
           updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
         }
