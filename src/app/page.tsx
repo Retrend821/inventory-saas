@@ -5300,7 +5300,7 @@ export default function Home() {
   }
 
   const formatPrice = (price: number | null | undefined) => {
-    if (price === null || price === undefined) return '-'
+    if (price === null || price === undefined) return '¥0'
     return `¥${price.toLocaleString()}`
   }
 
@@ -7395,7 +7395,7 @@ export default function Home() {
                               onMouseDown={(e) => handleCellMouseDown(index, colIndex, e)}
                               onMouseEnter={() => handleCellMouseEnter(index, colIndex)}
                             >
-                              {profit !== null ? formatPrice(profit) : '-'}
+                              {formatPrice(profit)}
                             </td>
                           )
                         case 'profit_rate':
@@ -7406,7 +7406,7 @@ export default function Home() {
                               onMouseDown={(e) => handleCellMouseDown(index, colIndex, e)}
                               onMouseEnter={() => handleCellMouseEnter(index, colIndex)}
                             >
-                              {profitRate !== null ? `${profitRate}%` : '-'}
+                              {profitRate !== null ? `${profitRate}%` : '0%'}
                             </td>
                           )
                         case 'purchase_date':
