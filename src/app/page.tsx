@@ -962,27 +962,12 @@ export default function Home() {
         updateData.sale_price = null
       }
 
-      // 販売先がエコオクまたは多くネットに設定された場合、撮影手数料を自動追加
+      // 販売先がエコオクまたはオークネットに設定された場合、撮影手数料を自動追加
       if (field === 'sale_destination' && (value === 'エコオク' || value === 'オークネット')) {
         const autoFee = value === 'エコオク' ? 440 : 330
         const currentPhotographyFee = currentItem.photography_fee || 0
-        // 既に撮影手数料が設定されていない場合のみ追加
         if (currentPhotographyFee === 0) {
           updateData.photography_fee = autoFee
-          // 撮影手数料は販売手数料と同じ扱い（入金額から引く）
-          // 入金額を再計算: 売値 - 販売手数料 - 送料 - 撮影手数料
-          const salePrice = currentItem.sale_price || 0
-          const commission = updateData.commission !== undefined ? (updateData.commission as number || 0) : (currentItem.commission || 0)
-          const shippingCost = currentItem.shipping_cost || 0
-          const newDepositAmount = salePrice - commission - shippingCost - autoFee
-          updateData.deposit_amount = newDepositAmount
-          // 利益も再計算
-          const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
-          const newProfit = newDepositAmount - purchaseTotal
-          updateData.profit = newProfit
-          if (salePrice > 0) {
-            updateData.profit_rate = Math.round((newProfit / salePrice) * 100)
-          }
         }
       }
     }
@@ -1001,120 +986,55 @@ export default function Home() {
       }
     }
 
-    // 入金額を自動計算: 売値 - 販売手数料 - 送料 - 撮影手数料（販売先から実際に入金される金額）
-    const autoCalcFields = ['sale_price', 'sale_destination', 'commission', 'shipping_cost', 'photography_fee']
-    if (autoCalcFields.includes(field)) {
-      const salePrice = getUpdatedValue('sale_price') as number | null
-      const commission = updateData.commission !== undefined
-        ? updateData.commission as number | null
-        : currentItem.commission
-      const shippingCost = getUpdatedValue('shipping_cost') as number | null
-      const photographyFee = updateData.photography_fee !== undefined
-        ? updateData.photography_fee as number | null
-        : currentItem.photography_fee
-
-      if (salePrice !== null && salePrice !== 0) {
-        const newDepositAmount = salePrice - (commission || 0) - (shippingCost || 0) - (photographyFee || 0)
-        updateData.deposit_amount = newDepositAmount
-
-        // 利益も再計算（入金額 - 仕入総額 - 修理費）
-        const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
-        const otherCost = currentItem.other_cost || 0
-        const newProfit = newDepositAmount - purchaseTotal - otherCost
-        updateData.profit = newProfit
-        if (salePrice > 0) {
-          updateData.profit_rate = Math.round((newProfit / salePrice) * 100)
-        }
-      } else {
-        // 売値が0またはnullの場合、入金額・利益もリセット
-        updateData.deposit_amount = null
-        updateData.profit = null
-        updateData.profit_rate = null
-      }
-    }
-
-    // 原価が変更された場合、仕入総額を更新（修理費は含めない）
+    // 原価が変更された場合、仕入総額を差分更新
     if (field === 'purchase_price') {
       const oldPurchasePrice = currentItem.purchase_price || 0
       const newPurchasePrice = value as number || 0
-
-      // 差分を計算して仕入総額に反映（原価のみ）
       const priceDiff = newPurchasePrice - oldPurchasePrice
       const currentPurchaseTotal = currentItem.purchase_total || oldPurchasePrice
-      const newPurchaseTotal = currentPurchaseTotal + priceDiff
-      updateData.purchase_total = newPurchaseTotal
-
-      // 利益も再計算（入金額 - 仕入総額 - 修理費）
-      const depositAmount = updateData.deposit_amount !== undefined
-        ? updateData.deposit_amount as number | null
-        : currentItem.deposit_amount
-      const otherCost = currentItem.other_cost || 0
-      if (depositAmount !== null) {
-        const newProfit = depositAmount - newPurchaseTotal - otherCost
-        updateData.profit = newProfit
-        // 利益率も更新
-        if (currentItem.sale_price && currentItem.sale_price > 0) {
-          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
-        }
-      }
-
-      // メモも更新
-      if (currentItem.inventory_number) {
-        updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal}`
-      }
+      updateData.purchase_total = currentPurchaseTotal + priceDiff
     }
 
-    // 修理費が変更された場合、仕入総額に修理費の差分を加算し、利益を再計算
+    // 修理費が変更された場合、仕入総額に差分を加算
     if (field === 'other_cost') {
       const newOtherCost = value as number || 0
       const oldOtherCost = currentItem.other_cost || 0
       const diff = newOtherCost - oldOtherCost
       const currentPurchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
-      const newPurchaseTotal = currentPurchaseTotal + diff
-      updateData.purchase_total = newPurchaseTotal
-
-      // 入金額がある場合は利益も再計算
-      const depositAmount = updateData.deposit_amount !== undefined
-        ? updateData.deposit_amount as number | null
-        : currentItem.deposit_amount
-      if (depositAmount !== null) {
-        const newProfit = depositAmount - newPurchaseTotal
-        updateData.profit = newProfit
-        if (currentItem.sale_price && currentItem.sale_price > 0) {
-          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
-        }
-      }
+      updateData.purchase_total = currentPurchaseTotal + diff
     }
 
-    // 撮影手数料が変更された場合、利益を再計算（入金額から引く）
-    if (field === 'photography_fee') {
-      const depositAmount = updateData.deposit_amount as number | null
-      const purchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
-      const otherCost = currentItem.other_cost || 0
-      if (depositAmount !== null) {
-        const newProfit = depositAmount - purchaseTotal - otherCost
-        updateData.profit = newProfit
-        if (currentItem.sale_price && currentItem.sale_price > 0) {
-          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
-        }
-      }
-    }
-
-    // 仕入総額が更新された場合、利益とメモを更新
-    if (field === 'purchase_total') {
-      const newPurchaseTotal = value as number || 0
-      const depositAmount = currentItem.deposit_amount
-      const otherCost = currentItem.other_cost || 0
-      if (depositAmount !== null) {
-        const newProfit = depositAmount - newPurchaseTotal - otherCost
-        updateData.profit = newProfit
-        if (currentItem.sale_price && currentItem.sale_price > 0) {
-          updateData.profit_rate = Math.round((newProfit / currentItem.sale_price) * 100)
-        }
-      }
-      // メモも更新
+    // 仕入総額または原価が変更された場合、メモを更新
+    if (field === 'purchase_total' || field === 'purchase_price') {
+      const newPurchaseTotal = (updateData.purchase_total !== undefined ? updateData.purchase_total : currentItem.purchase_total) as number || 0
       if (currentItem.inventory_number) {
-        updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal || 0}`
+        updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal}`
+      }
+    }
+
+    // === 統一再計算ブロック: 数値フィールドが変更されたら常に再計算 ===
+    const recalcFields = ['sale_price', 'sale_destination', 'commission', 'shipping_cost', 'photography_fee', 'purchase_price', 'other_cost', 'purchase_total', 'deposit_amount']
+    if (recalcFields.includes(field)) {
+      // 各フィールドの最新値を取得（updateDataに入っていればそれを使用）
+      const finalSalePrice = (updateData.sale_price !== undefined ? updateData.sale_price : currentItem.sale_price) as number | null
+      const finalCommission = (updateData.commission !== undefined ? updateData.commission : currentItem.commission) as number | null
+      const finalShippingCost = (updateData.shipping_cost !== undefined ? updateData.shipping_cost : currentItem.shipping_cost) as number | null
+      const finalPhotographyFee = (updateData.photography_fee !== undefined ? updateData.photography_fee : currentItem.photography_fee) as number | null
+      const finalPurchaseTotal = (updateData.purchase_total !== undefined ? updateData.purchase_total : currentItem.purchase_total || (currentItem.purchase_price || 0)) as number
+
+      if (finalSalePrice !== null && finalSalePrice !== 0) {
+        // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料
+        const newDepositAmount = finalSalePrice - (finalCommission || 0) - (finalShippingCost || 0) - (finalPhotographyFee || 0)
+        updateData.deposit_amount = newDepositAmount
+        // 利益 = 入金額 - 仕入総額
+        const newProfit = newDepositAmount - finalPurchaseTotal
+        updateData.profit = newProfit
+        updateData.profit_rate = finalSalePrice > 0 ? Math.round((newProfit / finalSalePrice) * 100) : 0
+      } else if (field === 'sale_price' || field === 'sale_destination') {
+        // 売値がクリアされた場合のみリセット
+        updateData.deposit_amount = null
+        updateData.profit = null
+        updateData.profit_rate = null
       }
     }
 
