@@ -1004,8 +1004,8 @@ export default function Home() {
       updateData.purchase_total = currentPurchaseTotal + diff
     }
 
-    // 仕入総額または原価が変更された場合、メモを更新
-    if (field === 'purchase_total' || field === 'purchase_price') {
+    // 仕入総額・原価・修理費が変更された場合、メモを更新
+    if (field === 'purchase_total' || field === 'purchase_price' || field === 'other_cost') {
       const newPurchaseTotal = (updateData.purchase_total !== undefined ? updateData.purchase_total : currentItem.purchase_total) as number || 0
       if (currentItem.inventory_number) {
         updateData.memo = `${currentItem.inventory_number}）${newPurchaseTotal}`
