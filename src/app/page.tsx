@@ -1064,11 +1064,13 @@ export default function Home() {
       }
     }
 
-    // 修理費が変更された場合、仕入総額に修理費を加算し、利益を再計算
+    // 修理費が変更された場合、仕入総額に修理費の差分を加算し、利益を再計算
     if (field === 'other_cost') {
       const newOtherCost = value as number || 0
-      const purchasePrice = currentItem.purchase_price || 0
-      const newPurchaseTotal = purchasePrice + newOtherCost
+      const oldOtherCost = currentItem.other_cost || 0
+      const diff = newOtherCost - oldOtherCost
+      const currentPurchaseTotal = currentItem.purchase_total || (currentItem.purchase_price || 0)
+      const newPurchaseTotal = currentPurchaseTotal + diff
       updateData.purchase_total = newPurchaseTotal
 
       // 入金額がある場合は利益も再計算
