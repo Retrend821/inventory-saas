@@ -128,21 +128,28 @@ export default function DashboardPage() {
     }
 
     const fetchData = async () => {
+      // syncが必要かチェック（5分以内なら不要）
+      const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
+      const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
+      const needsSync = Date.now() - lastSync > SYNC_INTERVAL
+
+      // 表示用は必要カラムのみ、sync時のみ全カラム取得
+      const inventorySelect = needsSync ? '*' : 'id, product_name, brand_name, purchase_date, listing_date, sale_date, purchase_price, purchase_total, sale_price, profit, status, sale_type'
+      const manualSalesSelect = needsSync ? '*' : 'id, sale_date, sale_destination, sale_price, purchase_total, commission, shipping_cost, other_cost, photography_fee, profit, profit_rate, purchase_date'
+
       // 全テーブルを並列で取得
       const [allInventory, allManualSales, bulkPurchasesData, bulkSalesData, platformsData, allSalesSummary] = await Promise.all([
-        fetchAllRows<InventoryItem>('inventory', '*'),
-        fetchAllRows<ManualSale>('manual_sales', '*'),
+        fetchAllRows<InventoryItem>('inventory', inventorySelect),
+        fetchAllRows<ManualSale>('manual_sales', manualSalesSelect),
         supabase.from('bulk_purchases').select('*').then(r => r.data || []),
         supabase.from('bulk_sales').select('*').then(r => r.data || []),
         supabase.from('platforms').select('id, name, sales_type').then(r => r.data || []),
         fetchAllRows<SalesSummaryRecord>('sales_summary', 'id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity'),
       ])
 
-      // sales_summary 同期処理（5分以内に同期済みならスキップ）
+      // sales_summary 同期処理
       let finalSalesSummary = allSalesSummary
-      const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
-      const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
-      if (Date.now() - lastSync > SYNC_INTERVAL) {
+      if (needsSync) {
         const { updatedSalesSummary } = await syncSalesSummary({
           inventory: allInventory as any,
           bulkPurchases: bulkPurchasesData,
