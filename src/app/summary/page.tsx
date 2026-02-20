@@ -272,14 +272,10 @@ export default function SummaryPage() {
       const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
       const needsSync = Date.now() - lastSync > SYNC_INTERVAL
 
-      // 表示用は必要カラムのみ、sync時のみ全カラム取得
-      const inventorySelect = needsSync ? '*' : 'id, status, sale_date, sale_destination, sale_price, purchase_total, commission, shipping_cost, purchase_date, listing_date'
-      const manualSalesSelect = needsSync ? '*' : 'id, sale_date, sale_destination, sale_price, purchase_total, commission, shipping_cost, other_cost, photography_fee, profit, profit_rate, purchase_date, listing_date'
-
       // 全テーブルを並列で取得
       const [allInventory, allManualSales, bulkPurchaseData, bulkSaleData, allSalesSummary] = await Promise.all([
-        fetchAllRows<InventoryItem>('inventory', inventorySelect),
-        fetchAllRows<ManualSale>('manual_sales', manualSalesSelect),
+        fetchAllRows<InventoryItem>('inventory', '*'),
+        fetchAllRows<ManualSale>('manual_sales', '*'),
         supabase.from('bulk_purchases').select('*').then(r => r.data || []),
         supabase.from('bulk_sales').select('id, bulk_purchase_id, sale_date, sale_destination, quantity, sale_amount, commission, shipping_cost, deposit_amount, purchase_price, other_cost, product_name').then(r => r.data || []),
         fetchAllRows<SalesSummaryRecord>('sales_summary', 'id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity'),
