@@ -83,43 +83,35 @@ export default function WholesaleSalesPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // 在庫データ取得（全件取得するためにページネーション）
-      let allData: InventoryItem[] = []
-      let from = 0
-      const pageSize = 1000
-      let hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching inventory:', error)
-          break
+      // 大量データを並列ページネーションで取得するヘルパー
+      const fetchAllRows = async <T,>(table: string, select: string): Promise<T[]> => {
+        const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+        if (!count || count === 0) return []
+        const pageSize = 5000
+        const pages = Math.ceil(count / pageSize)
+        const results = await Promise.all(
+          Array.from({ length: pages }, (_, i) =>
+            supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+          )
+        )
+        const allData: T[] = []
+        for (const { data, error } of results) {
+          if (error) { console.error(`Error fetching ${table}:`, error); continue }
+          if (data) allData.push(...(data as T[]))
         }
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
+        return allData
       }
 
+      const [allData, platformRes] = await Promise.all([
+        fetchAllRows<InventoryItem>('inventory', '*'),
+        supabase.from('platforms').select('id, name, sales_type'),
+      ])
+
       setInventory(allData)
-
-      // 販路マスタ取得
-      const { data: platformData, error: platformError } = await supabase
-        .from('platforms')
-        .select('id, name, sales_type')
-
-      if (platformError) {
-        console.error('Error fetching platforms:', platformError)
+      if (platformRes.error) {
+        console.error('Error fetching platforms:', platformRes.error)
       } else {
-        setPlatforms(platformData || [])
+        setPlatforms(platformRes.data || [])
       }
 
       setLoading(false)

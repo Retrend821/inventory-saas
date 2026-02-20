@@ -44,36 +44,35 @@ export default function BackupPage() {
         tables: {}
       }
 
-      for (const table of BACKUP_TABLES) {
-        setProgress(`${table.label}を取得中...`)
-
-        let allData: Record<string, unknown>[] = []
-        let from = 0
-        const pageSize = 1000
-        let hasMore = true
-
-        while (hasMore) {
-          const { data, error: fetchError } = await supabase
-            .from(table.name)
-            .select('*')
-            .range(from, from + pageSize - 1)
-            .order('created_at', { ascending: true })
-
-          if (fetchError) {
-            console.error(`Error fetching ${table.name}:`, fetchError)
-            break
-          }
-
-          if (data && data.length > 0) {
-            allData = [...allData, ...data]
-            from += pageSize
-            hasMore = data.length === pageSize
-          } else {
-            hasMore = false
-          }
+      // 大量データを並列ページネーションで取得するヘルパー
+      const fetchAllRows = async (table: string, select: string): Promise<Record<string, unknown>[]> => {
+        const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+        if (!count || count === 0) return []
+        const pageSize = 5000
+        const pages = Math.ceil(count / pageSize)
+        const results = await Promise.all(
+          Array.from({ length: pages }, (_, i) =>
+            supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+          )
+        )
+        const allData: Record<string, unknown>[] = []
+        for (const { data, error } of results) {
+          if (error) { console.error(`Error fetching ${table}:`, error); continue }
+          if (data) allData.push(...(data as Record<string, unknown>[]))
         }
+        return allData
+      }
 
-        backupData.tables[table.name] = {
+      setProgress('全テーブルを取得中...')
+      const tableResults = await Promise.all(
+        BACKUP_TABLES.map(async (table) => {
+          const allData = await fetchAllRows(table.name, '*')
+          return { name: table.name, allData }
+        })
+      )
+
+      for (const { name, allData } of tableResults) {
+        backupData.tables[name] = {
           count: allData.length,
           data: allData
         }

@@ -108,120 +108,60 @@ export default function DashboardPage() {
   const [todosLoaded, setTodosLoaded] = useState(false)
 
   useEffect(() => {
+    // 大量データを並列ページネーションで取得するヘルパー
+    const fetchAllRows = async <T>(table: string, select: string): Promise<T[]> => {
+      const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+      if (!count || count === 0) return []
+      const pageSize = 5000
+      const pages = Math.ceil(count / pageSize)
+      const results = await Promise.all(
+        Array.from({ length: pages }, (_, i) =>
+          supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+        )
+      )
+      const allData: T[] = []
+      for (const { data, error } of results) {
+        if (error) { console.error(`Error fetching ${table}:`, error); continue }
+        if (data) allData.push(...(data as T[]))
+      }
+      return allData
+    }
+
     const fetchData = async () => {
-      // 在庫データを取得
-      let allInventory: InventoryItem[] = []
-      let from = 0
-      const pageSize = 1000
-      let hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching inventory:', error.message || error)
-          break
-        }
-
-        if (data && data.length > 0) {
-          allInventory = [...allInventory, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
-      }
-
-      // 手入力売上データを取得
-      let allManualSales: ManualSale[] = []
-      from = 0
-      hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('manual_sales')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching manual_sales:', error.message || error)
-          break
-        }
-
-        if (data && data.length > 0) {
-          allManualSales = [...allManualSales, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
-      }
-
-      // まとめ仕入れデータを取得
-      const { data: bulkPurchasesData } = await supabase
-        .from('bulk_purchases')
-        .select('*')
-
-      // まとめ売上データを取得
-      const { data: bulkSalesData } = await supabase
-        .from('bulk_sales')
-        .select('*')
-
-      // プラットフォームデータを取得
-      const { data: platformsData } = await supabase
-        .from('platforms')
-        .select('id, name, sales_type')
-
-      // sales_summaryデータを取得（売上レポートと同じ利益値を使用）
-      let allSalesSummary: SalesSummaryRecord[] = []
-      from = 0
-      hasMore = true
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('sales_summary')
-          .select('id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching sales_summary:', error.message || error)
-          break
-        }
-
-        if (data && data.length > 0) {
-          allSalesSummary = [...allSalesSummary, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
-      }
+      // 全テーブルを並列で取得
+      const [allInventory, allManualSales, bulkPurchasesData, bulkSalesData, platformsData, allSalesSummary] = await Promise.all([
+        fetchAllRows<InventoryItem>('inventory', '*'),
+        fetchAllRows<ManualSale>('manual_sales', '*'),
+        supabase.from('bulk_purchases').select('*').then(r => r.data || []),
+        supabase.from('bulk_sales').select('*').then(r => r.data || []),
+        supabase.from('platforms').select('id, name, sales_type').then(r => r.data || []),
+        fetchAllRows<SalesSummaryRecord>('sales_summary', 'id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity'),
+      ])
 
       // sales_summary 同期処理（5分以内に同期済みならスキップ）
+      let finalSalesSummary = allSalesSummary
       const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
       const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
       if (Date.now() - lastSync > SYNC_INTERVAL) {
         const { updatedSalesSummary } = await syncSalesSummary({
           inventory: allInventory as any,
-          bulkPurchases: bulkPurchasesData || [],
-          bulkSales: bulkSalesData || [],
+          bulkPurchases: bulkPurchasesData,
+          bulkSales: bulkSalesData,
           manualSales: allManualSales as any,
-          existingSalesSummary: allSalesSummary as any,
+          existingSalesSummary: finalSalesSummary as any,
         })
         if (updatedSalesSummary) {
-          allSalesSummary = updatedSalesSummary as any
+          finalSalesSummary = updatedSalesSummary as any
         }
         localStorage.setItem('salesSummaryLastSync', String(Date.now()))
       }
 
       setInventory(allInventory)
       setManualSales(allManualSales)
-      setBulkPurchases(bulkPurchasesData || [])
-      setBulkSales(bulkSalesData || [])
-      setPlatforms(platformsData || [])
-      setSalesSummary(allSalesSummary)
+      setBulkPurchases(bulkPurchasesData)
+      setBulkSales(bulkSalesData)
+      setPlatforms(platformsData)
+      setSalesSummary(finalSalesSummary)
       setLoading(false)
     }
 

@@ -58,40 +58,32 @@ export default function LedgerPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // 全件取得するためにページネーションで取得
-      let allInventory: InventoryItem[] = []
-      let from = 0
-      const pageSize = 1000
-      let hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .order('purchase_date', { ascending: true })
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching inventory:', error)
-          break
+      // 大量データを並列ページネーションで取得するヘルパー
+      const fetchAllRows = async <T,>(table: string, select: string): Promise<T[]> => {
+        const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+        if (!count || count === 0) return []
+        const pageSize = 5000
+        const pages = Math.ceil(count / pageSize)
+        const results = await Promise.all(
+          Array.from({ length: pages }, (_, i) =>
+            supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+          )
+        )
+        const allData: T[] = []
+        for (const { data, error } of results) {
+          if (error) { console.error(`Error fetching ${table}:`, error); continue }
+          if (data) allData.push(...(data as T[]))
         }
-
-        if (data && data.length > 0) {
-          allInventory = [...allInventory, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
+        return allData
       }
-      setInventory(allInventory)
 
-      // プラットフォームとサプライヤーは通常1000件未満なのでそのまま
-      const [platformsRes, suppliersRes] = await Promise.all([
+      const [allInventory, platformsRes, suppliersRes] = await Promise.all([
+        fetchAllRows<InventoryItem>('inventory', '*'),
         supabase.from('platforms').select('name, address, representative_name, occupation, phone, email, website, verification_method, is_anonymous'),
         supabase.from('suppliers').select('name, address, representative_name, occupation, phone, email, website, verification_method, is_anonymous'),
       ])
 
+      setInventory(allInventory)
       if (!platformsRes.error) setPlatforms(platformsRes.data || [])
       if (!suppliersRes.error) setSuppliers(suppliersRes.data || [])
 

@@ -687,28 +687,35 @@ export default function Home() {
   }
 
   const fetchInventory = useCallback(async () => {
-    // Supabaseのデフォルト1000件制限を解除するため、rangeを使用
-    let allData: InventoryItem[] = []
-    let from = 0
-    const pageSize = 1000
+    // 全件数を取得してから並列でフェッチ
+    const { count } = await supabase
+      .from('inventory')
+      .select('*', { count: 'exact', head: true })
 
-    while (true) {
-      const { data, error } = await supabase
+    if (!count || count === 0) {
+      setInventory([])
+      setLoading(false)
+      return
+    }
+
+    const pageSize = 5000
+    const pages = Math.ceil(count / pageSize)
+    const promises = Array.from({ length: pages }, (_, i) =>
+      supabase
         .from('inventory')
         .select('*')
         .order('inventory_number', { ascending: true })
-        .range(from, from + pageSize - 1)
+        .range(i * pageSize, (i + 1) * pageSize - 1)
+    )
 
+    const results = await Promise.all(promises)
+    const allData: InventoryItem[] = []
+    for (const { data, error } of results) {
       if (error) {
         console.error('Error fetching inventory:', error)
-        break
+        continue
       }
-
-      if (!data || data.length === 0) break
-
-      allData = [...allData, ...data]
-      if (data.length < pageSize) break
-      from += pageSize
+      if (data) allData.push(...data)
     }
 
     setInventory(allData)

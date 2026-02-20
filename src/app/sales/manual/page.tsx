@@ -280,61 +280,38 @@ export default function ManualSalesPage() {
     const fetchData = async () => {
       setLoading(true)
 
-      // 手入力売上データ取得
-      let allSales: ManualSale[] = []
-      let from = 0
-      const pageSize = 1000
-      let hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('manual_sales')
-          .select('*')
-          .order('sale_date', { ascending: false })
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching manual sales:', error)
-          break
+      // 大量データを並列ページネーションで取得するヘルパー
+      const fetchAllRows = async <T,>(table: string, select: string): Promise<T[]> => {
+        const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+        if (!count || count === 0) return []
+        const pageSize = 5000
+        const pages = Math.ceil(count / pageSize)
+        const results = await Promise.all(
+          Array.from({ length: pages }, (_, i) =>
+            supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+          )
+        )
+        const allData: T[] = []
+        for (const { data, error } of results) {
+          if (error) { console.error(`Error fetching ${table}:`, error); continue }
+          if (data) allData.push(...(data as T[]))
         }
-
-        if (data && data.length > 0) {
-          allSales = [...allSales, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
+        return allData
       }
+
+      const [allSales, platformRes, supplierRes, rakumaRes] = await Promise.all([
+        fetchAllRows<ManualSale>('manual_sales', '*'),
+        supabase.from('platforms').select('id, name, color_class, sales_type').eq('is_active', true).order('sort_order'),
+        supabase.from('suppliers').select('id, name, color_class').eq('is_active', true).order('sort_order'),
+        supabase.from('rakuma_commission_settings').select('year_month, commission_rate'),
+      ])
+
       setSales(allSales)
-
-      // プラットフォーム（販路）取得
-      const { data: platformData } = await supabase
-        .from('platforms')
-        .select('id, name, color_class, sales_type')
-        .eq('is_active', true)
-        .order('sort_order')
-      if (platformData) {
-        setPlatforms(platformData)
-      }
-
-      // 仕入先取得
-      const { data: supplierData } = await supabase
-        .from('suppliers')
-        .select('id, name, color_class')
-        .eq('is_active', true)
-        .order('sort_order')
-      if (supplierData) {
-        setSuppliers(supplierData)
-      }
-
-      // ラクマ手数料設定取得
-      const { data: rakumaData } = await supabase
-        .from('rakuma_commission_settings')
-        .select('year_month, commission_rate')
-      if (rakumaData) {
+      if (platformRes.data) setPlatforms(platformRes.data)
+      if (supplierRes.data) setSuppliers(supplierRes.data)
+      if (rakumaRes.data) {
         const settings: Record<string, number> = {}
-        rakumaData.forEach((row: { year_month: string; commission_rate: number }) => {
+        rakumaRes.data.forEach((row: { year_month: string; commission_rate: number }) => {
           settings[row.year_month] = row.commission_rate
         })
         setRakumaCommissionSettings(settings)

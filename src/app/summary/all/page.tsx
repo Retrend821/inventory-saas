@@ -283,136 +283,60 @@ export default function AllSalesPage() {
   const visibleColumns = columns.filter(col => !hiddenColumns.has(col.key))
 
   useEffect(() => {
+    // 大量データを並列ページネーションで取得するヘルパー
+    const fetchAllRows = async <T>(table: string, select: string): Promise<T[]> => {
+      const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+      if (!count || count === 0) return []
+      const pageSize = 5000
+      const pages = Math.ceil(count / pageSize)
+      const results = await Promise.all(
+        Array.from({ length: pages }, (_, i) =>
+          supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+        )
+      )
+      const allData: T[] = []
+      for (const { data, error } of results) {
+        if (error) { console.error(`Error fetching ${table}:`, error); continue }
+        if (data) allData.push(...(data as T[]))
+      }
+      return allData
+    }
+
     const fetchData = async () => {
-      // 在庫データ取得（ページネーションで全件取得）
-      let allInventory: InventoryItem[] = []
-      let from = 0
-      const pageSize = 1000
-      let hasMore = true
+      // 全テーブルを並列で取得
+      const [allInventory, bulkPurchaseData, bulkSaleData, platformData, allManualSales, allSalesSummary] = await Promise.all([
+        fetchAllRows<InventoryItem>('inventory', '*'),
+        supabase.from('bulk_purchases').select('*').then(r => r.data || []),
+        supabase.from('bulk_sales').select('*').then(r => r.data || []),
+        supabase.from('platforms').select('*').then(r => r.data || []),
+        fetchAllRows<ManualSale>('manual_sales', '*'),
+        fetchAllRows<SalesSummaryRecord>('sales_summary', '*'),
+      ])
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching inventory:', error)
-          break
-        }
-
-        if (data && data.length > 0) {
-          allInventory = [...allInventory, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
-      }
       setInventory(allInventory)
-
-      // まとめ仕入れデータ取得
-      const { data: bulkPurchaseData, error: bulkPurchaseError } = await supabase
-        .from('bulk_purchases')
-        .select('*')
-
-      if (bulkPurchaseError) {
-        console.error('Error fetching bulk purchases:', bulkPurchaseError)
-      } else {
-        setBulkPurchases(bulkPurchaseData || [])
-      }
-
-      // まとめ売上データ取得
-      const { data: bulkSaleData, error: bulkSaleError } = await supabase
-        .from('bulk_sales')
-        .select('*')
-
-      if (bulkSaleError) {
-        console.error('Error fetching bulk sales:', bulkSaleError)
-      } else {
-        setBulkSales(bulkSaleData || [])
-      }
-
-      // プラットフォームデータ取得
-      const { data: platformData, error: platformError } = await supabase
-        .from('platforms')
-        .select('*')
-
-      if (platformError) {
-        console.error('Error fetching platforms:', platformError)
-      } else {
-        setPlatforms(platformData || [])
-      }
-
-      // 手入力売上データ取得（ページネーションで全件取得）
-      let allManualSales: ManualSale[] = []
-      from = 0
-      hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('manual_sales')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching manual_sales:', error)
-          break
-        }
-
-        if (data && data.length > 0) {
-          allManualSales = [...allManualSales, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
-      }
+      setBulkPurchases(bulkPurchaseData)
+      setBulkSales(bulkSaleData)
+      setPlatforms(platformData)
       setManualSales(allManualSales)
 
-      // sales_summary テーブルからデータ取得（ページネーション対応）
-      let allSalesSummary: SalesSummaryRecord[] = []
-      from = 0
-      hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('sales_summary')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching sales_summary:', error)
-          break
-        }
-
-        if (data && data.length > 0) {
-          allSalesSummary = [...allSalesSummary, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
-      }
-
       // sales_summary 同期処理（5分以内に同期済みならスキップ）
+      let finalSalesSummary = allSalesSummary
       const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
       const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
       if (Date.now() - lastSync > SYNC_INTERVAL) {
         const { updatedSalesSummary } = await syncSalesSummary({
           inventory: allInventory as any,
-          bulkPurchases: bulkPurchaseData || [],
-          bulkSales: bulkSaleData || [],
+          bulkPurchases: bulkPurchaseData,
+          bulkSales: bulkSaleData,
           manualSales: allManualSales as any,
-          existingSalesSummary: allSalesSummary,
+          existingSalesSummary: finalSalesSummary,
         })
-        // syncの結果を反映（更新済み + 新規追加 + 削除済み除外）
-        allSalesSummary = updatedSalesSummary as any
+        finalSalesSummary = updatedSalesSummary as any
         localStorage.setItem('salesSummaryLastSync', String(Date.now()))
       }
 
       // 不足分を追加するためのデータを収集
-      const existingKeys = new Set(allSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
+      const existingKeys = new Set(finalSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
       const newRecords: Omit<SalesSummaryRecord, 'id' | 'created_at' | 'updated_at'>[] = []
 
       // 回転日数計算関数
@@ -530,7 +454,7 @@ export default function AllSalesPage() {
       // 2.5. cost_recovered=true になった manual_sales の sales_summary を削除
       const costRecoveredIds = allManualSales.filter(m => m.cost_recovered).map(m => m.id)
       if (costRecoveredIds.length > 0) {
-        const staleManualRows = allSalesSummary.filter(
+        const staleManualRows = finalSalesSummary.filter(
           s => s.source_type === 'manual' && costRecoveredIds.includes(s.source_id)
         )
         if (staleManualRows.length > 0) {
@@ -541,7 +465,7 @@ export default function AllSalesPage() {
             const batch = staleIds.slice(i, i + batchSize)
             await supabase.from('sales_summary').delete().in('id', batch)
           }
-          allSalesSummary = allSalesSummary.filter(s => !staleIds.includes(s.id))
+          finalSalesSummary = finalSalesSummary.filter(s => !staleIds.includes(s.id))
           staleManualRows.forEach(s => existingKeys.delete(`manual:${s.source_id}`))
         }
       }
@@ -621,12 +545,12 @@ export default function AllSalesPage() {
           if (insertError) {
             console.error('Error inserting to sales_summary:', insertError)
           } else if (insertedData) {
-            allSalesSummary = [...allSalesSummary, ...insertedData]
+            finalSalesSummary = [...finalSalesSummary, ...insertedData]
           }
         }
       }
 
-      setSalesSummary(allSalesSummary)
+      setSalesSummary(finalSalesSummary)
       setLoading(false)
     }
 

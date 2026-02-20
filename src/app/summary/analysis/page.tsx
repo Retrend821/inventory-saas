@@ -185,90 +185,53 @@ export default function SalesAnalysisPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // 在庫データ取得（ページネーションで全件取得）
-      let allInventory: InventoryItem[] = []
-      let from = 0
-      const pageSize = 1000
-      let hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('inventory')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching inventory:', error)
-          break
+      // 大量データを並列ページネーションで取得するヘルパー
+      const fetchAllRows = async <T,>(table: string, select: string): Promise<T[]> => {
+        const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+        if (!count || count === 0) return []
+        const pageSize = 5000
+        const pages = Math.ceil(count / pageSize)
+        const results = await Promise.all(
+          Array.from({ length: pages }, (_, i) =>
+            supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+          )
+        )
+        const allData: T[] = []
+        for (const { data, error } of results) {
+          if (error) { console.error(`Error fetching ${table}:`, error); continue }
+          if (data) allData.push(...(data as T[]))
         }
-
-        if (data && data.length > 0) {
-          allInventory = [...allInventory, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
+        return allData
       }
+
+      const [allInventory, bulkPurchaseRes, bulkSaleRes, platformRes, allManualSales] = await Promise.all([
+        fetchAllRows<InventoryItem>('inventory', '*'),
+        supabase.from('bulk_purchases').select('*'),
+        supabase.from('bulk_sales').select('*'),
+        supabase.from('platforms').select('*'),
+        fetchAllRows<ManualSale>('manual_sales', '*'),
+      ])
+
       setInventory(allInventory)
 
-      // まとめ仕入れデータ取得
-      const { data: bulkPurchaseData, error: bulkPurchaseError } = await supabase
-        .from('bulk_purchases')
-        .select('*')
-
-      if (bulkPurchaseError) {
-        console.error('Error fetching bulk purchases:', bulkPurchaseError)
+      if (bulkPurchaseRes.error) {
+        console.error('Error fetching bulk purchases:', bulkPurchaseRes.error)
       } else {
-        setBulkPurchases(bulkPurchaseData || [])
+        setBulkPurchases(bulkPurchaseRes.data || [])
       }
 
-      // まとめ売上データ取得
-      const { data: bulkSaleData, error: bulkSaleError } = await supabase
-        .from('bulk_sales')
-        .select('*')
-
-      if (bulkSaleError) {
-        console.error('Error fetching bulk sales:', bulkSaleError)
+      if (bulkSaleRes.error) {
+        console.error('Error fetching bulk sales:', bulkSaleRes.error)
       } else {
-        setBulkSales(bulkSaleData || [])
+        setBulkSales(bulkSaleRes.data || [])
       }
 
-      // プラットフォームデータ取得
-      const { data: platformData, error: platformError } = await supabase
-        .from('platforms')
-        .select('*')
-
-      if (platformError) {
-        console.error('Error fetching platforms:', platformError)
+      if (platformRes.error) {
+        console.error('Error fetching platforms:', platformRes.error)
       } else {
-        setPlatforms(platformData || [])
+        setPlatforms(platformRes.data || [])
       }
 
-      // 手入力売上データ取得（ページネーションで全件取得）
-      let allManualSales: ManualSale[] = []
-      from = 0
-      hasMore = true
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('manual_sales')
-          .select('*')
-          .range(from, from + pageSize - 1)
-
-        if (error) {
-          console.error('Error fetching manual_sales:', error)
-          break
-        }
-
-        if (data && data.length > 0) {
-          allManualSales = [...allManualSales, ...data]
-          from += pageSize
-          hasMore = data.length === pageSize
-        } else {
-          hasMore = false
-        }
-      }
       setManualSales(allManualSales)
 
       setLoading(false)
