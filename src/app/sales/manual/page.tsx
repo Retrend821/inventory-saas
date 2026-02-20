@@ -609,8 +609,8 @@ export default function ManualSalesPage() {
         // 5%
         return Math.round(price * 0.05)
       case 'エコトレ':
-        // 10% + 440円
-        return Math.round(price * 0.1) + 440
+        // 10%（撮影手数料440円は別列）
+        return Math.round(price * 0.1)
       default:
         return null
     }
@@ -738,15 +738,27 @@ export default function ManualSalesPage() {
 
     // 販売先または売価が変更された場合、手数料を自動計算
     let autoCommission: number | null = updatedSale.commission
+    let autoPhotographyFee: number | null | undefined = undefined // undefined=変更なし
     if (field === 'sale_destination' || field === 'sale_price') {
+      const destination = field === 'sale_destination' ? (newValue as string) : updatedSale.sale_destination
       const newCommission = calculateCommission(
-        field === 'sale_destination' ? (newValue as string) : updatedSale.sale_destination,
+        destination,
         field === 'sale_price' ? (newValue as number) : updatedSale.sale_price,
         updatedSale.sale_date
       )
       if (newCommission !== null) {
         autoCommission = newCommission
         updatedSale.commission = newCommission
+      }
+      // エコトレの場合、撮影手数料を自動設定
+      if (field === 'sale_destination') {
+        if (destination === 'エコトレ') {
+          autoPhotographyFee = 440
+          updatedSale.photography_fee = 440
+        } else {
+          autoPhotographyFee = 0
+          updatedSale.photography_fee = 0
+        }
       }
     }
 
@@ -781,6 +793,10 @@ export default function ManualSalesPage() {
     // 手数料が自動計算された場合は一緒に更新
     if (field === 'sale_destination' || field === 'sale_price') {
       updateData.commission = autoCommission
+    }
+    // 撮影手数料が自動設定された場合は一緒に更新
+    if (autoPhotographyFee !== undefined) {
+      updateData.photography_fee = autoPhotographyFee
     }
     // 原価が変更された場合は仕入総額も更新
     if (field === 'purchase_price') {
@@ -1065,9 +1081,12 @@ export default function ManualSalesPage() {
     // 仕入総額（原価のみ、その他費用は後で編集）
     const purchaseTotal = purchasePrice || 0
 
+    // エコトレの場合、撮影手数料440円を自動設定
+    const photographyFee = addModal.sale_destination === 'エコトレ' ? 440 : null
+
     // 入金額の自動計算（売価 - 販売手数料 - 送料 - 撮影手数料）
     const depositAmount = finalSalePrice && finalSalePrice > 0
-      ? finalSalePrice - (commission || 0)
+      ? finalSalePrice - (commission || 0) - (photographyFee || 0)
       : null
 
     // 利益計算用のデータ
@@ -1077,7 +1096,7 @@ export default function ManualSalesPage() {
       purchase_total: purchaseTotal,
       commission: commission,
       shipping_cost: null,
-      photography_fee: null,
+      photography_fee: photographyFee,
       other_cost: null,
       deposit_amount: depositAmount,
       listing_date: addModal.listing_date || null,
@@ -1099,7 +1118,7 @@ export default function ManualSalesPage() {
         purchase_price: purchasePrice,
         purchase_total: purchaseTotal,
         commission: commission,
-        photography_fee: null,
+        photography_fee: photographyFee,
         deposit_amount: depositAmount,
         purchase_date: addModal.purchase_date || null,
         listing_date: addModal.listing_date || null,
@@ -2932,13 +2951,48 @@ export default function ManualSalesPage() {
                   }
 
                   const selectOption = async (newValue: string | null) => {
-                    // 直接DBに保存
+                    const updateData: Record<string, unknown> = { [field]: newValue }
+                    const updatedSale = { ...sale, [field]: newValue }
+
+                    // 販売先が変更された場合、手数料と撮影手数料を自動計算
+                    if (field === 'sale_destination') {
+                      const commission = calculateCommission(newValue, sale.sale_price, sale.sale_date)
+                      if (commission !== null) {
+                        updateData.commission = commission
+                        updatedSale.commission = commission
+                      }
+                      // エコトレの場合、撮影手数料440円を自動設定
+                      if (newValue === 'エコトレ') {
+                        updateData.photography_fee = 440
+                        updatedSale.photography_fee = 440
+                      } else {
+                        updateData.photography_fee = 0
+                        updatedSale.photography_fee = 0
+                      }
+                      // 入金額の自動計算
+                      const salePrice = updatedSale.sale_price || 0
+                      if (salePrice > 0) {
+                        const comm = updatedSale.commission || 0
+                        const ship = updatedSale.shipping_cost || 0
+                        const photo = updatedSale.photography_fee || 0
+                        updateData.deposit_amount = salePrice - comm - ship - photo
+                        updatedSale.deposit_amount = salePrice - comm - ship - photo
+                      }
+                      // 利益再計算
+                      const profit = calculateProfit(updatedSale)
+                      const profitRate = calculateProfitRate(updatedSale)
+                      const turnoverDays = calculateTurnoverDays(updatedSale)
+                      updateData.profit = profit
+                      updateData.profit_rate = profitRate
+                      updateData.turnover_days = turnoverDays
+                    }
+
                     const { error } = await supabase
                       .from('manual_sales')
-                      .update({ [field]: newValue })
+                      .update(updateData)
                       .eq('id', sale.id)
                     if (!error) {
-                      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, [field]: newValue } : s))
+                      setSales(prev => prev.map(s => s.id === sale.id ? { ...s, ...updateData } as ManualSale : s))
                     }
                     closeDropdown()
                   }

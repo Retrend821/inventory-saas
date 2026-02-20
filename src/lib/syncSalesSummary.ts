@@ -275,6 +275,25 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
     }
   })
 
+  // 2.5. cost_recovered=true になった manual_sales の sales_summary を削除
+  const costRecoveredIds = manualSales.filter(m => m.cost_recovered).map(m => m.id)
+  const staleManualIds: string[] = []
+  if (costRecoveredIds.length > 0) {
+    const staleManualRows = existingSalesSummary.filter(
+      s => s.source_type === 'manual' && costRecoveredIds.includes(s.source_id)
+    )
+    if (staleManualRows.length > 0) {
+      staleManualRows.forEach(s => staleManualIds.push(s.id))
+      console.log(`Removing ${staleManualIds.length} cost_recovered manual records from sales_summary`)
+      const batchSize = 500
+      for (let i = 0; i < staleManualIds.length; i += batchSize) {
+        const batch = staleManualIds.slice(i, i + batchSize)
+        await supabase.from('sales_summary').delete().in('id', batch)
+      }
+      staleManualRows.forEach(s => existingKeys.delete(`manual:${s.source_id}`))
+    }
+  }
+
   // 3. manual_sales（手入力）の不足分を追加
   manualSales.forEach(item => {
     if (item.sale_date && !item.cost_recovered) {
@@ -331,8 +350,8 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
   })
 
   // 不足分があれば sales_summary に追加
-  // 削除済みのbulkレコードを除外した状態で開始
-  let allSalesSummary = existingSalesSummary.filter(s => s.source_type !== 'bulk')
+  // 削除済みのbulk・cost_recoveredレコードを除外した状態で開始
+  let allSalesSummary = existingSalesSummary.filter(s => s.source_type !== 'bulk' && !staleManualIds.includes(s.id))
   if (newRecords.length > 0) {
     console.log(`Adding ${newRecords.length} new records to sales_summary`)
     const batchSize = 500
@@ -349,6 +368,97 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
         allSalesSummary = [...allSalesSummary, ...(insertedData as SyncSalesSummaryRecord[])]
       }
     }
+  }
+
+  // 既存の single/manual レコードの利益を元テーブルの最新値で更新
+  const inventoryMap = new Map<string, SyncInventoryItem>()
+  inventory.forEach(item => inventoryMap.set(item.id, item))
+  const manualMap = new Map<string, SyncManualSale>()
+  manualSales.forEach(item => manualMap.set(item.id, item))
+
+  const updatePromises: Promise<void>[] = []
+  const updatedLocal: Map<string, Record<string, unknown>> = new Map()
+
+  for (const record of allSalesSummary) {
+    if (record.source_type === 'single') {
+      const item = inventoryMap.get(record.source_id)
+      if (!item) continue
+      const salePrice = item.sale_price || 0
+      const commission = item.commission || 0
+      const shippingCost = item.shipping_cost || 0
+      const otherCost = item.other_cost || 0
+      const photographyFee = item.photography_fee || 0
+      const depositAmount = item.deposit_amount || (salePrice - commission - shippingCost - photographyFee)
+      const purchaseCost = item.purchase_total ?? (item.purchase_price || 0)
+      const profit = depositAmount - purchaseCost - otherCost
+      const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
+
+      if ((record as any).profit !== profit || (record as any).sale_price !== salePrice || (record as any).commission !== commission) {
+        const updates = {
+          sale_price: salePrice,
+          commission,
+          shipping_cost: shippingCost,
+          other_cost: otherCost,
+          photography_fee: photographyFee,
+          purchase_price: item.purchase_price || 0,
+          purchase_cost: purchaseCost,
+          deposit_amount: depositAmount,
+          profit,
+          profit_rate: profitRate,
+          sale_destination: item.sale_destination,
+          sale_date: item.sale_date,
+          turnover_days: calcTurnover(item.purchase_date, item.sale_date),
+        }
+        updatedLocal.set(record.id, updates)
+        updatePromises.push(
+          (async () => { await supabase.from('sales_summary').update(updates).eq('id', record.id) })()
+        )
+      }
+    } else if (record.source_type === 'manual') {
+      const item = manualMap.get(record.source_id)
+      if (!item) continue
+      const salePrice = item.sale_price || 0
+      const commission = item.commission || 0
+      const shippingCost = item.shipping_cost || 0
+      const otherCost = item.other_cost || 0
+      const photographyFee = item.photography_fee || 0
+      const purchaseCost = item.purchase_total || 0
+      const depositAmount = salePrice - commission - shippingCost - photographyFee
+      const profit = item.profit ?? (depositAmount - purchaseCost - otherCost)
+      const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
+
+      if ((record as any).profit !== profit || (record as any).sale_price !== salePrice || (record as any).commission !== commission) {
+        const updates = {
+          sale_price: salePrice,
+          commission,
+          shipping_cost: shippingCost,
+          other_cost: otherCost,
+          photography_fee: photographyFee,
+          purchase_price: purchaseCost,
+          purchase_cost: purchaseCost,
+          deposit_amount: depositAmount,
+          profit,
+          profit_rate: profitRate,
+          sale_destination: item.sale_destination,
+          sale_date: item.sale_date,
+          turnover_days: calcTurnover(item.purchase_date, item.sale_date),
+        }
+        updatedLocal.set(record.id, updates)
+        updatePromises.push(
+          (async () => { await supabase.from('sales_summary').update(updates).eq('id', record.id) })()
+        )
+      }
+    }
+  }
+
+  if (updatePromises.length > 0) {
+    console.log(`Updating ${updatePromises.length} existing sales_summary records`)
+    await Promise.all(updatePromises)
+    // ローカルの allSalesSummary にも反映
+    allSalesSummary = allSalesSummary.map(s => {
+      const updates = updatedLocal.get(s.id)
+      return updates ? { ...s, ...updates } as SyncSalesSummaryRecord : s
+    })
   }
 
   return {

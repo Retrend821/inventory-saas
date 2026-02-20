@@ -395,14 +395,21 @@ export default function AllSalesPage() {
         }
       }
 
-      // sales_summary 同期処理
-      const { updatedSalesSummary } = await syncSalesSummary({
-        inventory: allInventory as any,
-        bulkPurchases: bulkPurchaseData || [],
-        bulkSales: bulkSaleData || [],
-        manualSales: allManualSales as any,
-        existingSalesSummary: allSalesSummary,
-      })
+      // sales_summary 同期処理（5分以内に同期済みならスキップ）
+      const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
+      const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
+      if (Date.now() - lastSync > SYNC_INTERVAL) {
+        const { updatedSalesSummary } = await syncSalesSummary({
+          inventory: allInventory as any,
+          bulkPurchases: bulkPurchaseData || [],
+          bulkSales: bulkSaleData || [],
+          manualSales: allManualSales as any,
+          existingSalesSummary: allSalesSummary,
+        })
+        // syncの結果を反映（更新済み + 新規追加 + 削除済み除外）
+        allSalesSummary = updatedSalesSummary as any
+        localStorage.setItem('salesSummaryLastSync', String(Date.now()))
+      }
 
       // 不足分を追加するためのデータを収集
       const existingKeys = new Set(allSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
@@ -519,6 +526,25 @@ export default function AllSalesPage() {
           }
         }
       })
+
+      // 2.5. cost_recovered=true になった manual_sales の sales_summary を削除
+      const costRecoveredIds = allManualSales.filter(m => m.cost_recovered).map(m => m.id)
+      if (costRecoveredIds.length > 0) {
+        const staleManualRows = allSalesSummary.filter(
+          s => s.source_type === 'manual' && costRecoveredIds.includes(s.source_id)
+        )
+        if (staleManualRows.length > 0) {
+          const staleIds = staleManualRows.map(s => s.id)
+          console.log(`Removing ${staleIds.length} cost_recovered manual records from sales_summary`)
+          const batchSize = 500
+          for (let i = 0; i < staleIds.length; i += batchSize) {
+            const batch = staleIds.slice(i, i + batchSize)
+            await supabase.from('sales_summary').delete().in('id', batch)
+          }
+          allSalesSummary = allSalesSummary.filter(s => !staleIds.includes(s.id))
+          staleManualRows.forEach(s => existingKeys.delete(`manual:${s.source_id}`))
+        }
+      }
 
       // 3. manual_sales（手入力）の不足分を追加
       const bulkSalesKeys = new Set<string>()

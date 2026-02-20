@@ -584,6 +584,125 @@ export default function BulkInventoryPage() {
     }
   }
 
+  // 種別切り替え（仕入⇔販売）
+  const handleSwapType = async (row: MixedRow) => {
+    if (!canEdit) return
+    if (!confirm(`この行を「${row.type === 'purchase' ? '販売' : '仕入'}」に切り替えますか？`)) return
+
+    if (row.type === 'sale' && row.saleData) {
+      // 販売 → 仕入に変換
+      const sale = row.saleData
+      // 金額は sale_amount, purchase_price, deposit_amount のうち最も大きいものを採用
+      const amount = Math.max(sale.sale_amount || 0, sale.purchase_price || 0, sale.deposit_amount || 0)
+      const { error: insertError } = await supabase
+        .from('bulk_purchases')
+        .insert({
+          genre: sale.category || row.genre || '',
+          purchase_date: sale.sale_date,
+          purchase_source: sale.sale_destination || sale.purchase_source || null,
+          total_amount: amount,
+          total_quantity: sale.quantity || 1,
+          memo: sale.product_name || sale.memo || null,
+          user_id: user?.id
+        })
+
+      if (insertError) {
+        console.error('Error converting sale to purchase:', insertError)
+        alert('切り替えに失敗しました')
+        return
+      }
+
+      // sales_summary を削除
+      await supabase.from('sales_summary').delete().eq('source_type', 'bulk').eq('source_id', sale.id)
+
+      // 元の販売行を削除
+      await supabase.from('bulk_sales').delete().eq('id', sale.id)
+
+      fetchData()
+    } else if (row.type === 'purchase' && row.purchaseData) {
+      // 仕入 → 販売に変換
+      const purchase = row.purchaseData
+
+      // この仕入れに関連する子販売がある場合は先に移動
+      const childSales = bulkSales.filter(s => s.bulk_purchase_id === purchase.id)
+
+      // 同じジャンルの別の仕入れを探す（自分以外）
+      let parentPurchaseId: string | null = null
+      const samePurchase = bulkPurchases.find(p => p.genre === purchase.genre && p.id !== purchase.id)
+      if (samePurchase) {
+        parentPurchaseId = samePurchase.id
+      } else {
+        // 同じジャンルの仕入れがなければダミー仕入れを作成
+        const { data: dummyPurchase, error: dummyError } = await supabase
+          .from('bulk_purchases')
+          .insert({
+            genre: purchase.genre,
+            purchase_date: purchase.purchase_date,
+            purchase_source: null,
+            total_amount: 0,
+            total_quantity: 0,
+            memo: null,
+            user_id: user?.id
+          })
+          .select()
+          .single()
+
+        if (dummyError || !dummyPurchase) {
+          console.error('Error creating dummy purchase:', dummyError)
+          alert('切り替えに失敗しました')
+          return
+        }
+        parentPurchaseId = dummyPurchase.id
+      }
+
+      // 子販売がある場合、新しい親に移動してからdeleteする
+      if (childSales.length > 0) {
+        for (const child of childSales) {
+          await supabase.from('bulk_sales').update({ bulk_purchase_id: parentPurchaseId }).eq('id', child.id)
+          // sales_summary も削除（次回sync時に再作成される）
+          await supabase.from('sales_summary').delete().eq('source_type', 'bulk').eq('source_id', child.id)
+        }
+      }
+
+      const amount = purchase.total_amount || 0
+
+      // 販売行を作成
+      const { error: insertError } = await supabase
+        .from('bulk_sales')
+        .insert({
+          bulk_purchase_id: parentPurchaseId,
+          sale_date: purchase.purchase_date,
+          sale_destination: purchase.purchase_source || null,
+          purchase_source: null,
+          quantity: purchase.total_quantity || 1,
+          sale_amount: amount,
+          commission: 0,
+          shipping_cost: 0,
+          memo: null,
+          product_name: purchase.memo || null,
+          brand_name: null,
+          category: purchase.genre,
+          image_url: null,
+          purchase_price: amount,
+          other_cost: 0,
+          deposit_amount: amount,
+          listing_date: null,
+          user_id: user?.id
+        })
+
+      if (insertError) {
+        console.error('Error converting purchase to sale:', insertError)
+        alert('切り替えに失敗しました')
+        return
+      }
+
+      // 元の仕入れを削除（子販売は既に移動済み）
+      await supabase.from('bulk_purchases').delete().eq('id', purchase.id)
+
+      fetchData()
+    }
+  }
+
   // まとめ仕入れ削除
   const handleDeletePurchase = async (id: string) => {
     if (!confirm('このまとめ仕入れを削除しますか？関連する売上データも削除されます。')) {
@@ -1730,7 +1849,11 @@ export default function BulkInventoryPage() {
                       }
 
                       // 斜線スタイル
-                      const stripeStyle = { background: 'repeating-linear-gradient(135deg, #e5e7eb, #e5e7eb 4px, #d1d5db 4px, #d1d5db 8px)' }
+                      const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+                      const stripeStyle = { background: isDarkMode
+                        ? 'repeating-linear-gradient(135deg, #2a2d35, #2a2d35 4px, #363940 4px, #363940 8px)'
+                        : 'repeating-linear-gradient(135deg, #e5e7eb, #e5e7eb 4px, #d1d5db 4px, #d1d5db 8px)'
+                      }
 
                       // 入金額計算
                       const depositAmount = sale ? (sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)) : 0
@@ -1751,8 +1874,15 @@ export default function BulkInventoryPage() {
                             : <td className="px-2 py-1 border-r border-gray-100 text-gray-900">{row.date}</td>}
                           {/* 種別 */}
                           <td className="px-2 py-1 border-r border-gray-100 text-center">
-                            <span className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full ${isPurchase ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full cursor-pointer hover:opacity-70 ${isPurchase ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
+                              onClick={() => handleSwapType(row)}
+                              title={`クリックで「${isPurchase ? '販売' : '仕入'}」に切り替え`}
+                            >
                               {isPurchase ? '仕入' : '販売'}
+                              <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                              </svg>
                             </span>
                           </td>
                           {/* 画像 */}

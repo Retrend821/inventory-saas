@@ -4079,8 +4079,9 @@ export default function Home() {
   const rowVirtualizer = useVirtualizer({
     count: paginatedInventory.length,
     getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 41, // 行の高さ（px）
-    overscan: 20, // 画面外に余分にレンダリングする行数（増やして安定化）
+    estimateSize: () => 57, // 行の高さ（画像40px + padding 8+8 + border 1）
+    overscan: 30, // 画面外に余分にレンダリングする行数
+    measureElement: (element) => element.getBoundingClientRect().height,
   })
 
   // 仮想アイテムをキャッシュ（複数回呼び出し防止）
@@ -7360,9 +7361,9 @@ export default function Home() {
                     return (
                       <tr
                         key={item.id}
+                        ref={rowVirtualizer.measureElement}
                         data-index={virtualRow.index}
-                        className={`hover:bg-gray-50 ${shouldGrayOut ? 'bg-gray-100 opacity-60' : ''}`}
-                        style={{ height: '41px', maxHeight: '41px' }}
+                        className={`hover:bg-gray-50 ${shouldGrayOut ? 'bg-gray-100 opacity-60 dark-sold-row' : 'dark-unsold-row'}`}
                       >
                         {visibleColumns.map((col, colIdx) => renderColumnCell(col, colIdx))}
                       </tr>

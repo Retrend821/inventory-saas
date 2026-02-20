@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    optimizePackageImports: ['recharts', 'exceljs', 'xlsx-populate'],
+  },
 };
 
 export default nextConfig;

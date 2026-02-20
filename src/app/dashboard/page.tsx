@@ -199,16 +199,21 @@ export default function DashboardPage() {
         }
       }
 
-      // sales_summary 同期処理（売上明細を開かなくても利益が最新になるように）
-      const { updatedSalesSummary } = await syncSalesSummary({
-        inventory: allInventory as any,
-        bulkPurchases: bulkPurchasesData || [],
-        bulkSales: bulkSalesData || [],
-        manualSales: allManualSales as any,
-        existingSalesSummary: allSalesSummary as any,
-      })
-      if (updatedSalesSummary) {
-        allSalesSummary = updatedSalesSummary as any
+      // sales_summary 同期処理（5分以内に同期済みならスキップ）
+      const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
+      const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
+      if (Date.now() - lastSync > SYNC_INTERVAL) {
+        const { updatedSalesSummary } = await syncSalesSummary({
+          inventory: allInventory as any,
+          bulkPurchases: bulkPurchasesData || [],
+          bulkSales: bulkSalesData || [],
+          manualSales: allManualSales as any,
+          existingSalesSummary: allSalesSummary as any,
+        })
+        if (updatedSalesSummary) {
+          allSalesSummary = updatedSalesSummary as any
+        }
+        localStorage.setItem('salesSummaryLastSync', String(Date.now()))
       }
 
       setInventory(allInventory)
