@@ -248,7 +248,7 @@ export default function SummaryPage() {
 
   useEffect(() => {
     // 大量データを並列ページネーションで取得するヘルパー
-    const fetchAllRows = async <T>(table: string, select: string): Promise<T[]> => {
+    const fetchAllRows = async <T,>(table: string, select: string): Promise<T[]> => {
       const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
       if (!count || count === 0) return []
       const pageSize = 5000

@@ -58,7 +58,7 @@ export default function BackupPage() {
         const allData: Record<string, unknown>[] = []
         for (const { data, error } of results) {
           if (error) { console.error(`Error fetching ${table}:`, error); continue }
-          if (data) allData.push(...(data as Record<string, unknown>[]))
+          if (data) allData.push(...(data as unknown as Record<string, unknown>[]))
         }
         return allData
       }
