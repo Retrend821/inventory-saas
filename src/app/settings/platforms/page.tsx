@@ -64,6 +64,7 @@ const defaultPlatformSettings: Record<string, { color: string; commission: numbe
   '返品': { color: 'bg-gray-500 text-white', commission: 0, salesType: 'toC' },
   'shopify': { color: 'bg-green-600 text-white', commission: 0, salesType: 'toC' },
   'エレノス': { color: 'bg-purple-500 text-white', commission: 0, salesType: 'toB' },
+  '俺オク': { color: 'bg-orange-500 text-white', commission: 0, salesType: 'toB' },
 }
 
 // デフォルト仕入先の設定（色）

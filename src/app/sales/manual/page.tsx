@@ -688,9 +688,10 @@ export default function ManualSalesPage() {
     }
 
     // 売価入力時：業販（toB）の場合は税抜き価格を税込み価格に自動変換（×1.1）
+    // ※俺オクは内税のため除外
     if (field === 'sale_price' && typeof newValue === 'number' && newValue > 0) {
       const destination = sale.sale_destination
-      if (destination) {
+      if (destination && destination !== '俺オク') {
         const platform = platforms.find(p => p.name === destination)
         if (platform?.sales_type === 'toB') {
           newValue = Math.round(newValue * 1.1)
@@ -1047,8 +1048,9 @@ export default function ManualSalesPage() {
     )
 
     // 売価入力時：業販（toB）の場合は税抜き価格を税込み価格に自動変換（×1.1）
+    // ※俺オクは内税のため除外
     let finalSalePrice = salePrice
-    if (salePrice && addModal.sale_destination) {
+    if (salePrice && addModal.sale_destination && addModal.sale_destination !== '俺オク') {
       const platform = platforms.find(p => p.name === addModal.sale_destination)
       if (platform?.sales_type === 'toB') {
         finalSalePrice = Math.round(salePrice * 1.1)

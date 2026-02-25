@@ -926,9 +926,10 @@ export default function Home() {
     if (!currentItem) return
 
     // 売価入力時：業販（toB）の場合は税抜き価格を税込み価格に自動変換（×1.1）
+    // ※俺オクは内税のため除外
     if (field === 'sale_price' && typeof value === 'number' && value > 0) {
       const destination = currentItem.sale_destination
-      if (destination) {
+      if (destination && destination !== '俺オク') {
         const platform = masterPlatforms.find(p => p.name === destination)
         if (platform?.sales_type === 'toB') {
           value = Math.round(value * 1.1)

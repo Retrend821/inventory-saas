@@ -19,10 +19,11 @@ interface ExportItem {
   management_number?: string
 }
 
-// 指値計算: 仕入総額 + 1万円（千円単位で切り上げ）
+// 指値計算: 仕入総額 + 1万円（千円単位で切り上げ、最低3万円）
 function calculateSashiNe(purchaseTotal: number | null | undefined): number | null {
   if (!purchaseTotal) return null
-  return Math.ceil((purchaseTotal + 10000) / 1000) * 1000
+  const calculated = Math.ceil((purchaseTotal + 10000) / 1000) * 1000
+  return Math.max(calculated, 30000)
 }
 
 // 商品名を生成: ブランド名 + 商品名
