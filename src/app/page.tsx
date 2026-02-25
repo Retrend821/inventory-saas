@@ -698,7 +698,7 @@ export default function Home() {
       return
     }
 
-    const pageSize = 5000
+    const pageSize = 1000
     const pages = Math.ceil(count / pageSize)
     const promises = Array.from({ length: pages }, (_, i) =>
       supabase

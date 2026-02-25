@@ -85,7 +85,7 @@ export default function RetailSalesPage() {
       const fetchAllRows = async <T,>(table: string, select: string): Promise<T[]> => {
         const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
         if (!count || count === 0) return []
-        const pageSize = 5000
+        const pageSize = 1000
         const pages = Math.ceil(count / pageSize)
         const results = await Promise.all(
           Array.from({ length: pages }, (_, i) =>
