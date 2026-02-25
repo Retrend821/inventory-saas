@@ -117,6 +117,7 @@ export default function ManualSalesPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'main' | 'bulk'>('all')
   const [sortByImage, setSortByImage] = useState<'none' | 'hasImage' | 'noImage'>('none')
+  const [sortBySaleDate, setSortBySaleDate] = useState<'none' | 'asc' | 'desc'>('none')
   // 列の表示/非表示（localStorageから復元）
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
@@ -423,6 +424,13 @@ export default function ManualSalesPage() {
       return true
     })
 
+    // 売却日でソート
+    if (sortBySaleDate === 'asc') {
+      result = result.sort((a, b) => (a.sale_date || '').localeCompare(b.sale_date || ''))
+    } else if (sortBySaleDate === 'desc') {
+      result = result.sort((a, b) => (b.sale_date || '').localeCompare(a.sale_date || ''))
+    }
+
     // 画像有無でソート
     if (sortByImage === 'hasImage') {
       result = result.sort((a, b) => {
@@ -439,7 +447,7 @@ export default function ManualSalesPage() {
     }
 
     return result
-  }, [sales, selectedYear, selectedMonth, saleTypeFilter, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations, sortByImage])
+  }, [sales, selectedYear, selectedMonth, saleTypeFilter, selectedBrands, selectedCategories, selectedPurchaseSources, selectedSaleDestinations, sortByImage, sortBySaleDate])
 
   // 仮想スクロールは無効化（慣性スクロールのため）
   // const rowVirtualizer = useVirtualizer({
@@ -2647,6 +2655,15 @@ export default function ManualSalesPage() {
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
               <option key={month} value={month}>{month}月</option>
             ))}
+          </select>
+          <select
+            value={sortBySaleDate}
+            onChange={(e) => setSortBySaleDate(e.target.value as 'none' | 'asc' | 'desc')}
+            className={`px-2 sm:px-3 py-2 ${t.input} border rounded text-sm touch-target`}
+          >
+            <option value="none">売却日：指定なし</option>
+            <option value="desc">売却日：新しい順</option>
+            <option value="asc">売却日：古い順</option>
           </select>
           <select
             value={sortByImage}
