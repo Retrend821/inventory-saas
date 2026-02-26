@@ -533,6 +533,9 @@ export default function Home() {
   const [rakumaModalRate, setRakumaModalRate] = useState('')
   const [showRakumaSettingsModal, setShowRakumaSettingsModal] = useState(false)
 
+  // メモコピー成功フィードバック
+  const [copiedMemoId, setCopiedMemoId] = useState<string | null>(null)
+
   // オークション出品モーダル
   const [showAuctionExportModal, setShowAuctionExportModal] = useState(false)
   const [auctionManagementField, setAuctionManagementField] = useState<'inventory_number' | 'memo'>('memo')
@@ -607,7 +610,7 @@ export default function Home() {
   // 列の順序管理（開発用）
   const defaultColumns = [
     { key: 'checkbox', label: '', draggable: false, width: 'w-8' },
-    { key: 'index', label: 'No.', draggable: false, width: 'w-14' },
+    { key: 'index', label: 'No.\n📋', draggable: false, width: 'w-14' },
     { key: 'inventory_number', label: '管理番号', draggable: true, width: 'w-[68px]' },
     { key: 'refund_status', label: '返金\n完了', draggable: false, width: 'w-14' },
     { key: 'image', label: '画像', draggable: true, width: 'w-16' },
@@ -6620,12 +6623,30 @@ export default function Home() {
                           )
                         case 'index':
                           const isIndexSelected = isSelectedCell('inventory_number') // indexはinventory_numberとして扱う（コピー用）
+                          const isCopied = copiedMemoId === item.id
                           return (
                             <td
                               key={colKey}
-                              className={`px-3 py-2 text-sm text-gray-900 text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} cursor-pointer hover:bg-blue-50`}
+                              className={`px-1 py-2 text-sm text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} cursor-pointer hover:bg-blue-50`}
+                              title={item.memo ? `クリックでメモをコピー: ${item.memo}` : ''}
+                              onClick={() => {
+                                if (item.memo) {
+                                  navigator.clipboard.writeText(item.memo).then(() => {
+                                    setCopiedMemoId(item.id)
+                                    setTimeout(() => setCopiedMemoId(prev => prev === item.id ? null : prev), 1500)
+                                  })
+                                }
+                              }}
                             >
-                              {globalIndex + 1}
+                              <div className="flex items-center justify-center gap-0.5">
+                                <span className={isCopied ? 'text-green-600 font-bold' : 'text-gray-900'}>{isCopied ? '✓' : globalIndex + 1}</span>
+                                {item.memo && !isCopied && (
+                                  <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2"/>
+                                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeWidth="2"/>
+                                  </svg>
+                                )}
+                              </div>
                             </td>
                           )
                         case 'inventory_number':
