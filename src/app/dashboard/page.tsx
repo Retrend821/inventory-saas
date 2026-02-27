@@ -216,7 +216,7 @@ export default function DashboardPage() {
     const year = now.getFullYear()
     const month = now.getMonth()
     const startDate = new Date(year, month, 1)
-    const endDate = new Date(year, month + 1, 0)
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999)
     return {
       year,
       month: month + 1,
