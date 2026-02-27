@@ -278,15 +278,19 @@ export default function SummaryPage() {
 
       // sales_summary 同期処理（毎回実行）
       let finalSalesSummary = allSalesSummary
-      const { updatedSalesSummary } = await syncSalesSummary({
-        inventory: allInventory as any,
-        bulkPurchases: bulkPurchaseData as any,
-        bulkSales: bulkSaleData as any,
-        manualSales: allManualSales as any,
-        existingSalesSummary: finalSalesSummary as any,
-      })
-      if (updatedSalesSummary) {
-        finalSalesSummary = updatedSalesSummary as any
+      try {
+        const { updatedSalesSummary } = await syncSalesSummary({
+          inventory: allInventory as any,
+          bulkPurchases: bulkPurchaseData as any,
+          bulkSales: bulkSaleData as any,
+          manualSales: allManualSales as any,
+          existingSalesSummary: finalSalesSummary as any,
+        })
+        if (updatedSalesSummary) {
+          finalSalesSummary = updatedSalesSummary as any
+        }
+      } catch (e) {
+        console.error('syncSalesSummary error:', e)
       }
 
       setInventory(allInventory)
