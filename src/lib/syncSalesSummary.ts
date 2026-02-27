@@ -185,9 +185,9 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
         const photographyFee = item.photography_fee || 0
         // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料
         const depositAmount = item.deposit_amount || (salePrice - commission - shippingCost - photographyFee)
-        // 仕入総額がある場合はそれを使用、なければ原価+修理費（撮影手数料は入金額から引く）
-        const purchaseCost = item.purchase_total ?? (purchasePrice + otherCost)
-        const profit = depositAmount - purchaseCost
+        // 仕入総額がある場合はそれを使用、なければ原価（修理費は別途引く）
+        const purchaseCost = item.purchase_total ?? purchasePrice
+        const profit = depositAmount - purchaseCost - otherCost
         const profitRate = salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0
 
         newRecords.push({
@@ -314,8 +314,8 @@ export async function syncSalesSummary(params: SyncParams): Promise<SyncResult> 
         const purchaseCost = item.purchase_total || 0
         // 入金額 = 売値 - 販売手数料 - 送料 - 撮影手数料（修理費は仕入側コストなので含めない）
         const depositAmount = salePrice - commission - shippingCost - photographyFee
-        // 利益 = 入金額 - 仕入総額
-        const profit = item.profit ?? (depositAmount - purchaseCost)
+        // 利益 = 入金額 - 仕入総額 - 修理費
+        const profit = item.profit ?? (depositAmount - purchaseCost - otherCost)
         const profitRate = item.profit_rate ?? (salePrice > 0 ? Math.round((profit / salePrice) * 100) : 0)
 
         newRecords.push({
