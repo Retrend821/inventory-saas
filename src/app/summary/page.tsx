@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { syncSalesSummary } from '@/lib/syncSalesSummary'
 
 type MonthlyGoal = {
   id?: string
@@ -276,27 +275,11 @@ export default function SummaryPage() {
         fetchAllRows<SalesSummaryRecord>('sales_summary', '*'),
       ])
 
-      // sales_summary 同期処理（毎回実行）
-      try {
-        await syncSalesSummary({
-          inventory: allInventory as any,
-          bulkPurchases: bulkPurchaseData as any,
-          bulkSales: bulkSaleData as any,
-          manualSales: allManualSales as any,
-          existingSalesSummary: allSalesSummary as any,
-        })
-      } catch (e) {
-        console.error('syncSalesSummary error:', e)
-      }
-
-      // sync後にDBから再取得して確実に最新データを使用
-      const freshSalesSummary = await fetchAllRows<SalesSummaryRecord>('sales_summary', '*')
-
       setInventory(allInventory)
       setManualSales(allManualSales)
       setBulkPurchases(bulkPurchaseData)
       setBulkSales(bulkSaleData)
-      setSalesSummary(freshSalesSummary)
+      setSalesSummary(allSalesSummary)
       setLoading(false)
     }
 

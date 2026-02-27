@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { syncSalesSummary } from '@/lib/syncSalesSummary'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
@@ -138,28 +137,12 @@ export default function DashboardPage() {
         fetchAllRows<SalesSummaryRecord>('sales_summary', '*'),
       ])
 
-      // sales_summary 同期処理（毎回実行）
-      try {
-        await syncSalesSummary({
-          inventory: allInventory as any,
-          bulkPurchases: bulkPurchasesData,
-          bulkSales: bulkSalesData,
-          manualSales: allManualSales as any,
-          existingSalesSummary: allSalesSummary as any,
-        })
-      } catch (e) {
-        console.error('syncSalesSummary error:', e)
-      }
-
-      // sync後にDBから再取得して確実に最新データを使用
-      const freshSalesSummary = await fetchAllRows<SalesSummaryRecord>('sales_summary', '*')
-
       setInventory(allInventory)
       setManualSales(allManualSales)
       setBulkPurchases(bulkPurchasesData)
       setBulkSales(bulkSalesData)
       setPlatforms(platformsData)
-      setSalesSummary(freshSalesSummary)
+      setSalesSummary(allSalesSummary)
       setLoading(false)
     }
 
