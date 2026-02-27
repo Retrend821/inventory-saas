@@ -273,7 +273,7 @@ export default function SummaryPage() {
         fetchAllRows<ManualSale>('manual_sales', '*'),
         supabase.from('bulk_purchases').select('*').then(r => r.data || []),
         supabase.from('bulk_sales').select('id, bulk_purchase_id, sale_date, sale_destination, quantity, sale_amount, commission, shipping_cost, deposit_amount, purchase_price, other_cost, product_name').then(r => r.data || []),
-        fetchAllRows<SalesSummaryRecord>('sales_summary', 'id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity'),
+        fetchAllRows<SalesSummaryRecord>('sales_summary', '*'),
       ])
 
       // sales_summary 同期処理（毎回実行）

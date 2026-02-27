@@ -135,7 +135,7 @@ export default function DashboardPage() {
         supabase.from('bulk_purchases').select('*').then(r => r.data || []),
         supabase.from('bulk_sales').select('*').then(r => r.data || []),
         supabase.from('platforms').select('id, name, sales_type').then(r => r.data || []),
-        fetchAllRows<SalesSummaryRecord>('sales_summary', 'id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity'),
+        fetchAllRows<SalesSummaryRecord>('sales_summary', '*'),
       ])
 
       // sales_summary 同期処理（毎回実行）
