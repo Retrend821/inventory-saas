@@ -128,11 +128,6 @@ export default function DashboardPage() {
     }
 
     const fetchData = async () => {
-      // syncが必要かチェック（5分以内なら不要）
-      const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
-      const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
-      const needsSync = Date.now() - lastSync > SYNC_INTERVAL
-
       // 全テーブルを並列で取得
       const [allInventory, allManualSales, bulkPurchasesData, bulkSalesData, platformsData, allSalesSummary] = await Promise.all([
         fetchAllRows<InventoryItem>('inventory', '*'),
@@ -143,20 +138,17 @@ export default function DashboardPage() {
         fetchAllRows<SalesSummaryRecord>('sales_summary', 'id, source_type, source_id, sale_destination, sale_price, purchase_cost, profit, sale_date, quantity'),
       ])
 
-      // sales_summary 同期処理
+      // sales_summary 同期処理（毎回実行）
       let finalSalesSummary = allSalesSummary
-      if (needsSync) {
-        const { updatedSalesSummary } = await syncSalesSummary({
-          inventory: allInventory as any,
-          bulkPurchases: bulkPurchasesData,
-          bulkSales: bulkSalesData,
-          manualSales: allManualSales as any,
-          existingSalesSummary: finalSalesSummary as any,
-        })
-        if (updatedSalesSummary) {
-          finalSalesSummary = updatedSalesSummary as any
-        }
-        localStorage.setItem('salesSummaryLastSync', String(Date.now()))
+      const { updatedSalesSummary } = await syncSalesSummary({
+        inventory: allInventory as any,
+        bulkPurchases: bulkPurchasesData,
+        bulkSales: bulkSalesData,
+        manualSales: allManualSales as any,
+        existingSalesSummary: finalSalesSummary as any,
+      })
+      if (updatedSalesSummary) {
+        finalSalesSummary = updatedSalesSummary as any
       }
 
       setInventory(allInventory)

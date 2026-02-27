@@ -319,21 +319,16 @@ export default function AllSalesPage() {
       setPlatforms(platformData)
       setManualSales(allManualSales)
 
-      // sales_summary 同期処理（5分以内に同期済みならスキップ）
+      // sales_summary 同期処理（毎回実行）
       let finalSalesSummary = allSalesSummary
-      const lastSync = Number(localStorage.getItem('salesSummaryLastSync') || '0')
-      const SYNC_INTERVAL = 5 * 60 * 1000 // 5分
-      if (Date.now() - lastSync > SYNC_INTERVAL) {
-        const { updatedSalesSummary } = await syncSalesSummary({
-          inventory: allInventory as any,
-          bulkPurchases: bulkPurchaseData,
-          bulkSales: bulkSaleData,
-          manualSales: allManualSales as any,
-          existingSalesSummary: finalSalesSummary,
-        })
-        finalSalesSummary = updatedSalesSummary as any
-        localStorage.setItem('salesSummaryLastSync', String(Date.now()))
-      }
+      const { updatedSalesSummary } = await syncSalesSummary({
+        inventory: allInventory as any,
+        bulkPurchases: bulkPurchaseData,
+        bulkSales: bulkSaleData,
+        manualSales: allManualSales as any,
+        existingSalesSummary: finalSalesSummary,
+      })
+      finalSalesSummary = updatedSalesSummary as any
 
       // 不足分を追加するためのデータを収集
       const existingKeys = new Set(finalSalesSummary.map(s => `${s.source_type}:${s.source_id}`))
