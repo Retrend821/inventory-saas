@@ -6,6 +6,12 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# HTMLページのCDNキャッシュを無効化（デプロイ後に古いJSを参照する問題の防止）
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Netlify-CDN-Cache-Control = "no-store"
+
 # APIルートのキャッシュを完全に無効化
 [[headers]]
   for = "/api/*"
