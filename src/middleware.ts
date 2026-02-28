@@ -1,13 +1,13 @@
-// Next.js 16では middleware が非推奨のため、クライアント側で認証チェックを行う
-// このファイルは使用しない
-
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // 何もせずにそのまま通す
-  return NextResponse.next()
+  const response = NextResponse.next()
+  // Netlify Durable CDNキャッシュを無効化（デプロイ後に古いHTMLが返される問題の防止）
+  response.headers.set('Netlify-CDN-Cache-Control', 'no-store')
+  response.headers.set('CDN-Cache-Control', 'no-store')
+  return response
 }
 
 export const config = {
-  matcher: [],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
