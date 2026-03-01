@@ -89,8 +89,14 @@ html.dark .border-gray-100 {
 html.dark .divide-gray-100 > :not(:first-child) {
   border-color: #22252b !important;
 }
+html.dark .divide-gray-100 > :first-child {
+  border-top-color: #22252b !important;
+}
 html.dark .divide-gray-200 > :not(:first-child) {
   border-color: #2a2d35 !important;
+}
+html.dark .divide-gray-200 > :first-child {
+  border-top-color: #2a2d35 !important;
 }
 
 /* --- ホバー状態 --- */
