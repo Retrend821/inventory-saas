@@ -1569,8 +1569,8 @@ export default function SalesAnalysisPage() {
                           const current = brandStats.get(brandName) || { count: 0, sales: 0, profit: 0 }
                           brandStats.set(brandName, {
                             count: current.count + sale.quantity,
-                            sales: current.sales + (sale.sale_price || 0) * sale.quantity,
-                            profit: current.profit + (sale.profit || 0) * sale.quantity,
+                            sales: current.sales + (sale.sale_price || 0),
+                            profit: current.profit + (sale.profit || 0),
                           })
                         })
                         return [...brandStats.entries()]
@@ -1686,8 +1686,8 @@ export default function SalesAnalysisPage() {
                           const current = destStats.get(dest) || { count: 0, sales: 0, profit: 0 }
                           destStats.set(dest, {
                             count: current.count + sale.quantity,
-                            sales: current.sales + (sale.sale_price || 0) * sale.quantity,
-                            profit: current.profit + (sale.profit || 0) * sale.quantity,
+                            sales: current.sales + (sale.sale_price || 0),
+                            profit: current.profit + (sale.profit || 0),
                           })
                         })
                         return [...destStats.entries()]
@@ -1805,8 +1805,8 @@ export default function SalesAnalysisPage() {
                         const current = catStats.get(cat) || { count: 0, sales: 0, profit: 0 }
                         catStats.set(cat, {
                           count: current.count + sale.quantity,
-                          sales: current.sales + (sale.sale_price || 0) * sale.quantity,
-                          profit: current.profit + (sale.profit || 0) * sale.quantity,
+                          sales: current.sales + (sale.sale_price || 0),
+                          profit: current.profit + (sale.profit || 0),
                         })
                       })
                       return [...catStats.entries()]
@@ -1914,8 +1914,8 @@ export default function SalesAnalysisPage() {
                         const current = sourceStats.get(source) || { count: 0, sales: 0, profit: 0 }
                         sourceStats.set(source, {
                           count: current.count + sale.quantity,
-                          sales: current.sales + (sale.sale_price || 0) * sale.quantity,
-                          profit: current.profit + (sale.profit || 0) * sale.quantity,
+                          sales: current.sales + (sale.sale_price || 0),
+                          profit: current.profit + (sale.profit || 0),
                         })
                       })
                       return [...sourceStats.entries()]
