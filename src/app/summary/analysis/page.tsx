@@ -318,10 +318,14 @@ export default function SalesAnalysisPage() {
         const unitCost = bulkPurchase.total_quantity > 0
           ? Math.round(bulkPurchase.total_amount / bulkPurchase.total_quantity)
           : 0
-        const purchasePrice = sale.purchase_price ?? unitCost * sale.quantity
         const otherCost = sale.other_cost ?? 0
-        const depositAmount = sale.deposit_amount || 0
-        const profit = depositAmount - purchasePrice - otherCost
+        const photographyFee = sale.photography_fee ?? 0
+        const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+        // purchase_priceが明示的に設定されていればそれを使用、
+        // 未設定（原価回収モード）の場合はdepositAmountを使用して利益を0にする
+        const purchasePrice = sale.purchase_price ?? depositAmount
+        // 原価回収のためマイナス利益は0にクランプ
+        const profit = Math.max(0, depositAmount - purchasePrice - otherCost)
         const profitRate = sale.sale_amount > 0 ? Math.round((profit / sale.sale_amount) * 100) : 0
 
         sales.push({
