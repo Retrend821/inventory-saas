@@ -6396,6 +6396,10 @@ export default function Home() {
                                   // 日付が選択されたら直接保存
                                   if (val) {
                                     let updateData: Record<string, string | number | null> = { [field]: val }
+                                    // 日付変更時は回転日数をリセット（表示時に再計算される）
+                                    if (['sale_date', 'listing_date', 'purchase_date'].includes(field)) {
+                                      updateData.turnover_days = null
+                                    }
                                     if (field === 'sale_date') {
                                       if (val !== '返品') {
                                         updateData.status = '売却済み'
@@ -6420,6 +6424,10 @@ export default function Home() {
                                   if (e.key === 'Enter') {
                                     const val = editValue || null
                                     let updateData: Record<string, string | number | null> = { [field]: val }
+                                    // 日付変更時は回転日数をリセット（表示時に再計算される）
+                                    if (['sale_date', 'listing_date', 'purchase_date'].includes(field)) {
+                                      updateData.turnover_days = null
+                                    }
                                     if (field === 'sale_date') {
                                       if (val && val !== '返品') {
                                         updateData.status = '売却済み'
@@ -6456,6 +6464,10 @@ export default function Home() {
                                     return
                                   }
                                   let updateData: Record<string, string | number | null> = { [field]: val }
+                                  // 日付変更時は回転日数をリセット（表示時に再計算される）
+                                  if (['sale_date', 'listing_date', 'purchase_date'].includes(field)) {
+                                    updateData.turnover_days = null
+                                  }
                                   if (field === 'sale_date') {
                                     if (val && val !== '返品') {
                                       updateData.status = '売却済み'
@@ -6629,12 +6641,25 @@ export default function Home() {
                               key={colKey}
                               className={`px-1 py-2 text-sm text-center ${col.width} ${groupEndColumns.has(colKey) ? 'border-r border-gray-300' : ''} cursor-pointer hover:bg-blue-50`}
                               title={item.memo ? `クリックでメモをコピー: ${item.memo}` : ''}
-                              onClick={() => {
+                              onClick={async () => {
                                 if (item.memo) {
                                   navigator.clipboard.writeText(item.memo).then(() => {
                                     setCopiedMemoId(item.id)
                                     setTimeout(() => setCopiedMemoId(prev => prev === item.id ? null : prev), 1500)
                                   })
+                                }
+                                // 出品日を本日に更新
+                                const today = new Date().toISOString().split('T')[0]
+                                if (item.listing_date !== today) {
+                                  const { error } = await supabase
+                                    .from('inventory')
+                                    .update({ listing_date: today })
+                                    .eq('id', item.id)
+                                  if (!error) {
+                                    setInventory(prev => prev.map(inv =>
+                                      inv.id === item.id ? { ...inv, listing_date: today } : inv
+                                    ))
+                                  }
                                 }
                               }}
                             >
