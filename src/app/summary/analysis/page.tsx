@@ -319,7 +319,6 @@ export default function SalesAnalysisPage() {
           ? Math.round(bulkPurchase.total_amount / bulkPurchase.total_quantity)
           : 0
         const otherCost = sale.other_cost ?? 0
-        const photographyFee = sale.photography_fee ?? 0
         const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
         // purchase_priceが明示的に設定されていればそれを使用、
         // 未設定（原価回収モード）の場合はdepositAmountを使用して利益を0にする
