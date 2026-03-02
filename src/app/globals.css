@@ -86,10 +86,10 @@ html.dark .border-gray-100 {
 }
 
 /* --- 区切り線 --- */
-html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+html.dark .divide-gray-100 > * {
   border-color: #22252b !important;
 }
-html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+html.dark .divide-gray-200 > * {
   border-color: #2a2d35 !important;
 }
 
