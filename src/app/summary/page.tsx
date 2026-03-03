@@ -346,10 +346,21 @@ export default function SummaryPage() {
     return dateStr.substring(0, 10).replace(/\//g, '-')
   }
 
+  // 当月なら今日時点、過去月なら月末日を返すヘルパー
+  const getEndDate = useCallback((year: string, month: string) => {
+    const y = parseInt(year)
+    const m = parseInt(month)
+    const today = new Date()
+    if (y === today.getFullYear() && m === today.getMonth() + 1) {
+      return `${year}-${month}-${today.getDate().toString().padStart(2, '0')}`
+    }
+    const lastDay = new Date(y, m, 0).getDate()
+    return `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+  }, [])
+
   // 月末在庫を計算するためのヘルパー関数（単品のみ）
   const getEndOfMonthSingleStock = useCallback((year: string, month: string) => {
-    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+    const endDate = getEndDate(year, month)
 
     return inventory.filter(item => {
       const purchaseDate = item.purchase_date
@@ -365,12 +376,11 @@ export default function SummaryPage() {
       }
       return false
     })
-  }, [inventory])
+  }, [inventory, getEndDate])
 
   // まとめ仕入れの月末在庫を計算（数量と金額を返す）
   const getBulkEndOfMonthStock = useCallback((year: string, month: string) => {
-    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-    const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+    const endDate = getEndDate(year, month)
 
     let totalCount = 0
     let totalValue = 0
@@ -394,7 +404,7 @@ export default function SummaryPage() {
     })
 
     return { count: totalCount, value: Math.round(totalValue) }
-  }, [bulkPurchases, bulkSales])
+  }, [bulkPurchases, bulkSales, getEndDate])
 
   // 月末在庫（単品＋まとめ）
   const getEndOfMonthStock = useCallback((year: string, month: string) => {
@@ -804,9 +814,20 @@ export default function SummaryPage() {
     const monthList = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
     // 月末在庫を計算するためのヘルパー関数（単品のみ）
+    // 当月の場合は今日時点の在庫を使用
+    const getEndDate = (year: string, month: string) => {
+      const y = parseInt(year)
+      const m = parseInt(month)
+      const today = new Date()
+      if (y === today.getFullYear() && m === today.getMonth() + 1) {
+        return `${year}-${month}-${today.getDate().toString().padStart(2, '0')}`
+      }
+      const lastDay = new Date(y, m, 0).getDate()
+      return `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+    }
+
     const getEndOfMonthSingleStock = (year: string, month: string) => {
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-      const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+      const endDate = getEndDate(year, month)
 
       return inventory.filter(item => {
         // 仕入日が月末以前で、売却日がない or 売却日が月末より後
@@ -833,8 +854,7 @@ export default function SummaryPage() {
 
     // まとめ仕入れの月末在庫を計算（数量と金額を返す）
     const getBulkEndOfMonthStock = (year: string, month: string) => {
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-      const endDate = `${year}-${month}-${lastDay.toString().padStart(2, '0')}`
+      const endDate = getEndDate(year, month)
 
       let totalCount = 0
       let totalValue = 0
