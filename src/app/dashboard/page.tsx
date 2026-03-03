@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { syncSalesSummary } from '@/lib/syncSalesSummary'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
@@ -142,7 +143,23 @@ export default function DashboardPage() {
       setBulkPurchases(bulkPurchasesData)
       setBulkSales(bulkSalesData)
       setPlatforms(platformsData)
-      setSalesSummary(allSalesSummary)
+
+      // sales_summary 同期処理
+      try {
+        await syncSalesSummary({
+          inventory: allInventory as any,
+          bulkPurchases: bulkPurchasesData,
+          bulkSales: bulkSalesData,
+          manualSales: allManualSales as any,
+          existingSalesSummary: allSalesSummary as any,
+        })
+      } catch (e) {
+        console.error('syncSalesSummary error:', e)
+      }
+
+      // sync後にDBから再取得して確実に最新データを使用
+      const freshSalesSummary = await fetchAllRows<SalesSummaryRecord>('sales_summary', '*')
+      setSalesSummary(freshSalesSummary)
       setLoading(false)
     }
 
@@ -314,19 +331,38 @@ export default function DashboardPage() {
     const listed = unsold.filter(item => item.listing_date)
     const listedValue = listed.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
+    // まとめ仕入れの残在庫を計算
+    let bulkStockCount = 0
+    let bulkStockValue = 0
+    bulkPurchases.forEach(bp => {
+      const soldQuantity = bulkSales
+        .filter(sale =>
+          sale.bulk_purchase_id === bp.id &&
+          sale.sale_destination
+        )
+        .reduce((sum, sale) => sum + sale.quantity, 0)
+      const remaining = bp.total_quantity - soldQuantity
+      if (remaining > 0) {
+        bulkStockCount += remaining
+        const unitCost = bp.total_quantity > 0 ? bp.total_amount / bp.total_quantity : 0
+        bulkStockValue += unitCost * remaining
+      }
+    })
+    const bulkStockValueRounded = Math.round(bulkStockValue)
+
     return {
-      unsoldCount: unsold.length,       // 在庫数（未販売）
-      unsoldValue,                       // 在庫総額（仕入総額ベース）
-      unsoldValueCost,                   // 在庫総額（原価ベース）
+      unsoldCount: unsold.length + bulkStockCount,       // 在庫数（単品＋まとめ）
+      unsoldValue: unsoldValue + bulkStockValueRounded,   // 在庫総額（仕入総額ベース）
+      unsoldValueCost: unsoldValueCost + bulkStockValueRounded, // 在庫総額（原価ベース）
       listedCount,                       // 出品中（未販売 - 未出品）
       listedValue,                       // 出品中の在庫金額
       soldCount: sold.length,            // 売却済み
-      unlistedCount: unlisted.length,    // 未出品
-      unlistedValue,                     // 未出品の在庫金額
-      totalStockValue: unsoldValue,      // 在庫総額（仕入総額ベース）
-      totalStockValueCost: unsoldValueCost // 在庫総額（原価ベース）
+      unlistedCount: unlisted.length + bulkStockCount,    // 未出品（まとめ仕入れは未出品扱い）
+      unlistedValue: unlistedValue + bulkStockValueRounded, // 未出品の在庫金額
+      totalStockValue: unsoldValue + bulkStockValueRounded,      // 在庫総額（仕入総額ベース）
+      totalStockValueCost: unsoldValueCost + bulkStockValueRounded // 在庫総額（原価ベース）
     }
-  }, [inventory])
+  }, [inventory, bulkPurchases, bulkSales])
 
   // 滞留在庫（出品日から90日以上売れていないもの）
   const { staleStock, staleStockCount } = useMemo(() => {
