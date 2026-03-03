@@ -424,7 +424,7 @@ export default function SummaryPage() {
     const singleStock = getEndOfMonthSingleStock(year, month)
     const bulkStock = getBulkEndOfMonthStock(year, month)
     return {
-      count: singleStock.length + bulkStock.count,
+      count: singleStock.length,
       value: singleStock.reduce((sum, item) => sum + (item.purchase_price || 0), 0) + bulkStock.value
     }
   }, [getEndOfMonthSingleStock, getBulkEndOfMonthStock])
@@ -914,7 +914,7 @@ export default function SummaryPage() {
       const singleStock = getEndOfMonthSingleStock(year, month)
       const bulkStock = getBulkEndOfMonthStock(year, month)
       return {
-        count: singleStock.length + bulkStock.count,
+        count: singleStock.length,
         value: singleStock.reduce((sum, item) => sum + (item.purchase_price || 0), 0) + bulkStock.value
       }
     }

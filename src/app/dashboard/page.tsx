@@ -365,14 +365,14 @@ export default function DashboardPage() {
     const bulkUnrecoveredExTax = Math.round(bulkUnrecovered / 1.1)
 
     return {
-      unsoldCount: unsold.length + bulkStockCount,       // 在庫数（単品＋まとめ）
+      unsoldCount: unsold.length,                        // 在庫数（単品のみ）
       unsoldValue: unsoldValue + bulkUnrecoveredExTax,   // 在庫総額（仕入総額ベース）
       unsoldValueCost: unsoldValueCost + bulkUnrecoveredExTax, // 在庫総額（原価ベース）
       listedCount,                       // 出品中（未販売 - 未出品）
       listedValue,                       // 出品中の在庫金額
       soldCount: sold.length,            // 売却済み
-      unlistedCount: unlisted.length + bulkStockCount,    // 未出品（まとめ仕入れは未出品扱い）
-      unlistedValue: unlistedValue + bulkUnrecoveredExTax, // 未出品の在庫金額
+      unlistedCount: unlisted.length,    // 未出品（単品のみ）
+      unlistedValue,                     // 未出品の在庫金額
       totalStockValue: unsoldValue + bulkUnrecoveredExTax,      // 在庫総額（仕入総額ベース）
       totalStockValueCost: unsoldValueCost + bulkUnrecoveredExTax // 在庫総額（原価ベース）
     }
