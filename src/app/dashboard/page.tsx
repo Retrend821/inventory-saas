@@ -333,34 +333,48 @@ export default function DashboardPage() {
 
     // まとめ仕入れの残在庫を計算
     let bulkStockCount = 0
-    let bulkStockValue = 0
+    let bulkTotalPurchaseAmount = 0  // 仕入総額＋個別仕入額
+    let bulkTotalDeposit = 0         // 入金総額
+
     bulkPurchases.forEach(bp => {
-      const soldQuantity = bulkSales
-        .filter(sale =>
-          sale.bulk_purchase_id === bp.id &&
-          sale.sale_destination
-        )
+      const relatedSales = bulkSales.filter(sale => sale.bulk_purchase_id === bp.id)
+      const soldQuantity = relatedSales
+        .filter(sale => sale.sale_destination)
         .reduce((sum, sale) => sum + sale.quantity, 0)
       const remaining = bp.total_quantity - soldQuantity
       if (remaining > 0) {
         bulkStockCount += remaining
-        const unitCost = bp.total_quantity > 0 ? bp.total_amount / bp.total_quantity : 0
-        bulkStockValue += unitCost * remaining
       }
+
+      // 未回収額計算用: 仕入総額
+      bulkTotalPurchaseAmount += bp.total_amount
+      // 個別アイテムの仕入額
+      relatedSales.forEach(sale => {
+        bulkTotalPurchaseAmount += sale.purchase_price || 0
+      })
+      // 入金総額（販売先ありのもののみ）
+      relatedSales.forEach(sale => {
+        if (sale.sale_destination) {
+          bulkTotalDeposit += sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)
+        }
+      })
     })
-    const bulkStockValueRounded = Math.round(bulkStockValue)
+
+    // 未回収額（税込）→ 税抜にして原価とする
+    const bulkUnrecovered = Math.max(0, bulkTotalPurchaseAmount - bulkTotalDeposit)
+    const bulkUnrecoveredExTax = Math.round(bulkUnrecovered / 1.1)
 
     return {
       unsoldCount: unsold.length + bulkStockCount,       // 在庫数（単品＋まとめ）
-      unsoldValue: unsoldValue + bulkStockValueRounded,   // 在庫総額（仕入総額ベース）
-      unsoldValueCost: unsoldValueCost + bulkStockValueRounded, // 在庫総額（原価ベース）
+      unsoldValue: unsoldValue + bulkUnrecoveredExTax,   // 在庫総額（仕入総額ベース）
+      unsoldValueCost: unsoldValueCost + bulkUnrecoveredExTax, // 在庫総額（原価ベース）
       listedCount,                       // 出品中（未販売 - 未出品）
       listedValue,                       // 出品中の在庫金額
       soldCount: sold.length,            // 売却済み
       unlistedCount: unlisted.length + bulkStockCount,    // 未出品（まとめ仕入れは未出品扱い）
-      unlistedValue: unlistedValue + bulkStockValueRounded, // 未出品の在庫金額
-      totalStockValue: unsoldValue + bulkStockValueRounded,      // 在庫総額（仕入総額ベース）
-      totalStockValueCost: unsoldValueCost + bulkStockValueRounded // 在庫総額（原価ベース）
+      unlistedValue: unlistedValue + bulkUnrecoveredExTax, // 未出品の在庫金額
+      totalStockValue: unsoldValue + bulkUnrecoveredExTax,      // 在庫総額（仕入総額ベース）
+      totalStockValueCost: unsoldValueCost + bulkUnrecoveredExTax // 在庫総額（原価ベース）
     }
   }, [inventory, bulkPurchases, bulkSales])
 

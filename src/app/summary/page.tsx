@@ -378,41 +378,52 @@ export default function SummaryPage() {
     })
   }, [inventory, getEndDate])
 
-  // まとめ仕入れの月末在庫を計算（数量と金額を返す）
+  // まとめ仕入れの月末在庫を計算（数量と未回収額の税抜を返す）
   const getBulkEndOfMonthStock = useCallback((year: string, month: string) => {
     const endDate = getEndDate(year, month)
 
     let totalCount = 0
-    let totalValue = 0
+    let totalPurchaseAmount = 0
+    let totalDeposit = 0
 
     bulkPurchases.forEach(bp => {
       if (!bp.purchase_date || normalizeDate(bp.purchase_date) > endDate) return
-      const soldQuantity = bulkSales
-        .filter(sale =>
-          sale.bulk_purchase_id === bp.id &&
-          sale.sale_destination &&
-          sale.sale_date &&
-          normalizeDate(sale.sale_date) <= endDate
-        )
+
+      const relatedSales = bulkSales.filter(sale =>
+        sale.bulk_purchase_id === bp.id &&
+        sale.sale_date &&
+        normalizeDate(sale.sale_date) <= endDate
+      )
+
+      const soldQuantity = relatedSales
+        .filter(sale => sale.sale_destination)
         .reduce((sum, sale) => sum + sale.quantity, 0)
       const remainingQuantity = bp.total_quantity - soldQuantity
       if (remainingQuantity > 0) {
         totalCount += remainingQuantity
-        const unitCost = bp.total_quantity > 0 ? bp.total_amount / bp.total_quantity : 0
-        totalValue += unitCost * remainingQuantity
       }
+
+      // 未回収額計算
+      totalPurchaseAmount += bp.total_amount
+      relatedSales.forEach(sale => {
+        totalPurchaseAmount += sale.purchase_price || 0
+        if (sale.sale_destination) {
+          totalDeposit += sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+        }
+      })
     })
 
-    return { count: totalCount, value: Math.round(totalValue) }
+    const unrecovered = Math.max(0, totalPurchaseAmount - totalDeposit)
+    return { count: totalCount, value: Math.round(unrecovered / 1.1) }
   }, [bulkPurchases, bulkSales, getEndDate])
 
-  // 月末在庫（単品＋まとめ）
+  // 月末在庫（単品の原価＋まとめの未回収額税抜）
   const getEndOfMonthStock = useCallback((year: string, month: string) => {
     const singleStock = getEndOfMonthSingleStock(year, month)
     const bulkStock = getBulkEndOfMonthStock(year, month)
     return {
       count: singleStock.length + bulkStock.count,
-      value: singleStock.reduce((sum, item) => sum + (item.purchase_total || 0), 0) + bulkStock.value
+      value: singleStock.reduce((sum, item) => sum + (item.purchase_price || 0), 0) + bulkStock.value
     }
   }, [getEndOfMonthSingleStock, getBulkEndOfMonthStock])
 
@@ -852,47 +863,55 @@ export default function SummaryPage() {
       })
     }
 
-    // まとめ仕入れの月末在庫を計算（数量と金額を返す）
+    // まとめ仕入れの月末在庫を計算（数量と未回収額の税抜を返す）
     const getBulkEndOfMonthStock = (year: string, month: string) => {
       const endDate = getEndDate(year, month)
 
       let totalCount = 0
-      let totalValue = 0
+      let totalPurchaseAmount = 0
+      let totalDeposit = 0
 
       bulkPurchases.forEach(bp => {
         // 仕入日が月末以前のもののみ
         if (!bp.purchase_date || normalizeDate(bp.purchase_date) > endDate) return
 
-        // このまとめ仕入れの売上数量を計算（月末以前に売れた分、販売先があるもののみ）
-        const soldQuantity = bulkSales
-          .filter(sale =>
-            sale.bulk_purchase_id === bp.id &&
-            sale.sale_destination &&
-            sale.sale_date &&
-            normalizeDate(sale.sale_date) <= endDate
-          )
+        const relatedSales = bulkSales.filter(sale =>
+          sale.bulk_purchase_id === bp.id &&
+          sale.sale_date &&
+          normalizeDate(sale.sale_date) <= endDate
+        )
+
+        const soldQuantity = relatedSales
+          .filter(sale => sale.sale_destination)
           .reduce((sum, sale) => sum + sale.quantity, 0)
 
         // 残在庫数
         const remainingQuantity = bp.total_quantity - soldQuantity
         if (remainingQuantity > 0) {
           totalCount += remainingQuantity
-          // 単価 × 残数量
-          const unitCost = bp.total_quantity > 0 ? bp.total_amount / bp.total_quantity : 0
-          totalValue += unitCost * remainingQuantity
         }
+
+        // 未回収額計算
+        totalPurchaseAmount += bp.total_amount
+        relatedSales.forEach(sale => {
+          totalPurchaseAmount += sale.purchase_price || 0
+          if (sale.sale_destination) {
+            totalDeposit += sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+          }
+        })
       })
 
-      return { count: totalCount, value: Math.round(totalValue) }
+      const unrecovered = Math.max(0, totalPurchaseAmount - totalDeposit)
+      return { count: totalCount, value: Math.round(unrecovered / 1.1) }
     }
 
-    // 月末在庫（単品＋まとめ）
+    // 月末在庫（単品の原価＋まとめの未回収額税抜）
     const getEndOfMonthStock = (year: string, month: string) => {
       const singleStock = getEndOfMonthSingleStock(year, month)
       const bulkStock = getBulkEndOfMonthStock(year, month)
       return {
         count: singleStock.length + bulkStock.count,
-        value: singleStock.reduce((sum, item) => sum + (item.purchase_total || 0), 0) + bulkStock.value
+        value: singleStock.reduce((sum, item) => sum + (item.purchase_price || 0), 0) + bulkStock.value
       }
     }
 
