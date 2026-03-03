@@ -2,10 +2,6 @@
   command = "npm run build"
   publish = ".next"
 
-# Next.js用のプラグイン
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
 # HTMLページのCDNキャッシュを無効化（デプロイ後に古いJSを参照する問題の防止）
 [[headers]]
   for = "/*"
