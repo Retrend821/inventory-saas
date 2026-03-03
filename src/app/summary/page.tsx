@@ -383,8 +383,7 @@ export default function SummaryPage() {
     const endDate = getEndDate(year, month)
 
     let totalCount = 0
-    let totalPurchaseAmount = 0
-    let totalDeposit = 0
+    let cumulativeProfit = 0
 
     bulkPurchases.forEach(bp => {
       if (!bp.purchase_date || normalizeDate(bp.purchase_date) > endDate) return
@@ -403,17 +402,20 @@ export default function SummaryPage() {
         totalCount += remainingQuantity
       }
 
-      // 未回収額計算
-      totalPurchaseAmount += bp.total_amount
+      // 仕入れ行: -total_amount
+      cumulativeProfit -= bp.total_amount
+      // 販売行
       relatedSales.forEach(sale => {
-        totalPurchaseAmount += sale.purchase_price || 0
         if (sale.sale_destination) {
-          totalDeposit += sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+          const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+          cumulativeProfit += depositAmount
+        } else {
+          cumulativeProfit -= (sale.purchase_price || 0)
         }
       })
     })
 
-    const unrecovered = Math.max(0, totalPurchaseAmount - totalDeposit)
+    const unrecovered = Math.max(0, -cumulativeProfit)
     return { count: totalCount, value: Math.round(unrecovered / 1.1) }
   }, [bulkPurchases, bulkSales, getEndDate])
 
@@ -868,8 +870,7 @@ export default function SummaryPage() {
       const endDate = getEndDate(year, month)
 
       let totalCount = 0
-      let totalPurchaseAmount = 0
-      let totalDeposit = 0
+      let cumulativeProfit = 0
 
       bulkPurchases.forEach(bp => {
         // 仕入日が月末以前のもののみ
@@ -891,17 +892,20 @@ export default function SummaryPage() {
           totalCount += remainingQuantity
         }
 
-        // 未回収額計算
-        totalPurchaseAmount += bp.total_amount
+        // 仕入れ行: -total_amount
+        cumulativeProfit -= bp.total_amount
+        // 販売行
         relatedSales.forEach(sale => {
-          totalPurchaseAmount += sale.purchase_price || 0
           if (sale.sale_destination) {
-            totalDeposit += sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+            const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+            cumulativeProfit += depositAmount
+          } else {
+            cumulativeProfit -= (sale.purchase_price || 0)
           }
         })
       })
 
-      const unrecovered = Math.max(0, totalPurchaseAmount - totalDeposit)
+      const unrecovered = Math.max(0, -cumulativeProfit)
       return { count: totalCount, value: Math.round(unrecovered / 1.1) }
     }
 

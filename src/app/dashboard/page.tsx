@@ -331,10 +331,9 @@ export default function DashboardPage() {
     const listed = unsold.filter(item => item.listing_date)
     const listedValue = listed.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
-    // まとめ仕入れの残在庫を計算
+    // まとめ仕入れの残在庫を計算（未回収額 = 仕入総額 + 未販売個別仕入額 - 入金額）
     let bulkStockCount = 0
-    let bulkTotalPurchaseAmount = 0  // 仕入総額＋個別仕入額
-    let bulkTotalDeposit = 0         // 入金総額
+    let bulkCumulativeProfit = 0
 
     bulkPurchases.forEach(bp => {
       const relatedSales = bulkSales.filter(sale => sale.bulk_purchase_id === bp.id)
@@ -346,22 +345,23 @@ export default function DashboardPage() {
         bulkStockCount += remaining
       }
 
-      // 未回収額計算用: 仕入総額
-      bulkTotalPurchaseAmount += bp.total_amount
-      // 個別アイテムの仕入額
-      relatedSales.forEach(sale => {
-        bulkTotalPurchaseAmount += sale.purchase_price || 0
-      })
-      // 入金総額（販売先ありのもののみ）
+      // 仕入れ行: -total_amount
+      bulkCumulativeProfit -= bp.total_amount
+      // 販売行
       relatedSales.forEach(sale => {
         if (sale.sale_destination) {
-          bulkTotalDeposit += sale.deposit_amount ?? (sale.sale_amount - sale.commission - sale.shipping_cost)
+          // 販売済み: +入金額
+          const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
+          bulkCumulativeProfit += depositAmount
+        } else {
+          // 未販売: -個別仕入額
+          bulkCumulativeProfit -= (sale.purchase_price || 0)
         }
       })
     })
 
     // 未回収額（税込）→ 税抜にして原価とする
-    const bulkUnrecovered = Math.max(0, bulkTotalPurchaseAmount - bulkTotalDeposit)
+    const bulkUnrecovered = Math.max(0, -bulkCumulativeProfit)
     const bulkUnrecoveredExTax = Math.round(bulkUnrecovered / 1.1)
 
     return {
