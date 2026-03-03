@@ -887,7 +887,38 @@ export default function SummaryPage() {
       }
     }
 
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
+
     return monthList.map(month => {
+      const monthNum = parseInt(month)
+      const isFutureMonth = parseInt(selectedYear) > currentYear ||
+        (parseInt(selectedYear) === currentYear && monthNum > currentMonth)
+
+      if (isFutureMonth) {
+        return {
+          month: monthNum,
+          prevMonthEndStockCount: 0,
+          currentMonthEndStockCount: 0,
+          beginningStockValue: 0,
+          endingStockValue: 0,
+          stockCountTurnover: 0,
+          salesTurnover: 0,
+          costTurnover: 0,
+          overallProfitability: 0,
+          purchasedCount: 0,
+          purchaseValue: 0,
+          avgPurchasePrice: 0,
+          listedCount: 0,
+          soldCount: 0,
+          totalSales: 0,
+          costOfGoodsSold: 0,
+          totalProfit: 0,
+          profitRate: 0,
+        }
+      }
+
       const yearMonth = `${selectedYear}-${month}`
 
       // 当月販売（売却済み、販売先あり、返品を除く）
@@ -1056,15 +1087,19 @@ export default function SummaryPage() {
     const profitRate = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0
     const avgPurchasePrice = purchasedCount > 0 ? Math.round(purchaseValue / purchasedCount) : 0
 
-    // 年間の回転率は12月末と前年12月末の在庫で計算
-    const dec = monthlyData[11]
+    // 年間の回転率は最後の到来月末と年初の在庫で計算
     const jan = monthlyData[0]
+    // 未到来月を除いた最後の月を取得
+    const lastArrivedMonth = [...monthlyData].reverse().find(m =>
+      m.soldCount > 0 || m.purchasedCount > 0 || m.listedCount > 0 ||
+      m.currentMonthEndStockCount > 0 || m.beginningStockValue > 0
+    ) || monthlyData[monthlyData.length - 1]
 
-    // 年初在庫（1月の前月末在庫）と年末在庫（12月末在庫）
+    // 年初在庫（1月の前月末在庫）と期末在庫（最後の到来月末在庫）
     const beginningStockCount = jan?.prevMonthEndStockCount || 0
-    const endingStockCount = dec?.currentMonthEndStockCount || 0
+    const endingStockCount = lastArrivedMonth?.currentMonthEndStockCount || 0
     const beginningStockValue = jan?.beginningStockValue || 0
-    const endingStockValue = dec?.endingStockValue || 0
+    const endingStockValue = lastArrivedMonth?.endingStockValue || 0
 
     const avgStockCount = (beginningStockCount + endingStockCount) / 2
     const avgStockValue = (beginningStockValue + endingStockValue) / 2
