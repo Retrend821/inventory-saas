@@ -1095,8 +1095,109 @@ export default function SummaryPage() {
     }
   }, [monthlyData])
 
+  // 単月集計CSVダウンロード
+  const downloadSummaryCSV = useCallback(() => {
+    if (!summary) return
+
+    const label = selectedMonth === 'all'
+      ? `${selectedYear}年（全月）`
+      : `${selectedYear}年${parseInt(selectedMonth)}月`
+
+    const rows = [
+      ['項目', '実績'],
+      ['売上（税込）', summary.totalSales],
+      ['販売利益（税込）', Math.max(0, summary.totalProfit)],
+      ['仕入（税込）', summary.totalPurchase],
+      ['販売利益率', `${summary.profitRate}%`],
+      ['販売単価', summary.avgSalePrice],
+      ['利益単価', Math.max(0, summary.avgProfit)],
+      ['仕入単価', summary.avgPurchasePrice],
+      ['販売件数', summary.soldCount],
+      ['仕入件数', summary.purchasedCount],
+      ['出品件数', summary.listedCount],
+      ['在庫数回転率', `${summary.stockCountTurnover}%`],
+      ['売上高回転率', `${summary.salesTurnover}%`],
+      ['売上原価回転率', `${summary.costTurnover}%`],
+      ['総合収益性', `${summary.overallProfitability}%`],
+      ['GMROI', summary.gmroi],
+    ]
+
+    const csvContent = '\uFEFF' + rows.map(row => row.join(',')).join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `集計レポート_${label}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [summary, selectedYear, selectedMonth])
+
+  // 月別レポートCSVダウンロード
+  const downloadMonthlyCSV = useCallback(() => {
+    if (!monthlyData.length || !selectedYear) return
+
+    const headers = [
+      '月', '売上', '利益', '利益率(%)', '収益性(%)',
+      '出品数', '販売数',
+      '仕入件数', '仕入金額', '仕入単価',
+      '期首在庫数', '期首在庫高', '期末在庫数', '期末在庫高',
+      '数量回転率(%)', '売上回転率(%)', '原価回転率(%)',
+    ]
+
+    const rows = monthlyData.map(d => [
+      `${d.month}月`,
+      d.totalSales,
+      d.totalProfit,
+      d.profitRate,
+      d.overallProfitability,
+      d.listedCount,
+      d.soldCount,
+      d.purchasedCount,
+      d.purchaseValue,
+      d.avgPurchasePrice,
+      d.prevMonthEndStockCount,
+      d.beginningStockValue,
+      d.currentMonthEndStockCount,
+      d.endingStockValue,
+      d.stockCountTurnover,
+      d.salesTurnover,
+      d.costTurnover,
+    ])
+
+    if (yearlyTotal) {
+      rows.push([
+        '合計',
+        yearlyTotal.totalSales,
+        yearlyTotal.totalProfit,
+        yearlyTotal.profitRate,
+        yearlyTotal.overallProfitability,
+        yearlyTotal.listedCount,
+        yearlyTotal.soldCount,
+        yearlyTotal.purchasedCount,
+        yearlyTotal.purchaseValue,
+        yearlyTotal.avgPurchasePrice,
+        yearlyTotal.prevMonthEndStockCount,
+        yearlyTotal.beginningStockValue,
+        yearlyTotal.currentMonthEndStockCount,
+        yearlyTotal.endingStockValue,
+        yearlyTotal.stockCountTurnover,
+        yearlyTotal.salesTurnover,
+        yearlyTotal.costTurnover,
+      ])
+    }
+
+    const csvContent = '\uFEFF' + [headers, ...rows].map(row => row.join(',')).join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `月別レポート_${selectedYear}年.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [monthlyData, yearlyTotal, selectedYear])
+
   // 前月比表示用のヘルパー関数
-  const formatDiff = (current: number, previous: number | undefined, isPercentage: boolean = false, isCurrency: boolean = true, decimals: number = 0) => {
+  const formatDiff =(current: number, previous: number | undefined, isPercentage: boolean = false, isCurrency: boolean = true, decimals: number = 0) => {
     if (previous === undefined || previous === null) return null
     const diff = current - previous
     const percentChange = previous !== 0 ? Math.round((diff / previous) * 100) : (diff !== 0 ? 100 : 0)
@@ -1180,14 +1281,22 @@ export default function SummaryPage() {
               <h2 className="text-base font-semibold text-white">
                 {selectedYear}年{selectedMonth === 'all' ? '（全月）' : `${parseInt(selectedMonth)}月`}の集計
               </h2>
-              {selectedMonth !== 'all' && (
+              <div className="flex items-center gap-4">
                 <button
-                  onClick={() => setIsEditingGoal(!isEditingGoal)}
+                  onClick={downloadSummaryCSV}
                   className="text-sm text-slate-300 hover:text-white transition-colors"
                 >
-                  {isEditingGoal ? 'キャンセル' : '目標を設定'}
+                  CSV出力
                 </button>
-              )}
+                {selectedMonth !== 'all' && (
+                  <button
+                    onClick={() => setIsEditingGoal(!isEditingGoal)}
+                    className="text-sm text-slate-300 hover:text-white transition-colors"
+                  >
+                    {isEditingGoal ? 'キャンセル' : '目標を設定'}
+                  </button>
+                )}
+              </div>
             </div>
             <table className="w-full text-sm">
               <thead>
@@ -1764,8 +1873,14 @@ export default function SummaryPage() {
         {/* 月別一覧表 */}
         {!loading && selectedYear && (
           <div className="bg-white rounded-xl border border-gray-200 mt-6 overflow-hidden">
-            <div className="px-6 py-4 bg-slate-800">
+            <div className="px-6 py-4 bg-slate-800 flex items-center justify-between">
               <h2 className="text-base font-semibold text-white">{selectedYear}年 月別レポート</h2>
+              <button
+                onClick={downloadMonthlyCSV}
+                className="text-sm text-slate-300 hover:text-white transition-colors"
+              >
+                CSV出力
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm whitespace-nowrap">
