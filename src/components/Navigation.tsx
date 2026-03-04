@@ -154,6 +154,12 @@ export default function Navigation() {
           >
             送料表
           </Link>
+          <Link
+            href="/balances"
+            className={`hidden md:block ${pathname === '/balances' ? activeLinkStyle : baseLinkStyle}`}
+          >
+            売掛金
+          </Link>
           {/* 閲覧専用ユーザーには設定メニューを非表示 */}
           {!isViewerUser && (
           <div
@@ -223,6 +229,7 @@ export default function Navigation() {
             {pathname === '/shipping' && '送料表'}
             {pathname.startsWith('/summary') && '売上'}
             {pathname.startsWith('/sales') && '売上入力'}
+            {pathname === '/balances' && '売掛金'}
             {pathname.startsWith('/settings') && '設定'}
           </span>
         </div>
@@ -307,6 +314,12 @@ export default function Navigation() {
                 className={pathname === '/shipping' ? mobileActiveLinkStyle : mobileBaseLinkStyle}
               >
                 送料表
+              </Link>
+              <Link
+                href="/balances"
+                className={pathname === '/balances' ? mobileActiveLinkStyle : mobileBaseLinkStyle}
+              >
+                売掛金
               </Link>
             </div>
 
