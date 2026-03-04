@@ -12,15 +12,15 @@ type BalanceRecord = {
   fetched_at: string
 }
 
-const PLATFORM_CONFIG: Record<string, { name: string; color: string }> = {
-  mercari: { name: 'メルカリ', color: '#FF0211' },
-  yahoo: { name: 'ヤフオク', color: '#FF0033' },
-  rakuma: { name: 'ラクマ', color: '#6F2DBD' },
-  'mercari-shops': { name: 'メルカリショップス', color: '#4DC4FF' },
-  paypal: { name: 'PayPal', color: '#003087' },
-  sbi: { name: '住信SBIネット銀行', color: '#0066CC' },
-  toei: { name: '東栄信用金庫', color: '#006633' },
-  shopify: { name: 'Shopify', color: '#96BF48' },
+const PLATFORM_CONFIG: Record<string, { name: string; color: string; category: 'receivable' | 'bank' }> = {
+  mercari: { name: 'メルカリ', color: '#FF0211', category: 'receivable' },
+  yahoo: { name: 'ヤフオク', color: '#FF0033', category: 'receivable' },
+  rakuma: { name: 'ラクマ', color: '#6F2DBD', category: 'receivable' },
+  'mercari-shops': { name: 'メルカリショップス', color: '#4DC4FF', category: 'receivable' },
+  paypal: { name: 'PayPal', color: '#003087', category: 'receivable' },
+  shopify: { name: 'Shopify', color: '#96BF48', category: 'receivable' },
+  sbi: { name: '住信SBIネット銀行', color: '#0066CC', category: 'bank' },
+  toei: { name: '東栄信用金庫', color: '#006633', category: 'bank' },
 }
 
 export default function BalancesPage() {
@@ -67,11 +67,20 @@ export default function BalancesPage() {
     }
   }
 
-  // 合計残高
-  const totalBalance = useMemo(
-    () => latestBalances.reduce((sum, b) => sum + b.balance, 0),
+  // カテゴリ別合計
+  const receivableTotal = useMemo(
+    () => latestBalances
+      .filter(b => PLATFORM_CONFIG[b.platform]?.category === 'receivable')
+      .reduce((sum, b) => sum + b.balance, 0),
     [latestBalances]
   )
+  const bankTotal = useMemo(
+    () => latestBalances
+      .filter(b => PLATFORM_CONFIG[b.platform]?.category === 'bank')
+      .reduce((sum, b) => sum + b.balance, 0),
+    [latestBalances]
+  )
+  const totalBalance = receivableTotal + bankTotal
 
   // グラフ用データ（日付ごとに各プラットフォームの残高をまとめる）
   const chartData = useMemo(() => {
@@ -105,25 +114,74 @@ export default function BalancesPage() {
           売掛金（売上残高）
         </h1>
 
-        {/* 合計残高 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">合計残高</div>
-          <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">
-            {totalBalance.toLocaleString()}
-            <span className="text-lg ml-1">円</span>
-          </div>
-          {latestBalances.length > 0 && (
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-              最終取得: {new Date(latestBalances.reduce((latest, b) =>
-                b.fetched_at > latest ? b.fetched_at : latest, ''
-              )).toLocaleString('ja-JP')}
+        {/* 合計サマリー */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">総合計</div>
+            <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">
+              {totalBalance.toLocaleString()}
+              <span className="text-lg ml-1">円</span>
             </div>
-          )}
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-orange-200 dark:border-orange-800 p-6">
+            <div className="text-sm text-orange-600 dark:text-orange-400 mb-1">売掛金</div>
+            <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+              {receivableTotal.toLocaleString()}
+              <span className="text-lg ml-1">円</span>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-800 p-6">
+            <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">口座残高</div>
+            <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+              {bankTotal.toLocaleString()}
+              <span className="text-lg ml-1">円</span>
+            </div>
+          </div>
         </div>
 
-        {/* プラットフォーム別カード */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {Object.entries(PLATFORM_CONFIG).map(([key, config]) => {
+        {/* 売掛金 */}
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">売掛金</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'receivable').map(([key, config]) => {
+            const record = latestBalances.find(b => b.platform === key)
+            return (
+              <div
+                key={key}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: config.color }}
+                  />
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {config.name}
+                  </span>
+                </div>
+                {record ? (
+                  <>
+                    <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                      {record.balance.toLocaleString()}
+                      <span className="text-sm ml-1">円</span>
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      {new Date(record.fetched_at).toLocaleString('ja-JP', {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-gray-400 dark:text-gray-500">未取得</div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* 口座残高 */}
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">口座残高</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'bank').map(([key, config]) => {
             const record = latestBalances.find(b => b.platform === key)
             return (
               <div
