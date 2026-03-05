@@ -35,6 +35,8 @@ const PLATFORM_CONFIG: Record<string, { name: string; color: string; category: '
   toei: { name: '東栄信用金庫', color: '#006633', category: 'bank' },
 }
 
+type TabType = 'assets' | 'liabilities'
+
 export default function BalancesPage() {
   const { user } = useAuth()
   const [latestBalances, setLatestBalances] = useState<BalanceRecord[]>([])
@@ -42,6 +44,7 @@ export default function BalancesPage() {
   const [stockValueCost, setStockValueCost] = useState(0)
   const [loans, setLoans] = useState<Loan[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabType>('assets')
 
   useEffect(() => {
     if (!user) return
@@ -204,182 +207,207 @@ export default function BalancesPage() {
           資産状況
         </h1>
 
-        {/* 合計サマリー */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-          <div className="col-span-2 md:col-span-1 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">純資産</div>
-            <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">
-              {netAssets.toLocaleString()}
-              <span className="text-lg ml-1">円</span>
-            </div>
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              資産合計 - 借入残高
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-orange-200 dark:border-orange-800 p-6">
-            <div className="text-sm text-orange-600 dark:text-orange-400 mb-1">売掛金</div>
-            <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {receivableTotal.toLocaleString()}
-              <span className="text-lg ml-1">円</span>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-800 p-6">
-            <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">口座残高</div>
-            <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {bankTotal.toLocaleString()}
-              <span className="text-lg ml-1">円</span>
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-green-200 dark:border-green-800 p-6">
-            <div className="text-sm text-green-600 dark:text-green-400 mb-1">在庫高（原価）</div>
-            <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {stockValueCost.toLocaleString()}
-              <span className="text-lg ml-1">円</span>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-red-200 dark:border-red-800 p-6">
-            <div className="text-sm text-red-600 dark:text-red-400 mb-1">借入残高</div>
-            <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {loanTotal.toLocaleString()}
-              <span className="text-lg ml-1">円</span>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">資産合計</div>
-            <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {totalAssets.toLocaleString()}
-              <span className="text-lg ml-1">円</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 売掛金 */}
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">売掛金</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'receivable').map(([key, config]) => {
-            const record = latestBalances.find(b => b.platform === key)
-            return (
-              <div
-                key={key}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: config.color }}
-                  />
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {config.name}
-                  </span>
-                </div>
-                {record ? (
-                  <>
-                    <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                      {record.balance.toLocaleString()}
-                      <span className="text-sm ml-1">円</span>
-                    </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      {new Date(record.fetched_at).toLocaleString('ja-JP', {
-                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-gray-400 dark:text-gray-500">未取得</div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* 口座残高 */}
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">口座残高</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'bank').map(([key, config]) => {
-            const record = latestBalances.find(b => b.platform === key)
-            return (
-              <div
-                key={key}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: config.color }}
-                  />
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {config.name}
-                  </span>
-                </div>
-                {record ? (
-                  <>
-                    <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                      {record.balance.toLocaleString()}
-                      <span className="text-sm ml-1">円</span>
-                    </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      {new Date(record.fetched_at).toLocaleString('ja-JP', {
-                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-gray-400 dark:text-gray-500">未取得</div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* 在庫高 */}
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">在庫高（原価）</h2>
+        {/* 純資産サマリー */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-          <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-            {stockValueCost.toLocaleString()}
-            <span className="text-lg ml-1">円</span>
-          </div>
-          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            単品在庫 + まとめ仕入れ未回収額（税抜）
+          <div className="flex items-baseline justify-between">
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">純資産（資産 - 負債）</div>
+              <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">
+                {netAssets.toLocaleString()}
+                <span className="text-lg ml-1">円</span>
+              </div>
+            </div>
+            <div className="text-right space-y-1">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                資産 <span className="font-bold text-gray-800 dark:text-gray-100">{totalAssets.toLocaleString()}円</span>
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                負債 <span className="font-bold text-red-600 dark:text-red-400">{loanTotal.toLocaleString()}円</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* 借入残高 */}
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">借入残高</h2>
-        {loansByLender.map(group => (
-          <div key={group.lender} className="mb-4">
-            <div className="flex items-baseline justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{group.lender}</span>
-              <span className="text-sm font-bold text-gray-800 dark:text-gray-100">
-                合計 {group.total.toLocaleString()}円
-              </span>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {group.loans.map(loan => (
-                <div
-                  key={loan.id}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
-                >
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                    {loan.name}
-                  </div>
-                  <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                    {loan.currentBalance.toLocaleString()}
-                    <span className="text-sm ml-1">円</span>
-                  </div>
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    月額 {loan.monthly_principal.toLocaleString()}円返済
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-        <div className="mb-6" />
+        {/* タブ切り替え */}
+        <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+          <button
+            onClick={() => setActiveTab('assets')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'assets'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            資産（{totalAssets.toLocaleString()}円）
+          </button>
+          <button
+            onClick={() => setActiveTab('liabilities')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'liabilities'
+                ? 'border-red-500 text-red-600 dark:text-red-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            負債（{loanTotal.toLocaleString()}円）
+          </button>
+        </div>
 
-        {/* 残高推移グラフ */}
-        {chartData.length > 1 && (
+        {activeTab === 'assets' && (
+          <>
+            {/* 資産サマリーカード */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-orange-200 dark:border-orange-800 p-6">
+                <div className="text-sm text-orange-600 dark:text-orange-400 mb-1">売掛金</div>
+                <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  {receivableTotal.toLocaleString()}
+                  <span className="text-lg ml-1">円</span>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-800 p-6">
+                <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">口座残高</div>
+                <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  {bankTotal.toLocaleString()}
+                  <span className="text-lg ml-1">円</span>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-green-200 dark:border-green-800 p-6">
+                <div className="text-sm text-green-600 dark:text-green-400 mb-1">在庫高（原価）</div>
+                <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  {stockValueCost.toLocaleString()}
+                  <span className="text-lg ml-1">円</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 売掛金 */}
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">売掛金</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'receivable').map(([key, config]) => {
+                const record = latestBalances.find(b => b.platform === key)
+                return (
+                  <div
+                    key={key}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: config.color }}
+                      />
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        {config.name}
+                      </span>
+                    </div>
+                    {record ? (
+                      <>
+                        <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                          {record.balance.toLocaleString()}
+                          <span className="text-sm ml-1">円</span>
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                          {new Date(record.fetched_at).toLocaleString('ja-JP', {
+                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-gray-400 dark:text-gray-500">未取得</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* 口座残高 */}
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">口座残高</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'bank').map(([key, config]) => {
+                const record = latestBalances.find(b => b.platform === key)
+                return (
+                  <div
+                    key={key}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: config.color }}
+                      />
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        {config.name}
+                      </span>
+                    </div>
+                    {record ? (
+                      <>
+                        <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                          {record.balance.toLocaleString()}
+                          <span className="text-sm ml-1">円</span>
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                          {new Date(record.fetched_at).toLocaleString('ja-JP', {
+                            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-gray-400 dark:text-gray-500">未取得</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* 在庫高 */}
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">在庫高（原価）</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+              <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                {stockValueCost.toLocaleString()}
+                <span className="text-lg ml-1">円</span>
+              </div>
+              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                単品在庫 + まとめ仕入れ未回収額（税抜）
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'liabilities' && (
+          <>
+            {/* 借入残高 */}
+            {loansByLender.map(group => (
+              <div key={group.lender} className="mb-6">
+                <div className="flex items-baseline justify-between mb-3">
+                  <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{group.lender}</h2>
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                    合計 {group.total.toLocaleString()}円
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {group.loans.map(loan => (
+                    <div
+                      key={loan.id}
+                      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+                    >
+                      <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                        {loan.name}
+                      </div>
+                      <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                        {loan.currentBalance.toLocaleString()}
+                        <span className="text-sm ml-1">円</span>
+                      </div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        月額 {loan.monthly_principal.toLocaleString()}円返済
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* 残高推移グラフ（資産タブのみ） */}
+        {activeTab === 'assets' && chartData.length > 1 && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
               残高推移（過去30日）
