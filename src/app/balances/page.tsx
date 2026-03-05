@@ -74,6 +74,25 @@ export default function BalancesPage() {
     fetchData()
   }, [user])
 
+  // 大量データを並列ページネーションで取得するヘルパー（ダッシュボードと同じ）
+  async function fetchAllRows<T>(table: string, select: string): Promise<T[]> {
+    const { count } = await supabase.from(table).select(select, { count: 'exact', head: true })
+    if (!count || count === 0) return []
+    const pageSize = 1000
+    const pages = Math.ceil(count / pageSize)
+    const results = await Promise.all(
+      Array.from({ length: pages }, (_, i) =>
+        supabase.from(table).select(select).range(i * pageSize, (i + 1) * pageSize - 1)
+      )
+    )
+    const allData: T[] = []
+    for (const { data, error } of results) {
+      if (error) { console.error(`Error fetching ${table}:`, error); continue }
+      if (data) allData.push(...(data as T[]))
+    }
+    return allData
+  }
+
   async function fetchData() {
     setLoading(true)
     try {
@@ -101,11 +120,8 @@ export default function BalancesPage() {
             .gte('fetched_at', thirtyDaysAgo.toISOString())
             .order('fetched_at', { ascending: true })
         })(),
-        // 在庫データ（在庫高計算用）
-        supabase
-          .from('inventory')
-          .select('purchase_price, purchase_total, sale_date, listing_date')
-          .then(r => r.data || []),
+        // 在庫データ（在庫高計算用）— ページネーションで全件取得
+        fetchAllRows<InventoryItem>('inventory', 'purchase_price, purchase_total, sale_date, listing_date'),
         supabase
           .from('bulk_purchases')
           .select('id, total_amount, total_quantity')
