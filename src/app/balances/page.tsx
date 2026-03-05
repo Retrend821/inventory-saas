@@ -404,11 +404,11 @@ export default function BalancesPage() {
               key={loan.id}
               className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
             >
-              <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                {loan.name}
+              <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
+                {loan.lender}
               </div>
               <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                {loan.lender}
+                {loan.name}
               </div>
               <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
                 {loan.currentBalance.toLocaleString()}
