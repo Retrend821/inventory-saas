@@ -24,7 +24,7 @@ type Loan = {
   is_active: boolean
 }
 
-const PLATFORM_CONFIG: Record<string, { name: string; color: string; category: 'receivable' | 'bank' }> = {
+const PLATFORM_CONFIG: Record<string, { name: string; color: string; category: 'receivable' | 'bank' | 'credit-card' }> = {
   mercari: { name: 'メルカリ', color: '#FF0211', category: 'receivable' },
   yahoo: { name: 'ヤフオク', color: '#FF0033', category: 'receivable' },
   rakuma: { name: 'ラクマ', color: '#6F2DBD', category: 'receivable' },
@@ -33,6 +33,8 @@ const PLATFORM_CONFIG: Record<string, { name: string; color: string; category: '
   shopify: { name: 'Shopify', color: '#96BF48', category: 'receivable' },
   sbi: { name: '住信SBIネット銀行', color: '#0066CC', category: 'bank' },
   toei: { name: '東栄信用金庫', color: '#006633', category: 'bank' },
+  amex: { name: 'アメックス', color: '#006FCF', category: 'credit-card' },
+  'smbc-card': { name: '三井住友カード', color: '#00A650', category: 'credit-card' },
 }
 
 type TabType = 'assets' | 'liabilities'
@@ -256,8 +258,16 @@ export default function BalancesPage() {
     return Object.values(grouped)
   }, [loanBalances])
 
+  const creditCardTotal = useMemo(
+    () => latestBalances
+      .filter(b => PLATFORM_CONFIG[b.platform]?.category === 'credit-card')
+      .reduce((sum, b) => sum + b.balance, 0),
+    [latestBalances]
+  )
+
   const totalAssets = receivableTotal + bankTotal + stockValueCost
-  const netAssets = totalAssets - loanTotal
+  const totalLiabilities = loanTotal + creditCardTotal
+  const netAssets = totalAssets - totalLiabilities
 
   // グラフ用データ
   const chartData = useMemo(() => {
@@ -343,7 +353,7 @@ export default function BalancesPage() {
                 資産 <span className="font-bold text-gray-800 dark:text-gray-100">{totalAssets.toLocaleString()}円</span>
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                負債 <span className="font-bold text-red-600 dark:text-red-400">{loanTotal.toLocaleString()}円</span>
+                負債 <span className="font-bold text-red-600 dark:text-red-400">{totalLiabilities.toLocaleString()}円</span>
               </div>
             </div>
           </div>
@@ -369,7 +379,7 @@ export default function BalancesPage() {
                 : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
-            負債（{loanTotal.toLocaleString()}円）
+            負債（{totalLiabilities.toLocaleString()}円）
           </button>
         </div>
 
@@ -494,6 +504,52 @@ export default function BalancesPage() {
 
         {activeTab === 'liabilities' && (
           <>
+            {/* クレジットカード未払い残高 */}
+            <div className="mb-6">
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">クレジットカード</h2>
+                <span className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                  合計 {creditCardTotal.toLocaleString()}円
+                </span>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'credit-card').map(([key, config]) => {
+                  const record = latestBalances.find(b => b.platform === key)
+                  return (
+                    <div
+                      key={key}
+                      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: config.color }}
+                        />
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                          {config.name}
+                        </span>
+                      </div>
+                      {record ? (
+                        <>
+                          <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                            {record.balance.toLocaleString()}
+                            <span className="text-sm ml-1">円</span>
+                          </div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            {new Date(record.fetched_at).toLocaleString('ja-JP', {
+                              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-gray-400 dark:text-gray-500">未取得</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
             {/* 借入残高 */}
             {loansByLender.map(group => (
               <div key={group.lender} className="mb-6">
