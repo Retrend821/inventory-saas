@@ -48,6 +48,28 @@ export default function BalancesPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabType>('assets')
 
+  // クレカ手動入力
+  const [editingCard, setEditingCard] = useState<string | null>(null)
+  const [cardInputValue, setCardInputValue] = useState('')
+  const [savingCard, setSavingCard] = useState(false)
+
+  const saveCardBalance = useCallback(async (platform: string, amount: number) => {
+    setSavingCard(true)
+    try {
+      const { error } = await supabase
+        .from('platform_balances')
+        .insert({ platform, balance: amount, fetched_at: new Date().toISOString() })
+      if (error) throw error
+      setEditingCard(null)
+      setCardInputValue('')
+      await fetchData()
+    } catch (e) {
+      console.error('保存エラー:', e)
+    } finally {
+      setSavingCard(false)
+    }
+  }, [])
+
   // 売掛金取得ツール連携
   const [collectorStatus, setCollectorStatus] = useState<'idle' | 'checking' | 'running' | 'done' | 'error'>('idle')
   const [collectorLogs, setCollectorLogs] = useState<string[]>([])
@@ -515,21 +537,57 @@ export default function BalancesPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {Object.entries(PLATFORM_CONFIG).filter(([, c]) => c.category === 'credit-card').map(([key, config]) => {
                   const record = latestBalances.find(b => b.platform === key)
+                  const isEditing = editingCard === key
                   return (
                     <div
                       key={key}
                       className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: config.color }}
-                        />
-                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                          {config.name}
-                        </span>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: config.color }}
+                          />
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            {config.name}
+                          </span>
+                        </div>
+                        {!isEditing && (
+                          <button
+                            onClick={() => { setEditingCard(key); setCardInputValue(record ? String(record.balance) : '') }}
+                            className="text-xs text-blue-500 hover:text-blue-600"
+                          >
+                            {record ? '更新' : '入力'}
+                          </button>
+                        )}
                       </div>
-                      {record ? (
+                      {isEditing ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={cardInputValue}
+                            onChange={(e) => setCardInputValue(e.target.value)}
+                            placeholder="金額"
+                            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && cardInputValue) {
+                                saveCardBalance(key, parseInt(cardInputValue, 10))
+                              } else if (e.key === 'Escape') {
+                                setEditingCard(null)
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => cardInputValue && saveCardBalance(key, parseInt(cardInputValue, 10))}
+                            disabled={!cardInputValue || savingCard}
+                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                          >
+                            保存
+                          </button>
+                        </div>
+                      ) : record ? (
                         <>
                           <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
                             {record.balance.toLocaleString()}
