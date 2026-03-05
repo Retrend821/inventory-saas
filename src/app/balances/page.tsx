@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { calcStockValueCost } from '@/lib/calcStockValue'
@@ -45,6 +45,89 @@ export default function BalancesPage() {
   const [loans, setLoans] = useState<Loan[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabType>('assets')
+
+  // 売掛金取得ツール連携
+  const [collectorStatus, setCollectorStatus] = useState<'idle' | 'checking' | 'running' | 'done' | 'error'>('idle')
+  const [collectorLogs, setCollectorLogs] = useState<string[]>([])
+  const [serverAvailable, setServerAvailable] = useState(false)
+  const logsEndRef = useRef<HTMLDivElement>(null)
+  const BALANCE_SERVER = 'http://localhost:3456'
+
+  // サーバー生存確認
+  const checkServer = useCallback(async () => {
+    try {
+      const res = await fetch(`${BALANCE_SERVER}/health`, { signal: AbortSignal.timeout(2000) })
+      const data = await res.json()
+      setServerAvailable(data.status === 'ok')
+      return data.status === 'ok'
+    } catch {
+      setServerAvailable(false)
+      return false
+    }
+  }, [])
+
+  useEffect(() => {
+    checkServer()
+  }, [checkServer])
+
+  // ログ自動スクロール
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [collectorLogs])
+
+  // 残高取得実行
+  const runCollector = useCallback(async (only?: string) => {
+    const available = await checkServer()
+    if (!available) {
+      setCollectorStatus('error')
+      setCollectorLogs(['サーバーに接続できません。ターミナルで以下を実行してください:', '', '  cd 13_売掛金一括取得ツール && node balance_server.cjs'])
+      return
+    }
+
+    setCollectorStatus('running')
+    setCollectorLogs([])
+
+    try {
+      const url = only ? `${BALANCE_SERVER}/run?only=${only}` : `${BALANCE_SERVER}/run`
+      const res = await fetch(url)
+      const reader = res.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) throw new Error('レスポンスの読み取りに失敗')
+
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            if (event.type === 'log' || event.type === 'error') {
+              setCollectorLogs(prev => [...prev, event.data])
+            } else if (event.type === 'start') {
+              setCollectorLogs(prev => [...prev, event.data.message])
+            } else if (event.type === 'done') {
+              setCollectorLogs(prev => [...prev, '', event.data.message])
+              setCollectorStatus(event.data.code === 0 ? 'done' : 'error')
+              // 完了後にデータを再取得
+              if (event.data.code === 0) {
+                setTimeout(() => fetchData(), 1000)
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch (e) {
+      setCollectorStatus('error')
+      setCollectorLogs(prev => [...prev, `エラー: ${e instanceof Error ? e.message : String(e)}`])
+    }
+  }, [checkServer])
 
   useEffect(() => {
     if (!user) return
@@ -203,9 +286,47 @@ export default function BalancesPage() {
   return (
     <div className="min-h-screen pt-14 bg-gray-50 dark:bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">
-          資産状況
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+            資産状況
+          </h1>
+          <button
+            onClick={() => runCollector()}
+            disabled={collectorStatus === 'running'}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              collectorStatus === 'running'
+                ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                : serverAvailable
+                  ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
+            }`}
+          >
+            {collectorStatus === 'running' ? '取得中...' : '残高を更新'}
+          </button>
+        </div>
+
+        {/* 取得ログ表示 */}
+        {collectorLogs.length > 0 && (
+          <div className="bg-gray-900 rounded-xl p-4 mb-6 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400">実行ログ</span>
+              {collectorStatus !== 'running' && (
+                <button
+                  onClick={() => { setCollectorLogs([]); setCollectorStatus('idle') }}
+                  className="text-xs text-gray-500 hover:text-gray-300"
+                >
+                  閉じる
+                </button>
+              )}
+            </div>
+            <div className="font-mono text-xs text-gray-300 space-y-0.5">
+              {collectorLogs.map((line, i) => (
+                <div key={i} className={line.includes('エラー') ? 'text-red-400' : ''}>{line || '\u00A0'}</div>
+              ))}
+              <div ref={logsEndRef} />
+            </div>
+          </div>
+        )}
 
         {/* 純資産サマリー */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
@@ -458,15 +579,13 @@ export default function BalancesPage() {
               はじめに
             </h2>
             <p className="text-sm text-blue-700 dark:text-blue-400 mb-3">
-              売掛金データを取得するには、ターミナルで以下のコマンドを実行してください。
+              売掛金データを取得するには、APIサーバーを起動してから「残高を更新」ボタンを押してください。
             </p>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 font-mono text-sm text-gray-800 dark:text-gray-200">
-              <div className="text-gray-500 dark:text-gray-500 mb-1"># 初回: メルカリにログイン</div>
+              <div className="text-gray-500 dark:text-gray-500 mb-1"># APIサーバー起動（初回のみ）</div>
+              <div>cd 13_売掛金一括取得ツール && node balance_server.cjs</div>
+              <div className="text-gray-500 dark:text-gray-500 mt-2 mb-1"># 初回: メルカリにログイン</div>
               <div>node balance_collector.cjs --setup mercari</div>
-              <div className="text-gray-500 dark:text-gray-500 mt-2 mb-1"># 全サービスの残高を取得</div>
-              <div>node balance_collector.cjs</div>
-              <div className="text-gray-500 dark:text-gray-500 mt-2 mb-1"># またはメニューから</div>
-              <div>./balance_collector.sh</div>
             </div>
           </div>
         )}
