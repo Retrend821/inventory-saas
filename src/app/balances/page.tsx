@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { calcStockValueCost } from '@/lib/calcStockValue'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 type BalanceRecord = {
@@ -10,31 +11,6 @@ type BalanceRecord = {
   platform: string
   balance: number
   fetched_at: string
-}
-
-type InventoryItem = {
-  purchase_price: number | null
-  purchase_total: number | null
-  sale_date: string | null
-  listing_date: string | null
-}
-
-type BulkPurchase = {
-  id: string
-  total_amount: number
-  total_quantity: number
-}
-
-type BulkSale = {
-  bulk_purchase_id: string
-  sale_destination: string | null
-  quantity: number
-  sale_amount: number
-  commission: number
-  shipping_cost: number
-  purchase_price: number | null
-  other_cost: number | null
-  deposit_amount: number | null
 }
 
 type Loan = {
@@ -63,9 +39,7 @@ export default function BalancesPage() {
   const { user } = useAuth()
   const [latestBalances, setLatestBalances] = useState<BalanceRecord[]>([])
   const [historyData, setHistoryData] = useState<BalanceRecord[]>([])
-  const [inventory, setInventory] = useState<InventoryItem[]>([])
-  const [bulkPurchases, setBulkPurchases] = useState<BulkPurchase[]>([])
-  const [bulkSales, setBulkSales] = useState<BulkSale[]>([])
+  const [stockValueCost, setStockValueCost] = useState(0)
   const [loans, setLoans] = useState<Loan[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -110,7 +84,6 @@ export default function BalancesPage() {
 
       const [latestResults, historyResult, inventoryResult, bulkPurchasesResult, bulkSalesResult, loansResult] = await Promise.all([
         Promise.all(latestPromises),
-        // 過去30日の履歴を取得（グラフ用）
         (() => {
           const thirtyDaysAgo = new Date()
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
@@ -120,29 +93,17 @@ export default function BalancesPage() {
             .gte('fetched_at', thirtyDaysAgo.toISOString())
             .order('fetched_at', { ascending: true })
         })(),
-        // 在庫データ（在庫高計算用）— ページネーションで全件取得
-        fetchAllRows<InventoryItem>('inventory', 'purchase_price, purchase_total, sale_date, listing_date'),
-        supabase
-          .from('bulk_purchases')
-          .select('id, total_amount, total_quantity')
-          .then(r => r.data || []),
-        supabase
-          .from('bulk_sales')
-          .select('bulk_purchase_id, sale_destination, quantity, sale_amount, commission, shipping_cost, purchase_price, other_cost, deposit_amount')
-          .then(r => r.data || []),
-        // 融資データ
-        supabase
-          .from('loans')
-          .select('*')
-          .eq('is_active', true)
-          .then(r => r.data || []),
+        // 在庫データ — ダッシュボードと同じ共通関数で計算
+        fetchAllRows('inventory', 'purchase_price, purchase_total, sale_date, listing_date'),
+        supabase.from('bulk_purchases').select('id, total_amount, total_quantity').then(r => r.data || []),
+        supabase.from('bulk_sales').select('bulk_purchase_id, sale_destination, quantity, sale_amount, commission, shipping_cost, purchase_price, other_cost, deposit_amount').then(r => r.data || []),
+        supabase.from('loans').select('*').eq('is_active', true).then(r => r.data || []),
       ])
 
       setLatestBalances(latestResults.filter(Boolean) as BalanceRecord[])
       setHistoryData(historyResult.data || [])
-      setInventory(inventoryResult as InventoryItem[])
-      setBulkPurchases(bulkPurchasesResult as BulkPurchase[])
-      setBulkSales(bulkSalesResult as BulkSale[])
+      // 在庫原価はダッシュボードと同じ共通関数で計算
+      setStockValueCost(calcStockValueCost(inventoryResult as any, bulkPurchasesResult as any, bulkSalesResult as any))
       setLoans(loansResult as Loan[])
     } catch (e) {
       console.error('データ取得エラー:', e)
@@ -165,65 +126,25 @@ export default function BalancesPage() {
     [latestBalances]
   )
 
-  // 在庫高（原価）計算 — ダッシュボードと同じロジック
-  const stockValueCost = useMemo(() => {
-    const isExcludedText = (value: string | null) => {
-      if (!value) return false
-      return value.includes('返品') || value.includes('不明')
-    }
-
-    // 単品在庫の原価
-    const validItems = inventory.filter(item =>
-      !isExcludedText(item.sale_date) && !isExcludedText(item.listing_date)
-    )
-    const unsold = validItems.filter(item => !item.sale_date)
-    const unsoldValueCost = unsold.reduce((sum, item) => sum + (item.purchase_price || 0), 0)
-
-    // まとめ仕入れの未回収額
-    let bulkCumulativeProfit = 0
-    bulkPurchases.forEach(bp => {
-      const relatedSales = bulkSales.filter(sale => sale.bulk_purchase_id === bp.id)
-
-      // 仕入れ行: -total_amount
-      bulkCumulativeProfit -= bp.total_amount
-      // 販売行
-      relatedSales.forEach(sale => {
-        if (sale.sale_destination) {
-          const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
-          bulkCumulativeProfit += depositAmount
-        } else {
-          bulkCumulativeProfit -= (sale.purchase_price || 0)
-        }
-      })
-    })
-
-    const bulkUnrecovered = Math.max(0, -bulkCumulativeProfit)
-    const bulkUnrecoveredExTax = Math.round(bulkUnrecovered / 1.1)
-
-    return unsoldValueCost + bulkUnrecoveredExTax
-  }, [inventory, bulkPurchases, bulkSales])
-
   // 借入残高計算
   const loanBalances = useMemo(() => {
     const now = new Date()
     return loans.map(loan => {
       const firstDate = new Date(loan.first_payment_date)
       const firstYear = firstDate.getFullYear()
-      const firstMonth = firstDate.getMonth() // 0-indexed
+      const firstMonth = firstDate.getMonth()
 
       const currentYear = now.getFullYear()
       const currentMonth = now.getMonth()
       const currentDay = now.getDate()
 
-      // 今月の返済日を過ぎているか（payment_day=31は月末扱い）
       const paymentDay = loan.payment_day >= 28
-        ? new Date(currentYear, currentMonth + 1, 0).getDate() // 月末
+        ? new Date(currentYear, currentMonth + 1, 0).getDate()
         : loan.payment_day
       const paidThisMonth = currentDay >= paymentDay
 
-      // 返済済み月数を計算
       let monthsElapsed = (currentYear - firstYear) * 12 + (currentMonth - firstMonth)
-      if (paidThisMonth) monthsElapsed += 1 // 今月の返済済みを含める
+      if (paidThisMonth) monthsElapsed += 1
       if (monthsElapsed < 0) monthsElapsed = 0
 
       const balance = Math.max(0, loan.starting_balance - loan.monthly_principal * monthsElapsed)
@@ -236,16 +157,28 @@ export default function BalancesPage() {
     [loanBalances]
   )
 
+  // 金融機関ごとの借入合計
+  const loansByLender = useMemo(() => {
+    const grouped: Record<string, { lender: string; total: number; loans: typeof loanBalances }> = {}
+    for (const loan of loanBalances) {
+      if (!grouped[loan.lender]) {
+        grouped[loan.lender] = { lender: loan.lender, total: 0, loans: [] }
+      }
+      grouped[loan.lender].total += loan.currentBalance
+      grouped[loan.lender].loans.push(loan)
+    }
+    return Object.values(grouped)
+  }, [loanBalances])
+
   const totalAssets = receivableTotal + bankTotal + stockValueCost
   const netAssets = totalAssets - loanTotal
 
-  // グラフ用データ（日付ごとに各プラットフォームの残高をまとめる）
+  // グラフ用データ
   const chartData = useMemo(() => {
     const byDate: Record<string, Record<string, number>> = {}
     for (const record of historyData) {
-      const date = record.fetched_at.slice(0, 10) // YYYY-MM-DD
+      const date = record.fetched_at.slice(0, 10)
       if (!byDate[date]) byDate[date] = {}
-      // 同じ日に複数回取得した場合は最新のものを使う
       byDate[date][record.platform] = record.balance
     }
     return Object.entries(byDate)
@@ -414,28 +347,36 @@ export default function BalancesPage() {
 
         {/* 借入残高 */}
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">借入残高</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {loanBalances.map(loan => (
-            <div
-              key={loan.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
-            >
-              <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
-                {loan.lender}
-              </div>
-              <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                {loan.name}
-              </div>
-              <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                {loan.currentBalance.toLocaleString()}
-                <span className="text-sm ml-1">円</span>
-              </div>
-              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                月額 {loan.monthly_principal.toLocaleString()}円返済
-              </div>
+        {loansByLender.map(group => (
+          <div key={group.lender} className="mb-4">
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{group.lender}</span>
+              <span className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                合計 {group.total.toLocaleString()}円
+              </span>
             </div>
-          ))}
-        </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {group.loans.map(loan => (
+                <div
+                  key={loan.id}
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+                >
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                    {loan.name}
+                  </div>
+                  <div className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                    {loan.currentBalance.toLocaleString()}
+                    <span className="text-sm ml-1">円</span>
+                  </div>
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    月額 {loan.monthly_principal.toLocaleString()}円返済
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="mb-6" />
 
         {/* 残高推移グラフ */}
         {chartData.length > 1 && (

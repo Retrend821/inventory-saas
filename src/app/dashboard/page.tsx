@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { syncSalesSummary } from '@/lib/syncSalesSummary'
+import { calcStockValueCost } from '@/lib/calcStockValue'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
@@ -320,7 +321,6 @@ export default function DashboardPage() {
     // 未販売：売却日が空のもの（= 在庫数）
     const unsold = validItems.filter(item => !item.sale_date)
     const unsoldValue = unsold.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
-    const unsoldValueCost = unsold.reduce((sum, item) => sum + (item.purchase_price || 0), 0)
 
     // 未出品：未販売かつ出品日が空のもの
     const unlisted = unsold.filter(item => !item.listing_date)
@@ -331,10 +331,8 @@ export default function DashboardPage() {
     const listed = unsold.filter(item => item.listing_date)
     const listedValue = listed.reduce((sum, item) => sum + (item.purchase_total || 0), 0)
 
-    // まとめ仕入れの残在庫を計算（未回収額 = 仕入総額 + 未販売個別仕入額 - 入金額）
+    // まとめ仕入れの残在庫数
     let bulkStockCount = 0
-    let bulkCumulativeProfit = 0
-
     bulkPurchases.forEach(bp => {
       const relatedSales = bulkSales.filter(sale => sale.bulk_purchase_id === bp.id)
       const soldQuantity = relatedSales
@@ -344,37 +342,27 @@ export default function DashboardPage() {
       if (remaining > 0) {
         bulkStockCount += remaining
       }
-
-      // 仕入れ行: -total_amount
-      bulkCumulativeProfit -= bp.total_amount
-      // 販売行
-      relatedSales.forEach(sale => {
-        if (sale.sale_destination) {
-          // 販売済み: +入金額
-          const depositAmount = sale.deposit_amount ?? ((sale.sale_amount || 0) - (sale.commission || 0) - (sale.shipping_cost || 0))
-          bulkCumulativeProfit += depositAmount
-        } else {
-          // 未販売: -個別仕入額
-          bulkCumulativeProfit -= (sale.purchase_price || 0)
-        }
-      })
     })
 
-    // 未回収額（税込）→ 税抜にして原価とする
-    const bulkUnrecovered = Math.max(0, -bulkCumulativeProfit)
-    const bulkUnrecoveredExTax = Math.round(bulkUnrecovered / 1.1)
+    // 在庫原価は共通関数で計算
+    const totalStockValueCost = calcStockValueCost(inventory, bulkPurchases, bulkSales)
+
+    // 仕入総額ベースの在庫額（unsoldValueにまとめ仕入れ未回収額を加算）
+    const unsoldValueCost = unsold.reduce((sum, item) => sum + (item.purchase_price || 0), 0)
+    const bulkUnrecoveredExTax = totalStockValueCost - unsoldValueCost
+    const totalStockValue = unsoldValue + bulkUnrecoveredExTax
 
     return {
-      unsoldCount: unsold.length,                        // 在庫数（単品のみ）
-      unsoldValue: unsoldValue + bulkUnrecoveredExTax,   // 在庫総額（仕入総額ベース）
-      unsoldValueCost: unsoldValueCost + bulkUnrecoveredExTax, // 在庫総額（原価ベース）
-      listedCount,                       // 出品中（未販売 - 未出品）
-      listedValue,                       // 出品中の在庫金額
-      soldCount: sold.length,            // 売却済み
-      unlistedCount: unlisted.length,    // 未出品（単品のみ）
-      unlistedValue,                     // 未出品の在庫金額
-      totalStockValue: unsoldValue + bulkUnrecoveredExTax,      // 在庫総額（仕入総額ベース）
-      totalStockValueCost: unsoldValueCost + bulkUnrecoveredExTax // 在庫総額（原価ベース）
+      unsoldCount: unsold.length,
+      unsoldValue: totalStockValue,
+      unsoldValueCost: totalStockValueCost,
+      listedCount,
+      listedValue,
+      soldCount: sold.length,
+      unlistedCount: unlisted.length,
+      unlistedValue,
+      totalStockValue,
+      totalStockValueCost,
     }
   }, [inventory, bulkPurchases, bulkSales])
 
